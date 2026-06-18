@@ -1,0 +1,73 @@
+# ============================================================
+# TOEIC Master Pro — Docker Compose (môi trường Development)
+# ============================================================
+# Khởi động:  docker compose up -d
+# Dừng:       docker compose down
+# Xem logs:   docker compose logs -f
+# Xóa data:   docker compose down -v   ⚠️ xóa cả volume!
+#
+# Password mặc định lấy từ file .env (copy từ .env.example)
+# Nếu không có .env, dùng giá trị fallback sau dấu :-
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # SQL Server 2022 — Database chính của ứng dụng
+  # Kết nối: Server=localhost,1433;User Id=sa;Password=...
+  # Tool quản lý: Azure Data Studio hoặc DBeaver
+  # ----------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: toeic_sqlserver
+    environment:
+      - ACCEPT_EULA=Y                                      # Bắt buộc chấp nhận license
+      - SA_PASSWORD=${DB_PASSWORD:-ToeicMaster@2026}       # Mật khẩu tài khoản sa (min 8 ký tự, có chữ hoa + số + ký tự đặc biệt)
+      - MSSQL_PID=Developer                                # Bản Developer — miễn phí, đầy đủ tính năng Enterprise
+    ports:
+      - "1433:1433"                                        # host:container — chỉ expose local, không public
+    volumes:
+      - sqlserver_data:/var/opt/mssql                      # Persist data kể cả khi container restart
+    healthcheck:
+      # Kiểm tra SQL Server đã sẵn sàng nhận kết nối chưa
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${DB_PASSWORD:-ToeicMaster@2026}", "-C", "-Q", "SELECT 1"]
+      interval: 10s      # Kiểm tra mỗi 10 giây
+      timeout: 5s        # Timeout mỗi lần kiểm tra
+      retries: 10        # Thử lại 10 lần trước khi báo unhealthy (SQL Server khởi động chậm ~30s)
+      start_period: 30s  # Chờ 30s trước khi bắt đầu healthcheck (tránh false negative khi mới start)
+    restart: unless-stopped  # Tự restart nếu crash, trừ khi dừng thủ công
+
+  # ----------------------------------------------------------
+  # Redis 7.4 — Cache + Session + Leaderboard (Sorted Set)
+  # Kết nối: localhost:6379, password từ .env
+  # Tool quản lý: RedisInsight (GUI miễn phí của Redis)
+  # Dùng cho: JWT blacklist, AI response cache, rate limiting,
+  #           leaderboard (ZADD/ZRANGE), session store
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine                                # Alpine = image nhỏ gọn (~30MB vs ~100MB full)
+    container_name: toeic_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data                                   # Persist data với AOF (Append Only File)
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-ToeicRedis@2026}     # Bắt buộc xác thực — không bỏ qua dù là dev
+      --appendonly yes                                     # AOF persistence: ghi mọi lệnh ra file, an toàn hơn RDB
+      --maxmemory 256mb                                    # Giới hạn RAM — tránh Redis ăn hết bộ nhớ máy dev
+      --maxmemory-policy allkeys-lru                       # Khi đầy: xóa key ít dùng nhất (LRU eviction)
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-ToeicRedis@2026}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+# ----------------------------------------------------------
+# Named volumes — data được giữ kể cả khi container bị xóa
+# Xem vị trí thật: docker volume inspect toeic_sqlserver_data
+# ----------------------------------------------------------
+volumes:
+  sqlserver_data:   # Data SQL Server — migrations, tables, records
+  redis_data:       # Data Redis — cache, sessions, leaderboard

@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOEIC Master Pro — Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-light: #dbeafe;
+    --accent: #f59e0b;
+    --accent-light: #fef3c7;
+    --success: #10b981;
+    --danger: #ef4444;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+    --sidebar-w: 240px;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    --shadow-lg: 0 10px 15px rgba(0,0,0,.07), 0 4px 6px rgba(0,0,0,.05);
+  }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--gray-50); color: var(--gray-800); }
+
+  /* ===================== NAV TABS ===================== */
+  .page-tabs {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: var(--gray-900); display: flex; gap: 2px; padding: 8px 12px 0;
+  }
+  .page-tabs button {
+    padding: 8px 16px; border: none; border-radius: 8px 8px 0 0; cursor: pointer;
+    font-size: 12px; font-weight: 600; background: var(--gray-700); color: var(--gray-300);
+    transition: all .15s;
+  }
+  .page-tabs button.active { background: var(--gray-50); color: var(--gray-900); }
+  .page-tabs button:hover:not(.active) { background: var(--gray-600); }
+
+  /* ===================== PAGES ===================== */
+  .page { display: none; padding-top: 44px; min-height: 100vh; }
+  .page.active { display: block; }
+
+  /* ===================== LANDING PAGE ===================== */
+  .landing-nav {
+    position: sticky; top: 44px; z-index: 99;
+    background: rgba(255,255,255,.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--gray-200); padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between; height: 64px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: var(--primary); }
+  .logo-icon {
+    width: 36px; height: 36px; background: var(--primary); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;
+  }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; color: var(--gray-600); }
+  .nav-links a { text-decoration: none; color: inherit; font-weight: 500; }
+  .nav-links a:hover { color: var(--primary); }
+  .nav-cta { display: flex; gap: 10px; }
+  .btn { padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .15s; }
+  .btn-outline { background: none; border: 1.5px solid var(--primary); color: var(--primary); }
+  .btn-outline:hover { background: var(--primary-light); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-accent { background: var(--accent); color: white; }
+  .btn-accent:hover { filter: brightness(1.05); }
+  .btn-lg { padding: 14px 32px; font-size: 16px; border-radius: 12px; }
+  .btn-teal { background: #0d9488; color: white; }
+  .btn-teal:hover { background: #0f766e; }
+
+  /* Trust bar */
+  .trust-bar {
+    background: var(--gray-900); color: white; padding: 10px 24px;
+    display: flex; justify-content: center; gap: 40px; font-size: 13px;
+  }
+  .trust-item { display: flex; align-items: center; gap: 8px; }
+  .trust-item .tnum { font-weight: 800; color: #34d399; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%);
+    padding: 80px 24px; text-align: center; color: white; position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(255,255,255,.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 20%, rgba(99,179,237,.15) 0%, transparent 50%);
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+    padding: 6px 14px; border-radius: 100px; font-size: 13px; margin-bottom: 24px;
+    backdrop-filter: blur(4px);
+  }
+  .hero-tag span { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; display: inline-block; }
+  .hero h1 { font-size: 52px; font-weight: 900; line-height: 1.1; margin-bottom: 20px; position: relative; }
+  .hero h1 em { font-style: normal; color: #fbbf24; }
+  .hero p { font-size: 18px; opacity: .85; max-width: 580px; margin: 0 auto 36px; line-height: 1.6; position: relative; }
+  .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
+  .hero-stats { display: flex; gap: 40px; justify-content: center; margin-top: 56px; position: relative; }
+  .hero-stat { text-align: center; }
+  .hero-stat .num { font-size: 32px; font-weight: 800; }
+  .hero-stat .lbl { font-size: 13px; opacity: .75; margin-top: 2px; }
+
+  /* Roadmap selector */
+  .roadmap-section {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    padding: 64px 24px; color: white;
+  }
+  .roadmap-inner { max-width: 860px; margin: 0 auto; text-align: center; }
+  .roadmap-inner h2 { font-size: 30px; font-weight: 800; margin-bottom: 10px; }
+  .roadmap-inner p { opacity: .75; margin-bottom: 36px; font-size: 15px; }
+  .roadmap-selectors { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
+  .roadmap-select-wrap { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .roadmap-select-wrap label { font-size: 12px; font-weight: 600; opacity: .75; text-transform: uppercase; letter-spacing: .06em; }
+  .roadmap-select {
+    padding: 14px 20px; border-radius: 12px; border: 2px solid rgba(255,255,255,.2);
+    background: rgba(255,255,255,.1); color: white; font-size: 15px; font-weight: 600;
+    outline: none; cursor: pointer; min-width: 180px; backdrop-filter: blur(4px);
+  }
+  .roadmap-select option { background: #1e3a8a; }
+  .roadmap-arrow { font-size: 28px; opacity: .6; margin-top: 18px; }
+  .roadmap-result {
+    margin-top: 28px; background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.2);
+    border-radius: 16px; padding: 20px 28px; display: flex; align-items: center; gap: 16px;
+    text-align: left; backdrop-filter: blur(6px); max-width: 560px; margin: 28px auto 0;
+  }
+  .roadmap-result .ri { font-size: 32px; }
+  .roadmap-result .rt { font-size: 15px; line-height: 1.6; }
+  .roadmap-result .rt strong { font-size: 13px; display: block; opacity: .75; margin-bottom: 4px; text-transform: uppercase; }
+
+  /* Testimonials */
+  .testi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .testi-card {
+    background: white; border-radius: 16px; padding: 24px; box-shadow: var(--shadow);
+    border: 1px solid var(--gray-100); position: relative;
+  }
+  .testi-quote { font-size: 40px; color: var(--primary-light); line-height: 1; margin-bottom: 8px; }
+  .testi-text { font-size: 14px; color: var(--gray-600); line-height: 1.7; margin-bottom: 16px; font-style: italic; }
+  .testi-user { display: flex; align-items: center; gap: 12px; }
+  .testi-avatar { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+  .testi-name { font-size: 14px; font-weight: 700; }
+  .testi-info { font-size: 12px; color: var(--gray-400); }
+  .score-badge {
+    position: absolute; top: 20px; right: 20px;
+    background: var(--primary); color: white; font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 100px;
+  }
+  .score-badge.gold { background: var(--accent); }
+  .score-badge.green { background: var(--success); }
+
+  /* University logos */
+  .logo-marquee {
+    background: var(--gray-50); padding: 40px 24px; border-top: 1px solid var(--gray-100); border-bottom: 1px solid var(--gray-100);
+  }
+  .logo-marquee p { text-align: center; font-size: 13px; color: var(--gray-400); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 24px; }
+  .logo-row { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .uni-logo {
+    background: white; border: 1px solid var(--gray-200); border-radius: 10px;
+    padding: 10px 20px; font-size: 13px; font-weight: 700; color: var(--gray-500);
+    display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow);
+  }
+
+  /* Floating buttons */
+  .floating-btns {
+    position: fixed; bottom: 24px; right: 24px; z-index: 500;
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+  }
+  .float-btn {
+    width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer; box-shadow: var(--shadow-lg); border: none; transition: all .2s;
+  }
+  .float-btn:hover { transform: scale(1.1); }
+  .float-zalo { background: #0068ff; }
+  .float-mess { background: linear-gradient(135deg, #0099ff, #a033ff); }
+  .float-top { background: var(--gray-700); font-size: 16px; }
+
+  /* Placement test banner */
+  .placement-banner {
+    background: linear-gradient(135deg, #0d9488, #059669); padding: 28px 24px;
+    display: flex; align-items: center; justify-content: center; gap: 24px; flex-wrap: wrap;
+  }
+  .placement-banner .pb-text h3 { font-size: 18px; font-weight: 800; color: white; }
+  .placement-banner .pb-text p { font-size: 14px; color: rgba(255,255,255,.8); margin-top: 4px; }
+
+  /* Features */
+  .section { padding: 72px 24px; max-width: 1100px; margin: 0 auto; }
+  .section-title { text-align: center; margin-bottom: 48px; }
+  .section-title h2 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
+  .section-title p { color: var(--gray-500); font-size: 16px; }
+
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .feature-card {
+    background: white; border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow);
+    border: 1px solid var(--gray-100); transition: all .2s;
+  }
+  .feature-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+  .feature-icon {
+    width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; font-size: 22px; margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .feature-card p { font-size: 14px; color: var(--gray-500); line-height: 1.6; }
+  .badge-new {
+    display: inline-block; background: var(--primary-light); color: var(--primary);
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 100px; margin-left: 6px;
+  }
+
+  /* Pricing */
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 900px; margin: 0 auto; }
+  .pricing-card {
+    background: white; border-radius: 16px; padding: 32px; box-shadow: var(--shadow);
+    border: 1.5px solid var(--gray-200); position: relative; text-align: center;
+  }
+  .pricing-card.featured { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-light), var(--shadow-lg); }
+  .pricing-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--primary); color: white; font-size: 11px; font-weight: 700;
+    padding: 4px 14px; border-radius: 100px; white-space: nowrap;
+  }
+  .pricing-card .plan { font-size: 13px; color: var(--gray-500); font-weight: 600; margin-bottom: 8px; }
+  .pricing-card .price { font-size: 36px; font-weight: 900; color: var(--gray-900); }
+  .pricing-card .price sub { font-size: 14px; color: var(--gray-400); }
+  .pricing-card .price span { font-size: 16px; color: var(--gray-400); }
+  .pricing-divider { border: none; border-top: 1px solid var(--gray-100); margin: 20px 0; }
+  .pricing-features { list-style: none; text-align: left; }
+  .pricing-features li { font-size: 14px; color: var(--gray-600); padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .pricing-features li::before { content: '✓'; color: var(--success); font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .pricing-features li.dim { color: var(--gray-300); }
+  .pricing-features li.dim::before { color: var(--gray-300); }
+
+  /* ===================== DASHBOARD ===================== */
+  .app-shell { display: flex; min-height: calc(100vh - 44px); }
+  .sidebar {
+    width: var(--sidebar-w); background: white; border-right: 1px solid var(--gray-200);
+    display: flex; flex-direction: column; position: sticky; top: 44px; height: calc(100vh - 44px); overflow-y: auto;
+  }
+  .sidebar-logo { padding: 20px 18px; display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; color: var(--primary); border-bottom: 1px solid var(--gray-100); }
+  .sidebar-logo .logo-icon { width: 30px; height: 30px; font-size: 14px; }
+  .sidebar-section { padding: 14px 10px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--gray-400); }
+  .sidebar-menu { list-style: none; padding: 0 8px; }
+  .sidebar-menu li a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
+    text-decoration: none; color: var(--gray-600); font-size: 14px; font-weight: 500; transition: all .15s;
+  }
+  .sidebar-menu li a:hover { background: var(--gray-50); color: var(--gray-900); }
+  .sidebar-menu li a.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+  .sidebar-menu li a .icon { width: 18px; text-align: center; font-size: 16px; }
+  .sidebar-menu li a .cnt {
+    margin-left: auto; background: var(--primary); color: white;
+    font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 100px; min-width: 20px; text-align: center;
+  }
+  .sidebar-user { margin-top: auto; padding: 14px; border-top: 1px solid var(--gray-100); display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .avatar.sm { width: 30px; height: 30px; font-size: 12px; }
+  .sidebar-user-info .name { font-size: 13px; font-weight: 600; }
+  .sidebar-user-info .role { font-size: 11px; color: var(--gray-400); }
+  .xp-bar { height: 4px; background: var(--gray-100); border-radius: 100px; margin-top: 4px; }
+  .xp-fill { height: 100%; background: var(--accent); border-radius: 100px; width: 65%; }
+
+  .main-content { flex: 1; padding: 24px; min-width: 0; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .top-bar h1 { font-size: 22px; font-weight: 800; }
+  .top-bar .greeting { font-size: 13px; color: var(--gray-400); font-weight: 400; margin-top: 2px; }
+  .top-bar-actions { display: flex; align-items: center; gap: 12px; }
+  .streak-badge {
+    display: flex; align-items: center; gap: 6px; background: var(--accent-light);
+    border: 1.5px solid var(--accent); padding: 6px 14px; border-radius: 100px;
+    font-size: 13px; font-weight: 700; color: #92400e;
+  }
+
+  /* Stats cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: white; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+    border: 1px solid var(--gray-100); display: flex; align-items: flex-start; gap: 14px;
+  }
+  .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .stat-card .value { font-size: 24px; font-weight: 800; line-height: 1; }
+  .stat-card .label { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+  .stat-card .change { font-size: 11px; color: var(--success); font-weight: 600; margin-top: 4px; }
+
+  /* Chart area */
+  .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--gray-100); }
+  .card-header { padding: 18px 20px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h3 { font-size: 15px; font-weight: 700; }
+  .card-body { padding: 20px; }
+
+  /* Mock bar chart */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; }
+  .bar-chart .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar-chart .bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; }
+  .bar-chart .bar-label { font-size: 10px; color: var(--gray-400); }
+  .bar-chart .bar-score { font-size: 10px; font-weight: 600; color: var(--gray-600); }
+
+  /* Part analysis */
+  .part-list { display: flex; flex-direction: column; gap: 12px; }
+  .part-row { display: flex; flex-direction: column; gap: 4px; }
+  .part-row-header { display: flex; justify-content: space-between; font-size: 13px; }
+  .part-row .part-name { font-weight: 600; }
+  .part-row .part-pct { font-weight: 700; }
+  .progress-bar { height: 6px; background: var(--gray-100); border-radius: 100px; }
+  .progress-fill { height: 100%; border-radius: 100px; }
+
+  /* Study Plan */
+  .plan-items { display: flex; flex-direction: column; gap: 10px; }
+  .plan-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px;
+    border: 1px solid var(--gray-100);
+  }
+  .plan-item.done { opacity: .55; }
+  .plan-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--gray-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  .plan-check.checked { background: var(--success); border-color: var(--success); color: white; }
+  .plan-title { font-size: 13px; font-weight: 600; }
+  .plan-sub { font-size: 11px; color: var(--gray-400); }
+  .plan-time { margin-left: auto; font-size: 11px; color: var(--gray-400); white-space: nowrap; }
+
+  /* ===================== MOCK TEST PAGE ===================== */
+  .test-shell { display: flex; min-height: calc(100vh - 44px); }
+  .test-sidebar {
+    width: 220px; background: var(--gray-900); color: white; padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 16px; position: sticky; top: 44px; height: calc(100vh - 44px); overflow-y: auto;
+  }
+  .test-timer { text-align: center; }
+  .test-timer .time { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; color: #fbbf24; }
+  .test-timer .time-label { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .test-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--gray-400); margin-top: 8px; }
+  .question-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .q-num {
+    aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; background: var(--gray-700); color: var(--gray-300); cursor: pointer;
+  }
+  .q-num.answered { background: var(--primary); color: white; }
+  .q-num.current { background: var(--accent); color: white; }
+  .q-num.flagged { background: var(--danger); color: white; }
+  .test-legend { display: flex; flex-direction: column; gap: 6px; }
+  .test-legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--gray-400); }
+  .test-legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .test-main { flex: 1; display: flex; flex-direction: column; }
+  .test-topbar {
+    background: white; border-bottom: 1px solid var(--gray-200); padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .test-topbar .part-info { font-size: 13px; color: var(--gray-500); }
+  .test-topbar .q-counter { font-size: 18px; font-weight: 800; }
+  .test-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0; overflow-y: auto; }
+  .test-listening { background: var(--gray-50); padding: 32px; border-right: 1px solid var(--gray-200); }
+  .audio-player { background: white; border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .audio-waveform { height: 48px; background: linear-gradient(to bottom, var(--gray-100), var(--gray-100)); border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 12px; overflow: hidden; }
+  .wave-bar { width: 3px; background: var(--primary); border-radius: 2px; flex-shrink: 0; }
+  .audio-controls { display: flex; align-items: center; gap: 12px; }
+  .play-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .audio-progress { flex: 1; height: 4px; background: var(--gray-100); border-radius: 100px; position: relative; }
+  .audio-filled { height: 100%; width: 35%; background: var(--primary); border-radius: 100px; }
+  .audio-time { font-size: 11px; color: var(--gray-400); }
+  .test-image { width: 100%; border-radius: 12px; object-fit: cover; height: 180px; background: var(--gray-200); display: flex; align-items: center; justify-content: center; color: var(--gray-400); font-size: 14px; border: 2px dashed var(--gray-200); }
+  .test-question { padding: 32px; }
+  .q-text { font-size: 15px; font-weight: 600; margin-bottom: 24px; line-height: 1.6; color: var(--gray-800); }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 10px;
+    border: 1.5px solid var(--gray-200); cursor: pointer; transition: all .15s;
+  }
+  .option:hover { border-color: var(--primary); background: var(--primary-light); }
+  .option.selected { border-color: var(--primary); background: var(--primary-light); }
+  .option-label {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--gray-300);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+    flex-shrink: 0; color: var(--gray-500);
+  }
+  .option.selected .option-label { border-color: var(--primary); background: var(--primary); color: white; }
+  .option-text { font-size: 14px; }
+  .test-footer { background: white; border-top: 1px solid var(--gray-200); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .test-nav { display: flex; gap: 10px; }
+  .flag-btn { background: none; border: 1.5px solid var(--danger); color: var(--danger); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+
+  /* ===================== RESULT PAGE ===================== */
+  .result-page { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+  .result-hero { text-align: center; padding: 40px 20px; background: white; border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 24px; }
+  .score-ring { width: 160px; height: 160px; margin: 0 auto 20px; position: relative; }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring .ring-bg { fill: none; stroke: var(--gray-100); stroke-width: 12; }
+  .score-ring .ring-fill { fill: none; stroke: var(--primary); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 440; stroke-dashoffset: 110; transition: all 1s ease; }
+  .score-ring .score-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .score-ring .score-num .num { font-size: 40px; font-weight: 900; color: var(--gray-900); }
+  .score-ring .score-num .lbl { font-size: 12px; color: var(--gray-400); }
+  .result-hero h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+  .result-hero .subtitle { color: var(--gray-500); font-size: 14px; margin-bottom: 24px; }
+  .score-breakdown { display: flex; justify-content: center; gap: 32px; }
+  .score-part { text-align: center; }
+  .score-part .pnum { font-size: 28px; font-weight: 800; color: var(--primary); }
+  .score-part .plbl { font-size: 12px; color: var(--gray-400); }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+
+  /* AI Panel */
+  .ai-panel { background: linear-gradient(135deg, #1e3a8a, #2563eb); border-radius: 16px; padding: 24px; color: white; margin-bottom: 24px; }
+  .ai-panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .ai-icon { width: 36px; height: 36px; background: rgba(255,255,255,.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .ai-panel h3 { font-size: 16px; font-weight: 700; }
+  .ai-tips { display: flex; flex-direction: column; gap: 10px; }
+  .ai-tip { background: rgba(255,255,255,.1); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.6; border: 1px solid rgba(255,255,255,.15); }
+  .ai-tip strong { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; opacity: .75; display: block; margin-bottom: 4px; }
+
+  /* ===================== AI CHATBOT PAGE ===================== */
+  .chat-shell { display: flex; min-height: calc(100vh - 44px); }
+  .chat-sidebar { width: 260px; background: white; border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; }
+  .chat-sidebar-header { padding: 18px 16px; border-bottom: 1px solid var(--gray-100); }
+  .chat-sidebar-header h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .new-chat-btn { width: 100%; padding: 9px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .chat-history { flex: 1; padding: 12px 10px; overflow-y: auto; }
+  .chat-hist-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+  .chat-hist-item:hover { background: var(--gray-50); }
+  .chat-hist-item.active { background: var(--primary-light); }
+  .chat-hist-title { font-size: 13px; font-weight: 500; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-hist-date { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .chat-main { flex: 1; display: flex; flex-direction: column; }
+  .chat-topbar { background: white; border-bottom: 1px solid var(--gray-200); padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  .ai-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; flex-shrink: 0; }
+  .chat-topbar h3 { font-size: 15px; font-weight: 700; }
+  .chat-topbar p { font-size: 12px; color: var(--success); }
+  .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .chat-msg { display: flex; gap: 10px; max-width: 80%; }
+  .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-bubble { padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.6; }
+  .chat-msg.ai .msg-bubble { background: white; border: 1px solid var(--gray-100); box-shadow: var(--shadow); border-radius: 4px 14px 14px 14px; }
+  .chat-msg.user .msg-bubble { background: var(--primary); color: white; border-radius: 14px 4px 14px 14px; }
+  .msg-time { font-size: 10px; color: var(--gray-400); margin-top: 4px; text-align: right; }
+  .quick-questions { padding: 0 20px 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .quick-q { background: white; border: 1.5px solid var(--primary); color: var(--primary); padding: 7px 14px; border-radius: 100px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .quick-q:hover { background: var(--primary-light); }
+  .chat-input-bar { padding: 14px 20px; background: white; border-top: 1px solid var(--gray-100); display: flex; gap: 10px; }
+  .chat-input { flex: 1; padding: 12px 16px; border: 1.5px solid var(--gray-200); border-radius: 12px; font-size: 14px; outline: none; }
+  .chat-input:focus { border-color: var(--primary); }
+  .send-btn { width: 42px; height: 42px; border-radius: 10px; background: var(--primary); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+  /* ===================== SCHEDULE PAGE ===================== */
+  .schedule-page { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+  .schedule-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+  .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+  .filter-select { padding: 8px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-size: 13px; outline: none; background: white; }
+  .schedule-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .sched-card { background: white; border-radius: 14px; box-shadow: var(--shadow); border: 1px solid var(--gray-100); overflow: hidden; }
+  .sched-card-top { display: flex; padding: 18px 20px; gap: 16px; }
+  .sched-date-box { text-align: center; background: var(--primary); color: white; border-radius: 10px; padding: 10px 14px; min-width: 56px; }
+  .sched-date-box .day { font-size: 26px; font-weight: 900; line-height: 1; }
+  .sched-date-box .month { font-size: 11px; font-weight: 600; opacity: .85; }
+  .sched-info h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .sched-meta { display: flex; flex-direction: column; gap: 4px; }
+  .sched-meta-item { font-size: 12px; color: var(--gray-500); display: flex; align-items: center; gap: 6px; }
+  .sched-tag { display: inline-block; background: var(--primary-light); color: var(--primary); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 100px; }
+  .sched-tag.bc { background: #fce7f3; color: #9d174d; }
+  .sched-footer { border-top: 1px solid var(--gray-100); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .sched-deadline { font-size: 12px; color: var(--danger); font-weight: 600; }
+  .sched-remind-btn { padding: 6px 14px; background: none; border: 1.5px solid var(--primary); color: var(--primary); border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .sched-remind-btn.set { background: var(--primary); color: white; }
+
+  /* ===================== VOCAB PAGE ===================== */
+  .vocab-page { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+  .flashcard-area { perspective: 1000px; margin-bottom: 28px; }
+  .flashcard {
+    width: 100%; max-width: 520px; margin: 0 auto; height: 220px;
+    background: white; border-radius: 20px; box-shadow: var(--shadow-lg); border: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+  .flashcard::before { content: ''; position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: var(--primary-light); border-radius: 50%; }
+  .flashcard .word { font-size: 32px; font-weight: 800; color: var(--gray-900); position: relative; }
+  .flashcard .phonetic { font-size: 16px; color: var(--gray-400); font-style: italic; position: relative; }
+  .flashcard .tag { background: var(--primary-light); color: var(--primary); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 100px; position: relative; }
+  .flashcard-hint { text-align: center; font-size: 12px; color: var(--gray-400); margin-top: -16px; margin-bottom: 16px; }
+  .srs-actions { display: flex; justify-content: center; gap: 12px; }
+  .srs-btn { padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; }
+  .srs-hard { background: #fef2f2; color: var(--danger); border: 1.5px solid #fecaca; }
+  .srs-ok { background: var(--accent-light); color: #92400e; border: 1.5px solid #fde68a; }
+  .srs-easy { background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; }
+  .vocab-progress-section { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .vocab-stat-card { background: white; border-radius: 12px; padding: 16px; box-shadow: var(--shadow); text-align: center; }
+  .vocab-stat-card .vnum { font-size: 28px; font-weight: 800; }
+  .vocab-stat-card .vlbl { font-size: 12px; color: var(--gray-400); }
+
+  /* Shared utilities */
+  .text-primary { color: var(--primary); }
+  .text-success { color: var(--success); }
+  .text-danger { color: var(--danger); }
+  .text-accent { color: var(--accent); }
+  .text-muted { color: var(--gray-400); }
+  .fw-700 { font-weight: 700; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+  .chip-blue { background: var(--primary-light); color: var(--primary); }
+  .chip-green { background: #f0fdf4; color: #166534; }
+  .chip-yellow { background: var(--accent-light); color: #92400e; }
+  .chip-red { background: #fef2f2; color: var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- PAGE TABS -->
+<div class="page-tabs">
+  <button class="active" onclick="showPage('landing')">🏠 Landing Page</button>
+  <button onclick="showPage('dashboard')">📊 Dashboard</button>
+  <button onclick="showPage('mock-test')">📝 Thi thử</button>
+  <button onclick="showPage('result')">🏆 Kết quả</button>
+  <button onclick="showPage('ai-chat')">🤖 AI Chatbot</button>
+  <button onclick="showPage('schedule')">📅 Lịch thi</button>
+  <button onclick="showPage('vocab')">📚 Từ vựng</button>
+</div>
+
+<!-- ===================== LANDING PAGE ===================== -->
+<div class="page active" id="page-landing">
+
+  <!-- Trust bar -->
+  <div class="trust-bar">
+    <div class="trust-item">🏆 <span class="tnum">50,000+</span> học viên tin dùng</div>
+    <div class="trust-item">📜 <span class="tnum">8,240</span> chứng chỉ đã đạt (2025)</div>
+    <div class="trust-item">🤖 AI powered by Claude 3.5</div>
+    <div class="trust-item">⭐ <span class="tnum">4.9/5</span> đánh giá từ học viên</div>
+  </div>
+
+  <nav class="landing-nav">
+    <div class="logo">
+      <div class="logo-icon">T</div>
+      TOEIC Master Pro
+    </div>
+    <div class="nav-links">
+      <a href="#">Luyện tập</a>
+      <a href="#">Thi thử</a>
+      <a href="#">Từ vựng</a>
+      <a href="#">Lịch thi</a>
+      <a href="#">Blog</a>
+      <a href="#">Bảng xếp hạng</a>
+    </div>
+    <div class="nav-cta">
+      <button class="btn btn-outline">Đăng nhập</button>
+      <button class="btn btn-primary">Đăng ký miễn phí</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-tag">
+      <span></span>
+      Nền tảng luyện thi TOEIC #1 tích hợp AI tại Việt Nam
+    </div>
+    <h1>Học TOEIC đúng cách —<br><em>đạt điểm ngay lần đầu</em></h1>
+    <p>AI phân tích điểm yếu, tạo lộ trình cá nhân hóa, giải thích từng câu sai. Không mất thời gian ôn sai chỗ nữa.</p>
+    <div class="hero-actions">
+      <button class="btn btn-accent btn-lg">Kiểm tra trình độ miễn phí →</button>
+      <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:white;border:1.5px solid rgba(255,255,255,.3);">▶ Xem demo 2 phút</button>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">50K+</div><div class="lbl">Học viên đang dùng</div></div>
+      <div class="hero-stat" style="border-left:1px solid rgba(255,255,255,.2);padding-left:40px;"><div class="num">89%</div><div class="lbl">Đạt điểm mục tiêu</div></div>
+      <div class="hero-stat" style="border-left:1px solid rgba(255,255,255,.2);padding-left:40px;"><div class="num">200+</div><div class="lbl">Đề thi chuẩn ETS</div></div>
+      <div class="hero-stat" style="border-left:1px solid rgba(255,255,255,.2);padding-left:40px;"><div class="num">3,000+</div><div class="lbl">Từ vựng TOEIC</div></div>
+    </div>
+  </section>
+
+  <!-- University / Company logos -->
+  <div class="logo-marquee">
+    <p>Được sử dụng bởi học viên tại các trường đại học & doanh nghiệp</p>
+    <div class="logo-row">
+      <div class="uni-logo">🏛️ Đại học Bách Khoa HN</div>
+      <div class="uni-logo">🏛️ ĐH Kinh tế Quốc dân</div>
+      <div class="uni-logo">🏛️ ĐH Ngoại thương</div>
+      <div class="uni-logo">🏢 Vingroup</div>
+      <div class="uni-logo">🏢 FPT Software</div>
+      <div class="uni-logo">🏢 Samsung Việt Nam</div>
+      <div class="uni-logo">🏛️ ĐH Quốc gia HCM</div>
+    </div>
+  </div>
+
+  <!-- Roadmap Selector -->
+  <div class="roadmap-section">
+    <div class="roadmap-inner">
+      <h2>🗺️ Tìm lộ trình học phù hợp với bạn</h2>
+      <p>Chỉ cần chọn trình độ hiện tại và điểm mục tiêu — AI sẽ tạo kế hoạch học ngay</p>
+      <div class="roadmap-selectors">
+        <div class="roadmap-select-wrap">
+          <label>Trình độ hiện tại</label>
+          <select class="roadmap-select" id="sel-current" onchange="updateRoadmap()">
+            <option value="0">Mất gốc / Chưa học</option>
+            <option value="300">300–400 điểm</option>
+            <option value="450">450–550 điểm</option>
+            <option value="600">600–650 điểm</option>
+            <option value="700">700–750 điểm</option>
+          </select>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-select-wrap">
+          <label>Điểm mục tiêu</label>
+          <select class="roadmap-select" id="sel-target" onchange="updateRoadmap()">
+            <option value="450">450 (Cơ bản)</option>
+            <option value="600">600 (Trung cấp)</option>
+            <option value="700" selected>700 (Khá)</option>
+            <option value="800">800 (Giỏi)</option>
+            <option value="900">900+ (Xuất sắc)</option>
+          </select>
+        </div>
+      </div>
+      <div class="roadmap-result" id="roadmap-result">
+        <div class="ri">📅</div>
+        <div class="rt">
+          <strong>Lộ trình được đề xuất</strong>
+          Từ <b>450–550</b> lên <b>700</b>: ước tính <b>8–10 tuần</b>, ~45 phút/ngày.<br>
+          Tập trung: Part 3 &amp; 4 (Listening) + Part 7 (Đọc hiểu) + Từ vựng Business.
+        </div>
+      </div>
+      <button class="btn btn-accent btn-lg" style="margin-top:24px;">Bắt đầu lộ trình này →</button>
+    </div>
+  </div>
+
+  <!-- Placement test banner -->
+  <div class="placement-banner">
+    <div class="pb-text">
+      <h3>🎯 Không biết mình đang ở mức nào?</h3>
+      <p>Làm bài kiểm tra trình độ miễn phí trong 15 phút — nhận phân tích chi tiết từ AI ngay lập tức</p>
+    </div>
+    <button class="btn btn-lg" style="background:white;color:#0d9488;font-weight:800;white-space:nowrap;">Kiểm tra trình độ ngay (Miễn phí)</button>
+  </div>
+
+  <!-- Features -->
+  <div class="section">
+    <div class="section-title">
+      <h2>Tại sao chọn TOEIC Master Pro?</h2>
+      <p>Vượt trội hơn các nền tảng khác nhờ trí tuệ nhân tạo và trải nghiệm học tập thông minh</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#dbeafe;">🤖</div>
+        <h3>AI Study Coach <span class="badge-new">MỚI</span></h3>
+        <p>Trợ lý AI 24/7 giải thích tại sao đáp án đúng, gợi ý lộ trình học theo điểm yếu của bạn.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fce7f3;">📊</div>
+        <h3>Dự đoán điểm số <span class="badge-new">AI</span></h3>
+        <p>Phân tích lịch sử làm bài → ước tính điểm thi thật với độ chính xác 85–90%.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#d1fae5;">⚡</div>
+        <h3>Adaptive Testing</h3>
+        <p>Câu hỏi tự điều chỉnh độ khó theo năng lực. Học ít hơn, hiệu quả hơn.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fef3c7;">📅</div>
+        <h3>Lịch thi TOEIC Live</h3>
+        <p>Cập nhật lịch IIG, BC Vietnam realtime. Đặt nhắc nhở, export Google Calendar.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#ede9fe;">🎯</div>
+        <h3>Spaced Repetition</h3>
+        <p>Hệ thống từ vựng theo thuật toán SM-2. Nhớ lâu hơn, không bao giờ quên từ đã học.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fef2f2;">🏆</div>
+        <h3>1v1 Challenge</h3>
+        <p>Thi đấu thời gian thực với bạn bè. Leaderboard tuần/tháng với phần thưởng hấp dẫn.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Testimonials -->
+  <div style="background:var(--gray-50);padding:72px 24px;">
+    <div style="max-width:1100px;margin:0 auto;">
+      <div class="section-title">
+        <h2>Học viên nói gì về TOEIC Master Pro?</h2>
+        <p>Hơn 8,200 chứng chỉ được cấp — đây là chia sẻ từ những người đã đạt mục tiêu</p>
+      </div>
+      <div class="testi-grid">
+        <div class="testi-card">
+          <div class="score-badge gold">450 → 755 🎉</div>
+          <div class="testi-quote">"</div>
+          <div class="testi-text">Trước đây tôi học mãi mà không tăng điểm vì không biết mình yếu chỗ nào. TOEIC Master Pro chỉ đúng chỗ — Part 4 và từ vựng Finance là điểm yếu chính. AI giải thích từng câu sai rất dễ hiểu, sau 3 tháng tôi đạt 755!</div>
+          <div class="testi-user">
+            <div class="testi-avatar" style="background:#2563eb;">N</div>
+            <div>
+              <div class="testi-name">Nguyễn Thị Minh Anh</div>
+              <div class="testi-info">Sinh viên ĐH Ngoại thương · Đạt 755 tháng 3/2026</div>
+            </div>
+          </div>
+        </div>
+        <div class="testi-card">
+          <div class="score-badge">600 → 820 🏆</div>
+          <div class="testi-quote">"</div>
+          <div class="testi-text">Tôi cần 800 TOEIC để xin việc tại Samsung. Lộ trình AI cá nhân hóa giúp tôi tập trung đúng chỗ, không lãng phí thời gian. Chatbot AI giải đáp ngữ pháp nhanh hơn hỏi giáo viên. Đạt 820 sau 2 tháng tự học!</div>
+          <div class="testi-user">
+            <div class="testi-avatar" style="background:#7c3aed;">T</div>
+            <div>
+              <div class="testi-name">Trần Văn Hùng</div>
+              <div class="testi-info">Kỹ sư IT · Samsung Việt Nam · Đạt 820 tháng 1/2026</div>
+            </div>
+          </div>
+        </div>
+        <div class="testi-card">
+          <div class="score-badge green">Mất gốc → 650</div>
+          <div class="testi-quote">"</div>
+          <div class="testi-text">Tôi không biết gì về TOEIC, làm bài kiểm tra trình độ xong AI lập luôn kế hoạch 12 tuần. Mỗi ngày chỉ cần 30 phút theo đúng lộ trình. Streak 45 ngày liên tiếp — lần đầu tiên tôi học mà không bỏ cuộc giữa chừng!</div>
+          <div class="testi-user">
+            <div class="testi-avatar" style="background:#0d9488;">L</div>
+            <div>
+              <div class="testi-name">Lê Phương Thảo</div>
+              <div class="testi-info">Nhân viên văn phòng · Đạt 650 tháng 5/2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:28px;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;">
+          <span style="color:#fbbf24;font-size:20px;">★★★★★</span>
+          <span style="font-size:18px;font-weight:800;">4.9</span>
+          <span style="color:var(--gray-400);font-size:14px;">/ 5.0 · 2,341 đánh giá</span>
+        </div>
+        <a href="#" style="color:var(--primary);font-size:14px;font-weight:600;text-decoration:none;">Xem thêm 300+ đánh giá →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing -->
+  <div class="section" style="background:var(--gray-50);max-width:100%;padding:72px 24px;">
+    <div style="max-width:900px;margin:0 auto;">
+      <div class="section-title">
+        <h2>Chọn gói phù hợp với bạn</h2>
+        <p>Bắt đầu miễn phí, nâng cấp khi cần</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="plan">Free</div>
+          <div class="price">0 <span>đ/tháng</span></div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li>10 đề luyện tập / tháng</li>
+            <li>1 mock test / tháng</li>
+            <li>500 từ vựng cơ bản</li>
+            <li>Lịch thi TOEIC</li>
+            <li class="dim">AI giải thích đáp án</li>
+            <li class="dim">Lộ trình cá nhân hóa</li>
+            <li class="dim">AI Chatbot</li>
+          </ul>
+          <button class="btn btn-outline" style="width:100%;margin-top:20px;">Đăng ký miễn phí</button>
+        </div>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Phổ biến nhất</div>
+          <div class="plan">Premium</div>
+          <div class="price">99.000 <sub>đ</sub><span>/tháng</span></div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li>Không giới hạn đề luyện</li>
+            <li>Không giới hạn mock test</li>
+            <li>3.000+ từ vựng TOEIC</li>
+            <li>Lịch thi + nhắc nhở Email</li>
+            <li>AI giải thích đáp án</li>
+            <li>Lộ trình cá nhân hóa AI</li>
+            <li>AI Chatbot 24/7</li>
+          </ul>
+          <button class="btn btn-primary" style="width:100%;margin-top:20px;">Dùng thử 7 ngày</button>
+        </div>
+        <div class="pricing-card">
+          <div class="plan">Premium Plus</div>
+          <div class="price">199.000 <sub>đ</sub><span>/tháng</span></div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li>Tất cả tính năng Premium</li>
+            <li>1v1 Real-time Challenge</li>
+            <li>Score Prediction AI</li>
+            <li>Adaptive Testing</li>
+            <li>Priority Support</li>
+            <li>Early access tính năng mới</li>
+            <li>Học nhóm (Group Study)</li>
+          </ul>
+          <button class="btn btn-accent" style="width:100%;margin-top:20px;">Nâng cấp ngay</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div class="page" id="page-dashboard">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon">T</div> Master Pro
+      </div>
+      <div class="sidebar-section">Học tập</div>
+      <ul class="sidebar-menu">
+        <li><a href="#" class="active"><span class="icon">📊</span> Dashboard</a></li>
+        <li><a href="#"><span class="icon">📝</span> Luyện tập</a></li>
+        <li><a href="#"><span class="icon">⏱️</span> Thi thử</a></li>
+        <li><a href="#"><span class="icon">📚</span> Từ vựng</a></li>
+        <li><a href="#"><span class="icon">🗺️</span> Lộ trình học</a></li>
+      </ul>
+      <div class="sidebar-section">Công cụ</div>
+      <ul class="sidebar-menu">
+        <li><a href="#"><span class="icon">🤖</span> AI Chatbot <span class="cnt">3</span></a></li>
+        <li><a href="#"><span class="icon">📅</span> Lịch thi</a></li>
+        <li><a href="#"><span class="icon">🏆</span> Xếp hạng</a></li>
+        <li><a href="#"><span class="icon">💬</span> Cộng đồng</a></li>
+      </ul>
+      <div class="sidebar-user">
+        <div class="avatar">N</div>
+        <div class="sidebar-user-info">
+          <div class="name">Nguyễn Văn A</div>
+          <div class="role">Premium · 2.450 XP</div>
+          <div class="xp-bar"><div class="xp-fill"></div></div>
+        </div>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div class="top-bar">
+        <div>
+          <div class="top-bar h1" style="font-size:22px;font-weight:800;">Xin chào, Nguyễn Văn A 👋</div>
+          <div style="font-size:13px;color:var(--gray-400);margin-top:4px;">Thứ Tư, 18 tháng 6, 2026 · Lịch thi gần nhất: 29/06</div>
+        </div>
+        <div class="top-bar-actions">
+          <div class="streak-badge">🔥 12 ngày liên tiếp</div>
+          <button class="btn btn-primary">+ Làm bài mới</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#dbeafe;">📈</div>
+          <div>
+            <div class="value">745</div>
+            <div class="label">Điểm dự đoán</div>
+            <div class="change">↑ +35 so với tháng trước</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#d1fae5;">✅</div>
+          <div>
+            <div class="value">1.247</div>
+            <div class="label">Câu đã làm</div>
+            <div class="change">↑ +84 tuần này</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fce7f3;">📚</div>
+          <div>
+            <div class="value">428</div>
+            <div class="label">Từ đã học</div>
+            <div class="change">↑ +23 tuần này</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fef3c7;">⏱️</div>
+          <div>
+            <div class="value">47h</div>
+            <div class="label">Tổng thời gian học</div>
+            <div class="change">Mục tiêu: 60h</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Chart -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Lịch sử điểm thi thử</h3>
+            <select style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 8px;font-size:12px;">
+              <option>6 lần gần nhất</option>
+            </select>
+          </div>
+          <div class="card-body">
+            <div class="bar-chart">
+              <div class="bar-group">
+                <div class="bar-score">620</div>
+                <div class="bar" style="height:62%;background:var(--gray-200);"></div>
+                <div class="bar-label">T3/25</div>
+              </div>
+              <div class="bar-group">
+                <div class="bar-score">660</div>
+                <div class="bar" style="height:66%;background:var(--gray-200);"></div>
+                <div class="bar-label">T4/25</div>
+              </div>
+              <div class="bar-group">
+                <div class="bar-score">680</div>
+                <div class="bar" style="height:68%;background:var(--primary-light);"></div>
+                <div class="bar-label">T5/25</div>
+              </div>
+              <div class="bar-group">
+                <div class="bar-score">700</div>
+                <div class="bar" style="height:70%;background:var(--primary-light);"></div>
+                <div class="bar-label">T1/26</div>
+              </div>
+              <div class="bar-group">
+                <div class="bar-score">720</div>
+                <div class="bar" style="height:72%;background:var(--primary);"></div>
+                <div class="bar-label">T3/26</div>
+              </div>
+              <div class="bar-group">
+                <div class="bar-score" style="color:var(--primary);">745</div>
+                <div class="bar" style="height:80%;background:var(--primary);"></div>
+                <div class="bar-label" style="font-weight:700;">T6/26</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding:12px;background:var(--primary-light);border-radius:8px;font-size:13px;">
+              🤖 <strong>AI:</strong> Bạn đang tăng ổn định. Cần tập trung Part 3–4 để đạt mục tiêu 800 vào tháng 9.
+            </div>
+          </div>
+        </div>
+
+        <!-- Part Analysis -->
+        <div class="card">
+          <div class="card-header"><h3>Phân tích theo Part</h3></div>
+          <div class="card-body">
+            <div class="part-list">
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 1 (Ảnh)</span>
+                  <span class="part-pct text-success">92%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:92%;background:var(--success);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 2 (Câu hỏi)</span>
+                  <span class="part-pct text-success">85%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:85%;background:var(--success);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 3 (Hội thoại)</span>
+                  <span class="part-pct text-accent">63%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:63%;background:var(--accent);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 4 (Độc thoại)</span>
+                  <span class="part-pct text-danger">55%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:55%;background:var(--danger);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 5 (Ngữ pháp)</span>
+                  <span class="part-pct text-success">78%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:78%;background:var(--success);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 6 (Điền từ)</span>
+                  <span class="part-pct text-accent">70%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:70%;background:var(--accent);"></div></div>
+              </div>
+              <div class="part-row">
+                <div class="part-row-header">
+                  <span class="part-name">Part 7 (Đọc hiểu)</span>
+                  <span class="part-pct text-accent">68%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:68%;background:var(--accent);"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Study Plan & Recent -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>📋 Kế hoạch học hôm nay</h3>
+            <span class="chip chip-blue">AI Generated</span>
+          </div>
+          <div class="card-body">
+            <div class="plan-items">
+              <div class="plan-item done">
+                <div class="plan-check checked">✓</div>
+                <div>
+                  <div class="plan-title">Ôn từ vựng SRS (Business)</div>
+                  <div class="plan-sub">20 từ đến hạn ôn</div>
+                </div>
+                <div class="plan-time">✅ Hoàn thành</div>
+              </div>
+              <div class="plan-item" style="background:var(--primary-light);border-color:var(--primary);">
+                <div class="plan-check" style="border-color:var(--primary)"></div>
+                <div>
+                  <div class="plan-title" style="color:var(--primary);">Luyện Part 4 — Thông báo</div>
+                  <div class="plan-sub">15 câu · Yếu nhất tuần này</div>
+                </div>
+                <div class="plan-time text-primary fw-700">Đang làm</div>
+              </div>
+              <div class="plan-item">
+                <div class="plan-check"></div>
+                <div>
+                  <div class="plan-title">Part 3 — Cuộc họp văn phòng</div>
+                  <div class="plan-sub">20 câu · Chủ đề yếu</div>
+                </div>
+                <div class="plan-time">25 phút</div>
+              </div>
+              <div class="plan-item">
+                <div class="plan-check"></div>
+                <div>
+                  <div class="plan-title">Part 5 — Thì động từ</div>
+                  <div class="plan-sub">15 câu ngữ pháp</div>
+                </div>
+                <div class="plan-time">15 phút</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;text-align:center;font-size:12px;color:var(--gray-400);">Hoàn thành 1/4 nhiệm vụ · ước tính 65 phút</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>🏆 Bảng xếp hạng tuần</h3></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+                <div style="font-size:18px;width:24px;text-align:center;">🥇</div>
+                <div class="avatar sm">T</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;">Trần Thị B</div>
+                  <div style="font-size:11px;color:var(--gray-400);">3.120 XP</div>
+                </div>
+                <div style="font-size:12px;font-weight:700;color:var(--accent);">🔥 24 ngày</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+                <div style="font-size:18px;width:24px;text-align:center;">🥈</div>
+                <div class="avatar sm" style="background:#6366f1;">P</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;">Phạm Minh C</div>
+                  <div style="font-size:11px;color:var(--gray-400);">2.890 XP</div>
+                </div>
+                <div style="font-size:12px;font-weight:700;color:var(--accent);">🔥 18 ngày</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--primary-light);border-radius:8px;border:1.5px solid var(--primary);">
+                <div style="font-size:18px;width:24px;text-align:center;font-weight:800;color:var(--primary);">4</div>
+                <div class="avatar sm">N</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:700;color:var(--primary);">Bạn · Nguyễn Văn A</div>
+                  <div style="font-size:11px;color:var(--gray-400);">2.450 XP</div>
+                </div>
+                <div style="font-size:12px;font-weight:700;color:var(--accent);">🔥 12 ngày</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+                <div style="font-size:18px;width:24px;text-align:center;">5</div>
+                <div class="avatar sm" style="background:#10b981;">L</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;">Lê Thanh D</div>
+                  <div style="font-size:11px;color:var(--gray-400);">2.280 XP</div>
+                </div>
+                <div style="font-size:12px;font-weight:700;color:var(--accent);">🔥 9 ngày</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ===================== MOCK TEST PAGE ===================== -->
+<div class="page" id="page-mock-test">
+  <div class="test-shell">
+    <div class="test-sidebar">
+      <div class="test-timer">
+        <div class="time">01:43:22</div>
+        <div class="time-label">Thời gian còn lại</div>
+      </div>
+      <div>
+        <div class="test-section-title">Listening (1–100)</div>
+        <div class="question-grid">
+          <div class="q-num answered">1</div><div class="q-num answered">2</div><div class="q-num answered">3</div><div class="q-num answered">4</div><div class="q-num answered">5</div>
+          <div class="q-num answered">6</div><div class="q-num answered">7</div><div class="q-num answered">8</div><div class="q-num answered">9</div><div class="q-num answered">10</div>
+          <div class="q-num answered">11</div><div class="q-num answered">12</div><div class="q-num answered">13</div><div class="q-num flagged">14</div><div class="q-num answered">15</div>
+          <div class="q-num current">16</div><div class="q-num">17</div><div class="q-num">18</div><div class="q-num">19</div><div class="q-num">20</div>
+          <div class="q-num">21</div><div class="q-num">22</div><div class="q-num">23</div><div class="q-num">24</div><div class="q-num">25</div>
+        </div>
+      </div>
+      <div>
+        <div class="test-section-title">Reading (101–200)</div>
+        <div class="question-grid">
+          <div class="q-num">101</div><div class="q-num">102</div><div class="q-num">103</div><div class="q-num">104</div><div class="q-num">105</div>
+        </div>
+      </div>
+      <div class="test-legend">
+        <div class="test-legend-item"><div class="test-legend-dot" style="background:var(--primary);"></div> Đã trả lời (15)</div>
+        <div class="test-legend-item"><div class="test-legend-dot" style="background:var(--accent);"></div> Đang làm (1)</div>
+        <div class="test-legend-item"><div class="test-legend-dot" style="background:var(--danger);"></div> Đánh dấu (1)</div>
+        <div class="test-legend-item"><div class="test-legend-dot" style="background:var(--gray-700);"></div> Chưa làm (183)</div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:auto;">Nộp bài sớm</button>
+    </div>
+
+    <div class="test-main">
+      <div class="test-topbar">
+        <div>
+          <div class="part-info">Part 3 · Đoạn hội thoại</div>
+          <div class="q-counter">Câu 16–18 / 200</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="chip chip-blue">Listening</span>
+          <span style="font-size:13px;color:var(--gray-400);">Lần thử: <strong>2</strong></span>
+        </div>
+      </div>
+
+      <div class="test-body">
+        <div class="test-listening">
+          <div class="audio-player">
+            <div class="audio-waveform">
+              <div class="wave-bar" style="height:20px;opacity:.4"></div><div class="wave-bar" style="height:35px;opacity:.6"></div><div class="wave-bar" style="height:45px;"></div><div class="wave-bar" style="height:28px;opacity:.7"></div><div class="wave-bar" style="height:40px;"></div><div class="wave-bar" style="height:32px;opacity:.8"></div><div class="wave-bar" style="height:48px;"></div><div class="wave-bar" style="height:25px;opacity:.5"></div><div class="wave-bar" style="height:38px;opacity:.7"></div><div class="wave-bar" style="height:42px;"></div><div class="wave-bar" style="height:30px;opacity:.6"></div><div class="wave-bar" style="height:44px;"></div><div class="wave-bar" style="height:22px;opacity:.4"></div><div class="wave-bar" style="height:36px;opacity:.7"></div><div class="wave-bar" style="height:46px;"></div><div class="wave-bar" style="height:29px;opacity:.5"></div>
+            </div>
+            <div class="audio-controls">
+              <button class="play-btn">⏸</button>
+              <div class="audio-progress"><div class="audio-filled"></div></div>
+              <span class="audio-time">0:42 / 2:05</span>
+            </div>
+          </div>
+          <div class="test-image">🖼 [Không có ảnh cho Part 3]</div>
+          <p style="margin-top:16px;font-size:13px;color:var(--gray-500);line-height:1.6;">
+            <strong>Transcript sẽ hiện sau khi nộp bài</strong><br>
+            Tập trung lắng nghe đoạn hội thoại giữa người đàn ông và người phụ nữ.
+          </p>
+        </div>
+
+        <div class="test-question">
+          <div class="q-text">16. What are the speakers mainly discussing?</div>
+          <div class="options">
+            <div class="option">
+              <div class="option-label">A</div>
+              <div class="option-text">A new company policy</div>
+            </div>
+            <div class="option selected">
+              <div class="option-label">B</div>
+              <div class="option-text">A project deadline</div>
+            </div>
+            <div class="option">
+              <div class="option-label">C</div>
+              <div class="option-text">A client complaint</div>
+            </div>
+            <div class="option">
+              <div class="option-label">D</div>
+              <div class="option-text">An office relocation</div>
+            </div>
+          </div>
+
+          <div style="margin-top:32px;">
+            <div class="q-text">17. What does the woman suggest?</div>
+            <div class="options">
+              <div class="option">
+                <div class="option-label">A</div>
+                <div class="option-text">Hiring additional staff</div>
+              </div>
+              <div class="option">
+                <div class="option-label">B</div>
+                <div class="option-text">Extending the deadline</div>
+              </div>
+              <div class="option">
+                <div class="option-label">C</div>
+                <div class="option-text">Contacting the client</div>
+              </div>
+              <div class="option">
+                <div class="option-label">D</div>
+                <div class="option-text">Rescheduling the meeting</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="test-footer">
+        <div class="test-nav">
+          <button class="btn btn-outline">← Câu trước</button>
+          <button class="flag-btn">⚑ Đánh dấu</button>
+        </div>
+        <div style="font-size:13px;color:var(--gray-400);">Đã trả lời: <strong style="color:var(--gray-800)">15/200</strong></div>
+        <button class="btn btn-primary">Câu tiếp →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== RESULT PAGE ===================== -->
+<div class="page" id="page-result">
+  <div class="result-page">
+    <div class="result-hero">
+      <div class="score-ring">
+        <svg viewBox="0 0 160 160" width="160" height="160">
+          <circle class="ring-bg" cx="80" cy="80" r="70"/>
+          <circle class="ring-fill" cx="80" cy="80" r="70"/>
+        </svg>
+        <div class="score-num">
+          <div class="num">745</div>
+          <div class="lbl">TOEIC Score</div>
+        </div>
+      </div>
+      <h2>Xuất sắc! Tăng 25 điểm 🎉</h2>
+      <div class="subtitle">Hoàn thành lúc 14:32 · 18/06/2026 · Thời gian: 1 giờ 47 phút</div>
+      <div class="score-breakdown">
+        <div class="score-part">
+          <div class="pnum">390</div>
+          <div class="plbl">Listening</div>
+        </div>
+        <div style="width:1px;background:var(--gray-200);margin:4px 0;"></div>
+        <div class="score-part">
+          <div class="pnum">355</div>
+          <div class="plbl">Reading</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Feedback Panel -->
+    <div class="ai-panel">
+      <div class="ai-panel-header">
+        <div class="ai-icon">🤖</div>
+        <div>
+          <h3>Phân tích từ AI Study Coach</h3>
+          <div style="font-size:12px;opacity:.75;">Dựa trên kết quả lần thi này</div>
+        </div>
+      </div>
+      <div class="ai-tips">
+        <div class="ai-tip">
+          <strong>💪 Điểm mạnh</strong>
+          Part 1 & 2 của bạn rất tốt (85%+). Tiếp tục duy trì bằng cách ôn lại 10 câu Part 1–2 mỗi tuần để giữ phong độ.
+        </div>
+        <div class="ai-tip">
+          <strong>⚠️ Cần cải thiện</strong>
+          Part 4 (Độc thoại) chỉ đạt 55% — thấp nhất trong bài thi. Bạn hay bị nhầm lẫn khi câu hỏi về "mục đích thông báo". Gợi ý: luyện 20 câu Part 4 chủ đề "thông báo nơi làm việc" trong tuần tới.
+        </div>
+        <div class="ai-tip">
+          <strong>🎯 Dự đoán điểm thật</strong>
+          Dựa trên 6 lần thi gần nhất, điểm thi thật của bạn ước tính <strong>720–760</strong> (±2.8%). Nếu tiếp tục đà tăng, mục tiêu 800 có thể đạt vào tháng 9/2026.
+        </div>
+      </div>
+    </div>
+
+    <div class="result-grid">
+      <div class="card">
+        <div class="card-header"><h3>Phân tích câu sai</h3></div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="padding:12px;border-radius:8px;border:1px solid var(--gray-100);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:13px;font-weight:700;">Câu 14 (Part 3)</span>
+                <span class="chip chip-red">Sai</span>
+              </div>
+              <div style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">What will the man do next?</div>
+              <div style="font-size:12px;"><span style="color:var(--danger);">Bạn chọn: (C)</span> · <span style="color:var(--success);">Đáp án: (A)</span></div>
+              <button style="margin-top:10px;background:var(--primary-light);color:var(--primary);border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🤖 Xem AI giải thích</button>
+            </div>
+            <div style="padding:12px;border-radius:8px;border:1px solid var(--gray-100);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:13px;font-weight:700;">Câu 67 (Part 5)</span>
+                <span class="chip chip-red">Sai</span>
+              </div>
+              <div style="font-size:13px;color:var(--gray-600);margin-bottom:8px;">The proposal was submitted _____ the deadline.</div>
+              <div style="font-size:12px;"><span style="color:var(--danger);">Bạn chọn: (B) before</span> · <span style="color:var(--success);">Đáp án: (D) prior to</span></div>
+              <button style="margin-top:10px;background:var(--primary-light);color:var(--primary);border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🤖 Xem AI giải thích</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>So sánh tiến độ</h3></div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px;">Lần trước vs Lần này</div>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="text-align:center;flex:1;padding:12px;background:var(--gray-50);border-radius:8px;">
+                  <div style="font-size:22px;font-weight:800;color:var(--gray-500);">720</div>
+                  <div style="font-size:11px;color:var(--gray-400);">Tháng 3/26</div>
+                </div>
+                <div style="font-size:20px;color:var(--success);font-weight:700;">→ +25</div>
+                <div style="text-align:center;flex:1;padding:12px;background:var(--primary-light);border-radius:8px;border:1.5px solid var(--primary);">
+                  <div style="font-size:22px;font-weight:800;color:var(--primary);">745</div>
+                  <div style="font-size:11px;color:var(--primary);">Hôm nay</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:var(--gray-50);padding:14px;border-radius:8px;">
+              <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Đạt tiến độ mục tiêu</div>
+              <div class="progress-bar" style="margin-bottom:6px;">
+                <div class="progress-fill" style="width:74%;background:var(--primary);"></div>
+              </div>
+              <div style="font-size:12px;color:var(--gray-500);">745 / 800 điểm mục tiêu (74%)</div>
+            </div>
+            <div style="text-align:center;">
+              <button class="btn btn-primary" style="width:100%;">Luyện theo gợi ý AI</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== AI CHATBOT PAGE ===================== -->
+<div class="page" id="page-ai-chat">
+  <div class="chat-shell">
+    <div class="chat-sidebar">
+      <div class="chat-sidebar-header">
+        <h3>💬 Lịch sử chat</h3>
+        <button class="new-chat-btn">+ Chat mới</button>
+      </div>
+      <div class="chat-history">
+        <div class="chat-hist-item active">
+          <div class="chat-hist-title">Giải thích "prior to" vs "before"</div>
+          <div class="chat-hist-date">Hôm nay · 14:45</div>
+        </div>
+        <div class="chat-hist-item">
+          <div class="chat-hist-title">Cách làm Part 4 hiệu quả</div>
+          <div class="chat-hist-date">Hôm qua · 20:12</div>
+        </div>
+        <div class="chat-hist-item">
+          <div class="chat-hist-title">Từ vựng chủ đề Finance</div>
+          <div class="chat-hist-date">17/06 · 09:30</div>
+        </div>
+        <div class="chat-hist-item">
+          <div class="chat-hist-title">Phân biệt thì hiện tại hoàn thành</div>
+          <div class="chat-hist-date">15/06 · 16:20</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-main">
+      <div class="chat-topbar">
+        <div class="ai-avatar">🤖</div>
+        <div>
+          <h3>TOEIC AI Coach</h3>
+          <p>● Đang hoạt động · Claude 3.5 Sonnet</p>
+        </div>
+      </div>
+
+      <div class="chat-messages">
+        <div class="chat-msg ai">
+          <div class="ai-avatar" style="width:30px;height:30px;font-size:14px;">🤖</div>
+          <div>
+            <div class="msg-bubble">
+              Xin chào! Tôi là AI Coach của TOEIC Master Pro 👋<br><br>
+              Tôi có thể giúp bạn:<br>
+              • Giải thích đáp án bài thi<br>
+              • Hỏi về ngữ pháp, từ vựng TOEIC<br>
+              • Lập kế hoạch học tập<br>
+              • Tips chinh phục từng Part<br><br>
+              Bạn cần giúp gì hôm nay?
+            </div>
+            <div class="msg-time">14:30</div>
+          </div>
+        </div>
+
+        <div class="chat-msg user">
+          <div class="avatar sm">N</div>
+          <div>
+            <div class="msg-bubble">Tại sao câu 67 dùng "prior to" mà không phải "before"? Hai từ này khác nhau như thế nào trong TOEIC?</div>
+            <div class="msg-time">14:44</div>
+          </div>
+        </div>
+
+        <div class="chat-msg ai">
+          <div class="ai-avatar" style="width:30px;height:30px;font-size:14px;">🤖</div>
+          <div>
+            <div class="msg-bubble">
+              Câu hỏi rất hay! Đây là lỗi rất phổ biến trong TOEIC Part 5 😊<br><br>
+              <strong>Về nghĩa:</strong> Cả hai đều có nghĩa "trước khi", nhưng:<br><br>
+              ✅ <strong>"prior to"</strong> = mang tính chất <em>trang trọng, văn viết</em>. Thường xuất hiện trong:<br>
+              → Văn bản công ty, email công việc, hợp đồng<br>
+              → Thông báo chính thức<br><br>
+              ✅ <strong>"before"</strong> = thông dụng hơn, dùng được cả văn nói lẫn viết<br><br>
+              <strong>Trong bài câu 67:</strong><br>
+              <em>"The proposal was submitted _____ the deadline."</em><br><br>
+              Ngữ cảnh là văn bản công ty → "prior to" phù hợp hơn về văn phong. TOEIC hay test điều này!<br><br>
+              <strong>Mẹo nhớ:</strong> Thấy context công sở/email trang trọng → nghĩ đến "prior to" 💡
+            </div>
+            <div class="msg-time">14:45</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-questions">
+        <button class="quick-q">💡 Tips Part 4</button>
+        <button class="quick-q">📖 Từ vựng Finance</button>
+        <button class="quick-q">🎯 Lập study plan</button>
+        <button class="quick-q">❓ Giải thích câu sai</button>
+      </div>
+
+      <div class="chat-input-bar">
+        <input class="chat-input" type="text" placeholder="Hỏi về ngữ pháp, từ vựng, chiến lược thi TOEIC...">
+        <button class="send-btn">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SCHEDULE PAGE ===================== -->
+<div class="page" id="page-schedule">
+  <div class="schedule-page">
+    <div class="schedule-header">
+      <div>
+        <h1 style="font-size:24px;font-weight:800;margin-bottom:6px;">📅 Lịch thi TOEIC</h1>
+        <p style="color:var(--gray-500);font-size:14px;">Cập nhật từ IIG Việt Nam & British Council · 18/06/2026</p>
+      </div>
+      <div class="filter-bar">
+        <select class="filter-select">
+          <option>Tất cả tổ chức</option>
+          <option>IIG Việt Nam</option>
+          <option>British Council</option>
+        </select>
+        <select class="filter-select">
+          <option>Tất cả tỉnh/thành</option>
+          <option>Hà Nội</option>
+          <option>TP. Hồ Chí Minh</option>
+          <option>Đà Nẵng</option>
+        </select>
+        <select class="filter-select">
+          <option>Tháng 6/2026</option>
+          <option>Tháng 7/2026</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="background:var(--accent-light);border:1.5px solid var(--accent);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#92400e;">
+      ⚠️ <strong>Sắp đến hạn đăng ký:</strong> Kỳ thi ngày 29/06 hết hạn nộp hồ sơ vào ngày <strong>22/06/2026</strong> — còn 4 ngày!
+    </div>
+
+    <div class="schedule-grid">
+      <div class="sched-card">
+        <div class="sched-card-top">
+          <div class="sched-date-box" style="background:var(--danger);">
+            <div class="day">29</div>
+            <div class="month">THÁNG 6</div>
+          </div>
+          <div class="sched-info">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <h4 style="margin:0;">Thi TOEIC 4 kỹ năng</h4>
+              <span class="sched-tag">IIG</span>
+            </div>
+            <div class="sched-meta">
+              <div class="sched-meta-item">📍 Hà Nội · Trung tâm IIG 125 Thái Hà</div>
+              <div class="sched-meta-item">⏰ 08:00 – 12:00</div>
+              <div class="sched-meta-item">💰 1.340.000 đ</div>
+              <div class="sched-meta-item">🎟 Còn 23 chỗ trống</div>
+            </div>
+          </div>
+        </div>
+        <div class="sched-footer">
+          <div class="sched-deadline">Hạn đăng ký: 22/06/2026 ⚠️</div>
+          <button class="sched-remind-btn set">✓ Đã đặt nhắc</button>
+        </div>
+      </div>
+
+      <div class="sched-card">
+        <div class="sched-card-top">
+          <div class="sched-date-box">
+            <div class="day">06</div>
+            <div class="month">THÁNG 7</div>
+          </div>
+          <div class="sched-info">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <h4 style="margin:0;">Thi TOEIC L&R</h4>
+              <span class="sched-tag bc">BC</span>
+            </div>
+            <div class="sched-meta">
+              <div class="sched-meta-item">📍 TP.HCM · British Council Lê Duẩn</div>
+              <div class="sched-meta-item">⏰ 09:00 – 11:30</div>
+              <div class="sched-meta-item">💰 1.200.000 đ</div>
+              <div class="sched-meta-item">🎟 Còn 45 chỗ trống</div>
+            </div>
+          </div>
+        </div>
+        <div class="sched-footer">
+          <div style="font-size:12px;color:var(--gray-400);">Hạn đăng ký: 01/07/2026</div>
+          <button class="sched-remind-btn">🔔 Đặt nhắc</button>
+        </div>
+      </div>
+
+      <div class="sched-card">
+        <div class="sched-card-top">
+          <div class="sched-date-box">
+            <div class="day">13</div>
+            <div class="month">THÁNG 7</div>
+          </div>
+          <div class="sched-info">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <h4 style="margin:0;">Thi TOEIC L&R</h4>
+              <span class="sched-tag">IIG</span>
+            </div>
+            <div class="sched-meta">
+              <div class="sched-meta-item">📍 Hà Nội · Trung tâm IIG</div>
+              <div class="sched-meta-item">⏰ 14:00 – 16:30</div>
+              <div class="sched-meta-item">💰 1.200.000 đ</div>
+              <div class="sched-meta-item">🎟 Còn 67 chỗ trống</div>
+            </div>
+          </div>
+        </div>
+        <div class="sched-footer">
+          <div style="font-size:12px;color:var(--gray-400);">Hạn đăng ký: 08/07/2026</div>
+          <button class="sched-remind-btn">🔔 Đặt nhắc</button>
+        </div>
+      </div>
+
+      <div class="sched-card">
+        <div class="sched-card-top">
+          <div class="sched-date-box">
+            <div class="day">20</div>
+            <div class="month">THÁNG 7</div>
+          </div>
+          <div class="sched-info">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <h4 style="margin:0;">Thi TOEIC 4 kỹ năng</h4>
+              <span class="sched-tag bc">BC</span>
+            </div>
+            <div class="sched-meta">
+              <div class="sched-meta-item">📍 Đà Nẵng · BC Trần Phú</div>
+              <div class="sched-meta-item">⏰ 08:00 – 12:00</div>
+              <div class="sched-meta-item">💰 1.500.000 đ</div>
+              <div class="sched-meta-item">🎟 Còn 12 chỗ trống</div>
+            </div>
+          </div>
+        </div>
+        <div class="sched-footer">
+          <div style="font-size:12px;color:var(--gray-400);">Hạn đăng ký: 15/07/2026</div>
+          <button class="sched-remind-btn">🔔 Đặt nhắc</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:24px;">
+      <button class="btn btn-outline">Xem thêm lịch thi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== VOCAB PAGE ===================== -->
+<div class="page" id="page-vocab">
+  <div class="vocab-page">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+      <div>
+        <h1 style="font-size:24px;font-weight:800;margin-bottom:6px;">📚 Học từ vựng</h1>
+        <p style="color:var(--gray-500);font-size:14px;">Spaced Repetition · 28 từ cần ôn hôm nay</p>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <select class="filter-select">
+          <option>Tất cả chủ đề</option>
+          <option>Business & Finance</option>
+          <option>Travel & Transport</option>
+          <option>Health & Medical</option>
+        </select>
+        <button class="btn btn-primary">Bắt đầu ôn tập</button>
+      </div>
+    </div>
+
+    <div class="vocab-progress-section">
+      <div class="vocab-stat-card">
+        <div class="vnum text-primary">428</div>
+        <div class="vlbl">Từ đã học</div>
+      </div>
+      <div class="vocab-stat-card">
+        <div class="vnum text-accent">28</div>
+        <div class="vlbl">Cần ôn hôm nay</div>
+      </div>
+      <div class="vocab-stat-card">
+        <div class="vnum text-success">87%</div>
+        <div class="vlbl">Tỉ lệ nhớ</div>
+      </div>
+    </div>
+
+    <!-- Flashcard -->
+    <div class="flashcard-area">
+      <div class="flashcard">
+        <div class="word">substantial</div>
+        <div class="phonetic">/səbˈstænʃəl/</div>
+        <div class="tag">Business · Tính từ</div>
+      </div>
+    </div>
+    <div class="flashcard-hint">Nhấn vào thẻ để xem nghĩa</div>
+
+    <div class="srs-actions">
+      <button class="srs-btn srs-hard">😅 Khó nhớ<br><small>Ôn lại sau 1 ngày</small></button>
+      <button class="srs-btn srs-ok">🙂 Nhớ được<br><small>Ôn lại sau 4 ngày</small></button>
+      <button class="srs-btn srs-easy">😄 Dễ nhớ<br><small>Ôn lại sau 10 ngày</small></button>
+    </div>
+
+    <!-- Word list -->
+    <div class="card" style="margin-top:28px;">
+      <div class="card-header">
+        <h3>Danh sách từ — Business & Finance</h3>
+        <span class="chip chip-blue">284 từ</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-400);border-bottom:1px solid var(--gray-100);">
+            <span>Từ</span><span>Nghĩa</span><span>Chủ đề</span><span>Tiến độ</span>
+          </div>
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:12px;border-radius:8px;font-size:14px;align-items:center;">
+            <span class="fw-700">substantial</span>
+            <span style="color:var(--gray-600);">đáng kể, quan trọng (adj)</span>
+            <span class="chip chip-blue">Business</span>
+            <span style="color:var(--success);font-weight:700;">✓ Thuộc</span>
+          </div>
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:12px;background:var(--accent-light);border-radius:8px;font-size:14px;align-items:center;">
+            <span class="fw-700">allocate</span>
+            <span style="color:var(--gray-600);">phân bổ, phân phối (v)</span>
+            <span class="chip chip-blue">Finance</span>
+            <span style="color:var(--accent);font-weight:700;">⟳ Cần ôn</span>
+          </div>
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:12px;border-radius:8px;font-size:14px;align-items:center;">
+            <span class="fw-700">reimbursement</span>
+            <span style="color:var(--gray-600);">hoàn tiền, bồi hoàn (n)</span>
+            <span class="chip chip-blue">Finance</span>
+            <span style="color:var(--danger);font-weight:700;">✗ Chưa học</span>
+          </div>
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:12px;border-radius:8px;font-size:14px;align-items:center;">
+            <span class="fw-700">procurement</span>
+            <span style="color:var(--gray-600);">mua sắm, thu mua (n)</span>
+            <span class="chip chip-blue">Business</span>
+            <span style="color:var(--success);font-weight:700;">✓ Thuộc</span>
+          </div>
+          <div style="display:grid;grid-template-columns:180px 1fr 120px 80px;gap:16px;padding:12px;border-radius:8px;font-size:14px;align-items:center;">
+            <span class="fw-700">fluctuate</span>
+            <span style="color:var(--gray-600);">dao động, biến động (v)</span>
+            <span class="chip chip-blue">Finance</span>
+            <span style="color:var(--accent);font-weight:700;">⟳ Cần ôn</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Floating buttons -->
+<div class="floating-btns">
+  <button class="float-btn float-zalo" title="Chat Zalo">💬</button>
+  <button class="float-btn float-mess" title="Messenger">📱</button>
+  <button class="float-btn float-top" title="Lên đầu" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+</div>
+
+<script>
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.page-tabs button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  const roadmapData = {
+    '0_450':  { weeks: '10–12 tuần', time: '40 phút/ngày', focus: 'Ngữ pháp cơ bản + Part 1 & 2 + Từ vựng căn bản' },
+    '0_600':  { weeks: '14–16 tuần', time: '50 phút/ngày', focus: 'Toàn bộ Part 1–5 + Từ vựng Business & Travel' },
+    '0_700':  { weeks: '20 tuần', time: '60 phút/ngày', focus: 'Chương trình đầy đủ 7 Part + AI luyện tập hằng ngày' },
+    '0_800':  { weeks: '28 tuần', time: '75 phút/ngày', focus: 'Toàn diện + 2 mock test/tuần + AI coaching chuyên sâu' },
+    '0_900':  { weeks: '36+ tuần', time: '90 phút/ngày', focus: 'Chuyên sâu toàn bộ + luyện 4 kỹ năng + mock test hàng tuần' },
+    '300_600':{ weeks: '10–12 tuần', time: '45 phút/ngày', focus: 'Part 3–4 (Listening nâng cao) + Part 5–6 (Ngữ pháp)' },
+    '300_700':{ weeks: '14–16 tuần', time: '55 phút/ngày', focus: 'Part 3–7 toàn diện + Từ vựng chủ đề + AI weak-area' },
+    '300_800':{ weeks: '20–24 tuần', time: '65 phút/ngày', focus: 'AI Adaptive Testing + Mock 2x/tuần + chủ đề đọc hiểu nâng cao' },
+    '450_700':{ weeks: '8–10 tuần', time: '45 phút/ngày', focus: 'Part 3 & 4 (Listening) + Part 7 (Đọc hiểu) + Từ vựng Business' },
+    '450_800':{ weeks: '14–16 tuần', time: '60 phút/ngày', focus: 'AI Adaptive + Part 7 nâng cao + Mock test 2x/tuần' },
+    '450_900':{ weeks: '24 tuần', time: '75 phút/ngày', focus: 'Toàn diện + Speed reading + AI coaching mỗi ngày' },
+    '600_700':{ weeks: '4–6 tuần', time: '35 phút/ngày', focus: 'Part 7 (Double passage) + Từ vựng nâng cao + 1 mock/tuần' },
+    '600_800':{ weeks: '8–10 tuần', time: '50 phút/ngày', focus: 'Part 6–7 nâng cao + AI chỉ ra từng điểm yếu + Mock 2x/tuần' },
+    '600_900':{ weeks: '16–18 tuần', time: '65 phút/ngày', focus: 'Luyện tốc độ đọc + Part 3–4 độ khó cao + AI scoring' },
+    '700_800':{ weeks: '4–5 tuần', time: '30 phút/ngày', focus: 'Tập trung Part 7 triple passage + Ngữ pháp tinh tế Part 5' },
+    '700_900':{ weeks: '10–12 tuần', time: '50 phút/ngày', focus: 'Luyện độ khó cao nhất + tốc độ + AI mock phân tích' },
+  };
+
+  function updateRoadmap() {
+    const cur = document.getElementById('sel-current').value;
+    const tar = document.getElementById('sel-target').value;
+    const key = cur + '_' + tar;
+    const res = document.getElementById('roadmap-result');
+    const d = roadmapData[key];
+    if (d) {
+      res.querySelector('.rt').innerHTML = `<strong>Lộ trình được đề xuất</strong>
+        Từ <b>${cur == '0' ? 'mất gốc' : cur + ' điểm'}</b> lên <b>${tar} điểm</b>: ước tính <b>${d.weeks}</b>, ~${d.time}.<br>
+        Tập trung: ${d.focus}.`;
+    } else if (parseInt(cur) >= parseInt(tar)) {
+      res.querySelector('.rt').innerHTML = `<strong>⚠️ Vui lòng chọn lại</strong>Điểm mục tiêu phải cao hơn trình độ hiện tại của bạn.`;
+    }
+  }
+</script>
+</body>
+</html>
