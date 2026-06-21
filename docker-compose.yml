@@ -25,7 +25,7 @@ services:
       - SA_PASSWORD=${DB_PASSWORD:-ToeicMaster@2026}       # Mật khẩu tài khoản sa (min 8 ký tự, có chữ hoa + số + ký tự đặc biệt)
       - MSSQL_PID=Developer                                # Bản Developer — miễn phí, đầy đủ tính năng Enterprise
     ports:
-      - "1433:1433"                                        # host:container — chỉ expose local, không public
+      - "1434:1433"                                        # host:container — chỉ expose local, không public
     volumes:
       - sqlserver_data:/var/opt/mssql                      # Persist data kể cả khi container restart
     healthcheck:
@@ -51,12 +51,16 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data                                   # Persist data với AOF (Append Only File)
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD:-ToeicRedis@2026}     # Bắt buộc xác thực — không bỏ qua dù là dev
-      --appendonly yes                                     # AOF persistence: ghi mọi lệnh ra file, an toàn hơn RDB
-      --maxmemory 256mb                                    # Giới hạn RAM — tránh Redis ăn hết bộ nhớ máy dev
-      --maxmemory-policy allkeys-lru                       # Khi đầy: xóa key ít dùng nhất (LRU eviction)
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:-ToeicRedis@2026}
+      - --appendonly
+      - yes
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-ToeicRedis@2026}", "ping"]
       interval: 10s
