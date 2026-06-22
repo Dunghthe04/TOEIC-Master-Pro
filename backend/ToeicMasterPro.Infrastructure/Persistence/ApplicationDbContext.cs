@@ -23,7 +23,8 @@ public class ApplicationDbContext
     public DbSet<UserVocabulary> UserVocabularies => Set<UserVocabulary>();
     public DbSet<ExamSchedule> ExamSchedules => Set<ExamSchedule>();
     public DbSet<UserExamReminder> UserExamReminders => Set<UserExamReminder>();
-
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>(); 
+    
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder); // quan trọng: gọi base để Identity tables được tạo
