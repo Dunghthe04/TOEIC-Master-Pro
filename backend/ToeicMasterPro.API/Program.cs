@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Infrastructure.Authentication;
+using ToeicMasterPro.Infrastructure.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,8 @@ builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
 
