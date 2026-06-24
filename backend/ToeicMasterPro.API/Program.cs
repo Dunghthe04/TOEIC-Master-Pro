@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Infrastructure.Authentication;
 using ToeicMasterPro.Infrastructure.Services;
+using System.Threading.RateLimiting;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,8 +34,11 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
 
+//-----------gogle signin--------------
+builder.Services.Configure<GoogleAuthSettings>(
+    builder.Configuration.GetSection(GoogleAuthSettings.SectionName));
+
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
@@ -59,6 +63,30 @@ builder.Services.AddAuthentication(options=>{
 });
 
 
+// ── Rate limiting ─────────────────────────────────────────
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    //Chính sách "auth" tối đa 5 request/ phút/ mỗi địa chỉ IP
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            //lấy ip của client
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                // Cho phép 5 request trong 1 phút
+                PermitLimit = 5,
+                // Reset mỗi 1 phút
+                Window = TimeSpan.FromMinutes(1),
+                // Không cho vào hàng đợi, từ chối ngay lập tức nếu hết quota
+                QueueLimit = 0
+            }
+
+        )
+    );
+});
+
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -76,6 +104,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

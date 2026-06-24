@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Auth;
+using Microsoft.AspNetCore.RateLimiting;
+
 
 namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase{
     private IAuthService _auth;
     public AuthController(IAuthService auth){
@@ -52,5 +55,28 @@ public class AuthController : ControllerBase{
         return result.IsSuccess
             ? Ok(new { message = "Xác thực email thành công." })
             : BadRequest(new { error = result.Error });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req){
+        await _auth.ForgotPasswordAsync(req);
+        return Ok(new { message = "Nếu email tồn tại, link đặt lại mật khẩu đã được gửi." });
+    }
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest req){
+        var result = await _auth.ResetPasswordAsync(req);
+        return result.IsSuccess
+            ? Ok(new { message = "Đặt lại mật khẩu thành công." })
+            : BadRequest(new { error = result.Error });
+    }
+    //Khi đăng nhập bằng gg ==> gg cấp IdToken vào frontend
+    //Frontend gửi IdToken cho backend
+    //Backend xác thực IdToken với Google và trả về AccessToken, RefreshToken, ExpiresAt
+    [HttpPost("google-login")]
+    public async Task<IActionResult> GoogleLogin(GoogleLoginRequest req){
+        var result= await _auth.GoogleLoginAsync(req.IdToken);
+        return result.IsSuccess
+            ?Ok(result.Value)
+            :BadRequest(new {error=result.Error});
     }
 }

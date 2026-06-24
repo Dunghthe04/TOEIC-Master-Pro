@@ -15,4 +15,8 @@ public interface IAuthService
     Task<Result<AuthResponse>> RefreshTokenAsync(string refreshToken);
     Task<Result> LogoutAsync(string refreshToken);
     Task<Result> ConfirmEmailAsync(Guid userId, string token);
+    Task<Result> ForgotPasswordAsync(ForgotPasswordRequest req);
+    Task<Result> ResetPasswordAsync(ResetPasswordRequest req);
+    Task<Result<AuthResponse>> GoogleLoginAsync(string idToken);
+
 }
