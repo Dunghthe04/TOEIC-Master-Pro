@@ -12,6 +12,8 @@ public class CurrentUserService : ICurrentUserService
     public CurrentUserService(IHttpContextAccessor httpContextAccessor)
         => _httpContextAccessor = httpContextAccessor;
 
+    //tạo ra một ClaimsPrincipal? bằng cách truy cập vàoHttpContext của request hiện tại
+    //nếu không có request nào đang diễn ra, nó trả về null
     private ClaimsPrincipal? User => _httpContextAccessor.HttpContext?.User;
 
     public Guid? UserId

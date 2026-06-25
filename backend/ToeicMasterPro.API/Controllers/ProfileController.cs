@@ -44,19 +44,25 @@ public class ProfileController : ControllerBase
             return BadRequest(new { error = "Chưa chọn file" });
         if (file.Length > 2 * 1024 * 1024)
             return BadRequest(new { error = "File quá lớn. Tối đa 2MB" });
+        
+        //Danh sách đuôi file cho phép
         var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        //Lấy đuôi file
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowed.Contains(ext))
             return BadRequest(new { error = "Chỉ chấp nhận .jpg, .png, .webp." });
         // Lưu vào wwwroot/uploads/avatars/<guid>.ext
         var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+        //D:\Project\wwwroot\uploads\avatars
         var folder = Path.Combine(webRoot, "uploads", "avatars");
         Directory.CreateDirectory(folder);
 
+        //Tạo tên file ngẫu nhiên
         var fileName = $"{Guid.NewGuid()}{ext}";
         await using (var stream = System.IO.File.Create(Path.Combine(folder, fileName)))
             await file.CopyToAsync(stream);
 
+        //url ảnh
         var url = $"/uploads/avatars/{fileName}";
         var result = await _profile.UpdateAvatarAsync(url);
 
