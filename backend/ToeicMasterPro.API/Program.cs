@@ -10,6 +10,10 @@ using ToeicMasterPro.Infrastructure.Authentication;
 using ToeicMasterPro.Infrastructure.Services;
 using System.Threading.RateLimiting;
 using ToeicMasterPro.API.Services;
+using StackExchange.Redis;
+using ToeicMasterPro.Infrastructure.Caching;
+using ToeicMasterPro.Infrastructure.Persistence.Repositories;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,9 +45,15 @@ builder.Services.Configure<GoogleAuthSettings>(
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+var redisConn = builder.Configuration["Redis:ConnectionStrings"]!;
+//Chỗ nào gọi IConnectionMultiplexer thì dùng chung cái này, trả về 1 instant 
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConn));
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
 
