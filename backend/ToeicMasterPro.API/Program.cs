@@ -9,6 +9,7 @@ using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Infrastructure.Authentication;
 using ToeicMasterPro.Infrastructure.Services;
 using System.Threading.RateLimiting;
+using ToeicMasterPro.API.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,17 +41,23 @@ builder.Services.Configure<GoogleAuthSettings>(
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
 
 //Đăng ký JwtBear Authentication
-builder.Services.AddAuthentication(options=>{
+builder.Services.AddAuthentication(options =>
+{
     //Ghi đè scheme mặc định của Identity (cookie) -> dùng JWT cho API
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(jwtBearerOptions => {
-    jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters{
+.AddJwtBearer(jwtBearerOptions =>
+{
+    jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
+    {
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
@@ -64,7 +71,8 @@ builder.Services.AddAuthentication(options=>{
 
 
 // ── Rate limiting ─────────────────────────────────────────
-builder.Services.AddRateLimiter(options => {
+builder.Services.AddRateLimiter(options =>
+{
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     //Chính sách "auth" tối đa 5 request/ phút/ mỗi địa chỉ IP
@@ -103,6 +111,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();        // ← THÊM: phục vụ wwwroot (ảnh avatar tại /uploads/avatars/...)
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
