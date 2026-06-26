@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      File này là trang HTML duy nhất của toàn bộ app (Single Page Application).
+      React không tạo thêm file HTML nào khác — mọi thứ được render bằng JavaScript.
+    -->
+    <title>TOEIC Master Pro</title>
+  </head>
+  <body>
+    <!--
+      div#root: React sẽ "cắm" toàn bộ giao diện vào đây (xem main.tsx).
+      Khi app chạy, div này sẽ chứa toàn bộ HTML được sinh ra bởi React.
+    -->
+    <div id="root"></div>
+
+    <!--
+      Vite load file main.tsx làm điểm khởi đầu JavaScript.
+      type="module" = dùng ES Modules (import/export), không phải script cũ.
+    -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

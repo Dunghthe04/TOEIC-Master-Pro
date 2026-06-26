@@ -22,6 +22,7 @@
 ### Frontend
 | Layer | Công nghệ |
 |---|---|
+| Build Tool | Vite |
 | Framework | React 18 + TypeScript |
 | UI | shadcn/ui + Tailwind CSS |
 | State | Zustand |
@@ -230,6 +231,94 @@ docker compose ps       # Kiểm tra trạng thái container
 ```
 
 > ⚠️ Docker chỉ chạy SQL Server engine. Vẫn phải chạy migrations để tạo tables.
+
+</details>
+
+---
+
+<details>
+<summary>⚡ Vite — Frontend Build Tool</summary>
+
+**Là gì:** Công cụ tạo và chạy project frontend hiện đại. Làm 2 việc chính:
+- **Dev server**: reload trình duyệt tức thì (~50ms) mỗi khi lưu file — gọi là HMR (Hot Module Replacement)
+- **Build**: đóng gói toàn bộ code thành file tĩnh tối ưu để deploy
+
+**Tại sao không dùng Create React App (CRA):**
+| | CRA (cũ) | Vite (mới) |
+|---|---|---|
+| Khởi động dev server | 30–60 giây | 1–2 giây |
+| Hot reload | Chậm (~3–5s) | Tức thì (~50ms) |
+| Còn được maintain | ❌ Deprecated | ✅ Active |
+
+**Cấu trúc project Vite:**
+```
+frontend/
+  src/           ← code React
+  public/        ← file tĩnh (favicon, ảnh không qua build)
+  index.html     ← entry point (Vite đọc file này đầu tiên)
+  vite.config.ts ← cấu hình alias, proxy...
+  tsconfig.json  ← cấu hình TypeScript
+```
+
+**Lệnh hay dùng:**
+```bash
+npm run dev    # chạy dev server tại localhost:5173
+npm run build  # build production → thư mục dist/
+npm run preview # xem trước bản build
+```
+
+</details>
+
+---
+
+<details>
+<summary>🎨 Tailwind CSS — Utility-First CSS Framework</summary>
+
+**Là gì:** Framework CSS theo hướng "utility-first" — thay vì viết file `.css` riêng, bạn gắn class trực tiếp vào HTML/JSX.
+
+**So sánh cách viết:**
+```jsx
+// Cách cũ — phải viết file CSS riêng
+<button className="btn-primary">Login</button>
+// btn-primary { background: blue; padding: 8px 16px; border-radius: 4px; }
+
+// Tailwind — viết thẳng vào component
+<button className="bg-blue-500 px-4 py-2 rounded text-white hover:bg-blue-600">
+  Login
+</button>
+```
+
+**Tại sao dùng:**
+- Không phải đặt tên class (không còn `.card-wrapper-inner-container`)
+- Tất cả style nằm cùng chỗ với JSX → dễ đọc, dễ sửa
+- Build tự loại bỏ class không dùng → file CSS cuối rất nhỏ
+- Consistent design system (spacing, color, typography theo scale cố định)
+
+</details>
+
+---
+
+<details>
+<summary>🧩 shadcn/ui — Component Library</summary>
+
+**Là gì:** Bộ component UI đẹp sẵn (Button, Input, Card, Dialog, Table, Toast...) xây trên Tailwind CSS.
+
+**Khác gì Material UI / Ant Design:**
+| | Material UI / Ant Design | shadcn/ui |
+|---|---|---|
+| Cách dùng | Cài package, import component | **Copy code component vào project** |
+| Tùy chỉnh | Khó, phải override theme | Dễ, sửa thẳng file component |
+| Bundle size | To (toàn bộ thư viện) | Nhỏ (chỉ có component bạn dùng) |
+| Phụ thuộc | Cao | Thấp — bạn sở hữu code |
+
+**Cách dùng:**
+```bash
+npx shadcn@latest add button   # copy Button component vào src/components/ui/button.tsx
+npx shadcn@latest add input    # copy Input component
+npx shadcn@latest add card     # copy Card component
+```
+
+**Trong project này dùng cho:** Auth pages (Login, Register), Profile page, bảng câu hỏi, dialog xác nhận, toast thông báo, form nhập liệu.
 
 </details>
 
