@@ -13,10 +13,15 @@ using ToeicMasterPro.API.Services;
 using StackExchange.Redis;
 using ToeicMasterPro.Infrastructure.Caching;
 using ToeicMasterPro.Infrastructure.Persistence.Repositories;
-
+using ToeicMasterPro.API.Middleware;
+using Serilog;
+using Scalar.AspNetCore;
 
 
 var builder = WebApplication.CreateBuilder(args);
+//-Serilog=====================
+builder.Host.UseSerilog((context, config) =>
+ config.ReadFrom.Configuration(context.Configuration));
 
 // ── Database ──────────────────────────────────────────────
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -79,6 +84,19 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// ── CORS ──────────────────────────────────────────────────
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
+});
 
 // ── Rate limiting ─────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
@@ -104,10 +122,16 @@ builder.Services.AddRateLimiter(options =>
     );
 });
 
-
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "ToeicMasterPro API", Version = "v1" });
+});
+
 
 var app = builder.Build();
 
@@ -118,10 +142,18 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.MapScalarApiReference(options =>
+{
+    options.OpenApiRoutePattern = "/swagger/v1/swagger.json";
+    options.Title = "ToeicMasterPro API";
+});
 }
-
+//ExceptionHandler phải nằm trước Authentication, Authorization và Routing
+app.UseExceptionHandler();
+app.UseSerilogRequestLogging();   // ← THÊM: log mỗi request vào: method, path, status, time
 app.UseHttpsRedirection();
 app.UseStaticFiles();        // ← THÊM: phục vụ wwwroot (ảnh avatar tại /uploads/avatars/...)
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();

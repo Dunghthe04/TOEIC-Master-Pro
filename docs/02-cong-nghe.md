@@ -236,18 +236,123 @@ docker compose ps       # Kiểm tra trạng thái container
 ---
 
 <details>
+<summary>📖 Swagger + Scalar — API Documentation</summary>
+
+**Là gì:** Công cụ tự động sinh tài liệu và giao diện test API từ code controller — không cần viết tay.
+
+**Tại sao cần:**
+- Frontend cần biết API nhận gì, trả gì, cần token không → Swagger/Scalar sinh ra trang tài liệu tự động.
+- Trong development: test API ngay trên trình duyệt mà không cần Postman.
+
+**Swagger vs Scalar:**
+| | Swagger UI | Scalar UI |
+|---|---|---|
+| Giao diện | Cũ, đơn giản | Hiện đại, đẹp hơn |
+| Cùng nguồn dữ liệu | OpenAPI spec (`/swagger/v1/swagger.json`) | OpenAPI spec |
+| URL | `/swagger` | `/scalar/v1` |
+
+**JWT support:** Mặc định Swagger không biết project dùng JWT → phải cấu hình thêm `AddSecurityDefinition("Bearer")` → mới có nút **Authorize** để nhập token test endpoint `[Authorize]`.
+
+> Chỉ bật trong `Development` — production không expose tài liệu API ra ngoài.
+
+</details>
+
+---
+
+<details>
+<summary>🌐 CORS — Cross-Origin Resource Sharing</summary>
+
+**Là gì:** Cơ chế browser dùng để kiểm soát request từ một origin (domain:port) sang origin khác.
+
+**Vấn đề:** Mặc định browser **chặn** mọi request từ `http://localhost:5173` (React) sang `https://localhost:7xxx` (API) vì khác origin — gọi là **Same-Origin Policy**.
+
+**Lỗi nếu không cấu hình CORS:**
+```
+Access to fetch at 'https://localhost:7xxx/api/auth/login'
+from origin 'http://localhost:5173' has been blocked by CORS policy.
+```
+
+**Giải pháp:** Server khai báo danh sách origin được phép → browser cho qua:
+```json
+"Cors": {
+  "AllowedOrigins": [ "http://localhost:5173" ]
+}
+```
+
+**Lưu ý quan trọng:**
+- CORS phải đứng **trước** `UseAuthentication` trong pipeline.
+- `AllowCredentials()` cần thiết khi frontend gửi cookie hoặc Authorization header.
+- Production: thay `localhost:5173` bằng domain thật.
+
+</details>
+
+---
+
+<details>
 <summary>🌊 Serilog — Structured Logging</summary>
 
-**Là gì:** Thư viện ghi log dưới dạng structured data (JSON) — dễ tìm kiếm, filter, phân tích.
+**Là gì:** Thư viện ghi nhật ký hoạt động của app — giống hộp đen máy bay. Khi user báo lỗi, mở log ra đọc thay vì đoán mò.
 
+**Vấn đề nếu không có logging:**
+> User báo "Tôi đăng nhập không được lúc 2 giờ sáng" → không biết lúc đó data là gì, không tái hiện được lỗi.
+
+**Với Serilog, mở log ra thấy ngay:**
 ```
-# Plain text log (khó tìm):
-2026-06-18 21:00:01 ERROR User 123 failed to submit test
-
-# Structured log (filter theo field):
-{ "level": "Error", "userId": "123", "action": "SubmitTest", "error": "Session expired" }
+[ERR] 02:13:45 POST /api/auth/login → 400
+      Email: "user@gmail.com"
+      Error: "Email hoặc mật khẩu không đúng"
 ```
 
-**Sink:** Console (dev) → File (staging) → Seq UI (production).
+**Tại sao không dùng `ILogger` mặc định của .NET?**
+
+| Tính năng | ILogger mặc định | Serilog |
+|---|---|---|
+| In ra console | ✅ | ✅ |
+| Lưu ra file | ❌ | ✅ |
+| Tự chia file theo ngày | ❌ | ✅ |
+| Tự xóa log cũ (giữ 7 ngày) | ❌ | ✅ |
+| Gửi lên cloud (Seq, Datadog) | ❌ | ✅ |
+| Cấu hình qua appsettings.json | Hạn chế | ✅ |
+
+**Trong project này Serilog làm gì:**
+
+1. **Log mọi request HTTP** (nhờ `UseSerilogRequestLogging`):
+```
+[INF] GET  /api/profile/me     → 200  45ms
+[INF] POST /api/auth/login     → 200  120ms
+[WRN] POST /api/auth/login     → 400  30ms   ← login sai
+[ERR] GET  /api/questions/999  → 500  5ms    ← crash
+```
+
+2. **Lưu log ra file theo ngày, tự xóa sau 7 ngày:**
+```
+logs/
+  log-20260626.txt   ← hôm nay
+  log-20260625.txt   ← hôm qua
+  ...                ← tự xóa file cũ hơn 7 ngày
+```
+
+3. **Phân cấp mức độ:**
+- `Information` — hoạt động bình thường
+- `Warning` — đáng chú ý (login sai nhiều lần)
+- `Error` — lỗi cần xử lý
+- `Fatal` — app sắp sập
+
+4. **Kết hợp với GlobalExceptionHandler:** Exception nào xảy ra, lúc mấy giờ, stack trace đầy đủ → nằm hết trong file log.
+
+**Cấu hình qua `appsettings.json`** — không cần sửa code khi muốn thay đổi log level:
+```json
+"Serilog": {
+  "MinimumLevel": { "Default": "Information" },
+  "WriteTo": [
+    { "Name": "Console" },
+    { "Name": "File", "Args": { "path": "logs/log-.txt", "rollingInterval": "Day", "retainedFileCountLimit": 7 } }
+  ]
+}
+```
+
+**Sink:** Console (dev) → File (staging/prod) → Seq/Datadog (production lớn).
+
+> 💡 **Câu thần chú:** Khi app chạy production, bạn không thể mở debugger. Log là **mắt** của bạn để quan sát app từ xa. Serilog thường là thứ **đầu tiên** bạn nhìn vào khi user báo bug.
 
 </details>
