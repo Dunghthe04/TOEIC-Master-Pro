@@ -563,3 +563,88 @@ const { register, handleSubmit } = useForm<LoginForm>({
 **Tại sao không dùng validation của React Hook Form thôi?** Zod cho phép tái sử dụng schema ở nhiều chỗ (form + API type + server validation), và dễ đọc hơn khi rule phức tạp.
 
 </details>
+
+---
+
+<details>
+<summary>🐻 Zustand — Global State Management</summary>
+
+**Là gì:** Thư viện quản lý state toàn app (global state) — nhẹ, đơn giản, không cần boilerplate như Redux.
+
+**Vấn đề nếu không có Zustand:**
+```tsx
+// Mỗi component muốn biết user là ai phải tự đọc localStorage
+const email = localStorage.getItem('userEmail') // lặp khắp nơi
+// Khi logout, phải tìm và clear từng component một
+```
+
+**Với Zustand — một store duy nhất, mọi component subscribe:**
+```tsx
+// Khai báo store
+export const useAuthStore = create((set) => ({
+  user: null,
+  loginSuccess: (user) => set({ user, isAuthenticated: true }),
+  logout: () => { clearTokens(); set({ user: null, isAuthenticated: false }) },
+}))
+
+// Dùng ở bất kỳ component nào — tự động re-render khi user thay đổi
+const user = useAuthStore(state => state.user)
+const logout = useAuthStore(state => state.logout)
+```
+
+**Tại sao không dùng React Context?**
+| | React Context | Zustand |
+|---|---|---|
+| Re-render khi state thay đổi | Toàn bộ cây component | Chỉ component dùng field đó |
+| Boilerplate | Provider + useContext mỗi lần | Chỉ `create()` một lần |
+| Persist (lưu localStorage) | Tự viết | `persist` middleware có sẵn |
+
+**`persist` middleware:** Tự động sync state vào localStorage — refresh trang không mất trạng thái login.
+
+**Trong project này dùng cho:** Auth state (user, isAuthenticated), sau này có thể dùng cho theme, notification settings.
+
+</details>
+
+---
+
+<details>
+<summary>🔑 @react-oauth/google — Google OAuth</summary>
+
+**Là gì:** Thư viện chính thức của Google để tích hợp Google Sign-In vào React app.
+
+**Flow hoạt động:**
+```
+1. User nhấn nút "Đăng nhập với Google"
+2. Google popup xuất hiện → user chọn tài khoản
+3. Google cấp idToken cho frontend (chứng minh user là ai)
+4. Frontend gửi idToken lên backend: POST /api/auth/google-login
+5. Backend xác thực idToken với Google API
+6. Backend tạo JWT của hệ thống → trả về accessToken + refreshToken
+7. Frontend lưu token → đăng nhập thành công
+```
+
+**Tại sao không tự làm OAuth flow?** OAuth 2.0 có nhiều bước phức tạp (PKCE, state parameter, token exchange...). Thư viện này xử lý toàn bộ, chỉ cần nhận `credential` (idToken) trong callback.
+
+**Cần thiết lập trước:**
+- Tạo project trên Google Cloud Console
+- Đăng ký `Client ID` → khai báo origin được phép (`localhost:5173`)
+- Lưu `VITE_GOOGLE_CLIENT_ID` vào `.env`
+
+**Cách dùng:**
+```tsx
+// main.tsx — bọc toàn app
+<GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+  <App />
+</GoogleOAuthProvider>
+
+// LoginPage — component button Google
+<GoogleLogin
+  onSuccess={(res) => {
+    // res.credential = idToken → gửi lên backend
+    authService.googleLogin(res.credential)
+  }}
+  onError={() => setError('Đăng nhập Google thất bại')}
+/>
+```
+
+</details>

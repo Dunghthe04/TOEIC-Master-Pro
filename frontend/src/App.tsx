@@ -10,11 +10,14 @@
 
 // Syntax: import Button từ thư mục ui (do shadcn generate)
 // "@/" là alias trỏ vào thư mục "src/" — thay thế cho "../../components/ui/button"
-import { Button } from '@/components/ui/button'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import MainLayout from '@/components/layout/MainLayout'
+import DashboardPage from '@/pages/DashboardPage'
+
 
 // "function App()" — định nghĩa một React Component.
 // Component = một hàm JavaScript trả về JSX (HTML viết trong JS).
@@ -28,6 +31,13 @@ function App() {
         <Route path='/login' element={<LoginPage />} />
         <Route path='/register' element={<RegisterPage />} />
         <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+
+        {/* Protected — phải login mới vào được, có layout sidebar+header */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+          </Route>
+        </Route>
       </Routes>
     </BrowserRouter>
   )

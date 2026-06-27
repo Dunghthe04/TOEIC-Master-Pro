@@ -21,4 +21,15 @@ export const authService = {
         const res = await api.post<{ message: string }>('/auth/forgot-password', data)
         return res.data
     },
+
+    //Flow Google OAuth: Google → cấp idToken cho frontend 
+    //→ frontend gửi idToken lên backend 
+    //→ backend xác thực mã mã fe gửi với mã clientId trong appsetting 
+    //→ backend tạo JWT của hệ thống → trả về cho frontend.
+
+    async googleLogin(idToken: string): Promise<AuthResponse> {
+        const res = await api.post<AuthResponse>('/auth/google-login', { idToken })
+        return res.data;
+    }
+
 }

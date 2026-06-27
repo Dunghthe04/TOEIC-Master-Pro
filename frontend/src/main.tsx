@@ -19,10 +19,17 @@ import './index.css'
 // Component gốc của app — tất cả page/layout đều nằm trong App
 import App from './App.tsx'
 
+//Package cho chức năng google
+import { GoogleOAuthProvider } from '@react-oauth/google'
+
+
 // document.getElementById('root')! — lấy div#root từ index.html
 // Dấu ! cuối = "tôi chắc chắn element này tồn tại" (TypeScript non-null assertion)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />  {/* Render toàn bộ app vào div#root */}
+    {/* Đóng gói App bằng GoogleOAuthProvider để component bên trong có thể dùng Google Login */}
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <App />  {/* Render toàn bộ app vào div#root */}
+    </GoogleOAuthProvider>
   </StrictMode>,
 )

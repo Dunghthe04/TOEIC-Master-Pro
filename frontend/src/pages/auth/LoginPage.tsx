@@ -18,6 +18,9 @@ import { authService } from '@/services/auth.service'
 import { saveTokens } from '@/lib/token'
 //Mắt để ẩn hiện password
 import { Eye, EyeOff } from 'lucide-react'
+import { GoogleLogin } from '@react-oauth/google'
+import { useAuthStore } from '@/store/auth.store'
+import { profileService } from '@/services/profile.service'
 
 
 //Khai báo schema validate
@@ -33,6 +36,8 @@ export default function LoginPage() {
     const navigate = useNavigate();
     const [serverError, setServerError] = useState('');
     const [showPassword, setShowPassword] = useState(false)
+    const loginSuccess = useAuthStore(state => state.loginSuccess)
+
 
     //Khởi tạo form có kiểu là LoginForm
     //Register là hàm ghi nhận input
@@ -49,9 +54,13 @@ export default function LoginPage() {
         setServerError('')
         try {
             const res = await authService.Login(data);
-            //Login xong -> backend trả về {accessToken, refreshToken,expiryAt}, lưu token vào localStorage
-            saveTokens(res.accessToken, res.refreshToken);
-            //navigate sang dashboard
+            // Lưu token trước để profileService.getMe() có token gắn vào request
+            saveTokens(res.accessToken, res.refreshToken)
+            //Lấy thông tin user về
+            const user = await profileService.getMe()
+            //Lưu thông tin user vào store
+            loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
+            //Navigate sang dashboard
             navigate('/dashboard')
         } catch (err: any) {
             setServerError(err.response?.data?.error ?? 'Đăng nhập thất bại, thử lại sau.')
@@ -110,6 +119,31 @@ export default function LoginPage() {
                             <Link to="/register" className="text-blue-600 hover:underline">Đăng ký ngay</Link>
                         </p>
                     </form>
+                    <div className="relative my-2">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs text-gray-400">
+                            <span className="bg-white px-2">hoặc</span>
+                        </div>
+                    </div>
+
+                    <GoogleLogin
+                        onSuccess={async (credentialResponse) => {
+                            if (!credentialResponse.credential) return
+                            try {
+                                const res = await authService.googleLogin(credentialResponse.credential)
+                                saveTokens(res.accessToken, res.refreshToken)
+                                const user = await profileService.getMe()
+                                loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
+                                navigate('/dashboard')
+                            } catch {
+                                setServerError('Đăng nhập Google thất bại.')
+                            }
+                        }}
+                        onError={() => setServerError('Đăng nhập Google thất bại.')}
+                        width="368"
+                    />
                 </CardContent>
             </Card>
         </div>

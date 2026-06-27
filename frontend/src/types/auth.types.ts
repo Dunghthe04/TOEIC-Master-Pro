@@ -19,3 +19,18 @@ export interface AuthResponse {
     refreshToken: string
     expiresAt: string
 }
+
+//Khớp với Profile response bên backend để gán vào zustand store
+export interface User {
+    id: string
+    email: string
+    fullName: string
+    avatarUrl: string | null
+    targetScore: number
+    examDate: string | null
+    plan: string
+    xpPoints: number
+    streakDays: number
+    createdAt: string
+}
+
