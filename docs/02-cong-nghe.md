@@ -445,3 +445,121 @@ logs/
 > 💡 **Câu thần chú:** Khi app chạy production, bạn không thể mở debugger. Log là **mắt** của bạn để quan sát app từ xa. Serilog thường là thứ **đầu tiên** bạn nhìn vào khi user báo bug.
 
 </details>
+
+---
+
+<details>
+<summary>🛣️ React Router DOM — Client-side Routing</summary>
+
+**Là gì:** Thư viện điều hướng cho React — chuyển trang mà **không reload browser** (Single Page Application).
+
+**So sánh:**
+| | Web truyền thống | React Router |
+|---|---|---|
+| Chuyển trang | Browser reload, server trả HTML mới | JavaScript thay component, không reload |
+| Tốc độ | Chậm hơn | Tức thì |
+| URL | Thay đổi | Thay đổi (nhưng không gọi server) |
+
+**Các khái niệm chính:**
+```tsx
+// BrowserRouter: bao toàn bộ app, kích hoạt routing
+// Routes: container chứa các route
+// Route: map URL → Component
+// Link: thay thế <a href> — không reload trang
+// useNavigate: chuyển trang bằng code (sau khi login xong → về Home)
+// useParams: lấy tham số từ URL (vd: /questions/:id → params.id)
+```
+
+**Trong project:** Điều hướng giữa /login, /register, /forgot-password, /dashboard, /practice...
+
+</details>
+
+---
+
+<details>
+<summary>📡 Axios — HTTP Client</summary>
+
+**Là gì:** Thư viện gọi API HTTP từ React đến backend .NET — thay thế `fetch` có nhiều tính năng hơn.
+
+**Tại sao dùng thay `fetch` mặc định:**
+| | fetch (built-in) | Axios |
+|---|---|---|
+| Tự động parse JSON | ❌ Phải `.json()` thủ công | ✅ |
+| Interceptor (gắn token tự động) | ❌ | ✅ |
+| Xử lý lỗi HTTP (4xx, 5xx) | ❌ Không throw error | ✅ Tự throw |
+| Cancel request | Phức tạp | ✅ Đơn giản |
+
+**Axios instance:** Tạo 1 instance dùng chung với base URL và header — không phải viết lại mỗi lần:
+```ts
+const api = axios.create({ baseURL: 'https://localhost:7xxx/api' })
+
+// Interceptor: tự gắn JWT token vào mọi request
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+```
+
+</details>
+
+---
+
+<details>
+<summary>📋 React Hook Form — Form Management</summary>
+
+**Là gì:** Thư viện quản lý state của form trong React — thay thế việc dùng `useState` cho từng input.
+
+**Vấn đề nếu không dùng:**
+```tsx
+// Không có React Hook Form — rất verbose
+const [email, setEmail] = useState('')
+const [password, setPassword] = useState('')
+const [emailError, setEmailError] = useState('')
+// ... mỗi field cần 2-3 state, 1 form 5 field = 15+ state
+```
+
+**Với React Hook Form:**
+```tsx
+const { register, handleSubmit, formState: { errors } } = useForm()
+
+// register("email") = gắn field vào form (theo dõi value + validation)
+<input {...register("email", { required: "Email là bắt buộc" })} />
+{errors.email && <span>{errors.email.message}</span>}
+```
+
+**Ưu điểm lớn:** Chỉ re-render component khi submit, không re-render khi gõ từng chữ → hiệu năng cao.
+
+</details>
+
+---
+
+<details>
+<summary>🛡️ Zod — Schema Validation</summary>
+
+**Là gì:** Thư viện định nghĩa "schema" (quy tắc) cho dữ liệu — validate form, API response, config...
+
+**Cách dùng:**
+```ts
+import { z } from 'zod'
+
+const loginSchema = z.object({
+  email: z.string().email("Email không hợp lệ"),
+  password: z.string().min(8, "Mật khẩu tối thiểu 8 ký tự"),
+})
+
+// TypeScript tự suy ra type từ schema — không phải viết interface riêng
+type LoginForm = z.infer<typeof loginSchema>
+// → { email: string; password: string }
+```
+
+**Kết hợp với React Hook Form qua `@hookform/resolvers`:**
+```tsx
+const { register, handleSubmit } = useForm<LoginForm>({
+  resolver: zodResolver(loginSchema),  // Zod validate tự động khi submit
+})
+```
+
+**Tại sao không dùng validation của React Hook Form thôi?** Zod cho phép tái sử dụng schema ở nhiều chỗ (form + API type + server validation), và dễ đọc hơn khi rule phức tạp.
+
+</details>
