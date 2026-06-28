@@ -25,23 +25,23 @@
 
 **Tuần 1 — Ngày 1–3: Project Setup & Database**
 - Ngày 1: Tạo solution .NET 8, cấu trúc project (API, Domain, Infrastructure, Application), cài Docker Compose (SQL Server, Redis) ✅
-- Ngày 2: Thiết kế ERD, tạo Entity classes, DbContext, Migrations (User, Role, Question, Test, Vocabulary, ExamSchedule)
-- Ngày 3: Seed data cơ bản, cấu hình EF Core, kiểm tra kết nối
+- Ngày 2: Thiết kế ERD, tạo Entity classes, DbContext, Migrations (User, Role, Question, Test, Vocabulary, ExamSchedule) ✅
+- Ngày 3: Seed data cơ bản, cấu hình EF Core, kiểm tra kết nối ✅
 
 **Tuần 1 — Ngày 4–6: Authentication**
-- Ngày 4: ASP.NET Identity setup, JWT access token + refresh token
-- Ngày 5: API: Register, Login, Refresh Token, Logout, Email verification
-- Ngày 6: Google OAuth, Forgot/Reset Password, Rate limiting auth endpoints
+- Ngày 4: ASP.NET Identity setup, JWT access token + refresh token ✅
+- Ngày 5: API: Register, Login, Refresh Token, Logout, Email verification ✅
+- Ngày 6: Google OAuth, Forgot/Reset Password, Rate limiting auth endpoints ✅
 
 **Tuần 2 — Ngày 1–3: User Profile & Base Infrastructure**
-- Ngày 7: API: Get/Update profile, upload avatar
-- Ngày 8: Redis cache service, base Repository pattern, Unit of Work
-- Ngày 9: Global error handling, Serilog logging, Swagger/Scalar setup, CORS
+- Ngày 7: API: Get/Update profile, upload avatar ✅
+- Ngày 8: Redis cache service, base Repository pattern, Unit of Work ✅
+- Ngày 9: Global error handling, Serilog logging, Swagger/Scalar setup, CORS ✅
 
 **Tuần 2 — Ngày 4–6: Frontend Bootstrap**
-- Ngày 10: Tạo React + TypeScript + Vite project, cài Tailwind + shadcn/ui
-- Ngày 11: Auth pages: Login, Register, Forgot Password (kết nối API thật)
-- Ngày 12: Layout chính, navigation, protected routes, auth context
+- Ngày 10: Tạo React + TypeScript + Vite project, cài Tailwind + shadcn/ui ✅
+- Ngày 11: Auth pages: Login, Register, Forgot Password (kết nối API thật) ✅
+- Ngày 12: Layout chính, navigation, protected routes, auth context ✅
 
 </details>
 
@@ -49,7 +49,7 @@
 <summary>📋 Phase 2 — Core Content (Tuần 3–4)</summary>
 
 **Tuần 3 — Ngày 1–3: Question & Content Management API**
-- Ngày 13: API CRUD Question (text, audio, image), Part classification, tag hệ thống
+- Ngày 13: API CRUD Question (text, audio, image), Part classification, tag hệ thống ✅ *(còn nợ: lọc theo tag, upload file → xem TRẠNG THÁI ở đầu file)*
 - Ngày 14: API CRUD Test Set (tạo đề thi, gán câu hỏi)
 - Ngày 15: Bulk import Excel/CSV (EPPlus), validate câu hỏi
 
