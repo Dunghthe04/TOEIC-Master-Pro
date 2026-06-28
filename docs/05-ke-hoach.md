@@ -5,6 +5,21 @@
 
 ---
 
+## 📍 TRẠNG THÁI HIỆN TẠI
+
+**Đang ở:** Hết **Day 13** (CRUD Question API) — đã xong, build sạch.
+**Tiếp theo:** **Day 14** — CRUD Test Set (gom câu hỏi thành đề).
+
+**Day 13 còn nợ (làm sau, KHÔNG chặn Day 14):**
+- ⬜ Lọc danh sách câu hỏi theo **tag** (`GET /api/Question?tag=...`) — hiện mới lưu/trả tag, chưa lọc.
+- ⬜ **Upload file** audio/ảnh thật (mới lưu URL dạng string) — kế hoạch để ở **Day 17**.
+
+**Lưu ý kỹ thuật còn treo:**
+- Swagger **chưa có nút Authorize** (Swashbuckle 10 + Microsoft.OpenApi 2.x đổi API security) → tạm test endpoint cần quyền bằng **Postman/Scalar + header `Authorization: Bearer <token>`**.
+- Tài khoản test: Admin seed `admin@toeicmaster.com` / `Admin@2026`.
+
+---
+
 <details>
 <summary>📦 Phase 1 — Nền tảng (Tuần 1–2)</summary>
 

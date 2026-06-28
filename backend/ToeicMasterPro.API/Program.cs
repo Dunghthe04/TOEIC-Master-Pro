@@ -16,6 +16,7 @@ using ToeicMasterPro.Infrastructure.Persistence.Repositories;
 using ToeicMasterPro.API.Middleware;
 using Serilog;
 using Scalar.AspNetCore;
+using Microsoft.OpenApi;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,6 +56,7 @@ var redisConn = builder.Configuration["Redis:ConnectionStrings"]!;
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConn));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
@@ -129,7 +131,16 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "ToeicMasterPro API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "ToeicMasterPro API",
+        Version = "v1"
+    });
+
+    c.AddServer(new OpenApiServer
+    {
+        Url = "https://localhost:7021"
+    });
 });
 
 
