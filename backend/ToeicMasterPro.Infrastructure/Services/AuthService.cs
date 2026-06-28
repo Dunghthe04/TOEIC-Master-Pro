@@ -162,13 +162,17 @@ public class AuthService : IAuthService
         {
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {
-                Audience = new[] { _googleSettings.ClientId }
+                Audience = new[] { _googleSettings.ClientId },
+                // Cho phép lệch giờ tối đa 5 phút → tránh "JWT is not yet valid" khi đồng hồ máy lệch
+                IssuedAtClockTolerance = TimeSpan.FromMinutes(5),
+                ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
             };
             payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
         }
-        catch
+        catch (Exception ex)
         {
-            return Result<AuthResponse>.Failure("Token Google không hợp lệ");
+            // Tạm lộ lý do thật để debug "lúc được lúc không"
+            return Result<AuthResponse>.Failure($"Token Google không hợp lệ: {ex.Message}");
         }
         // 2. Tìm user theo email; chưa có thì tạo mới (không mật khẩu — đăng nhập qua Google)
         var user = await _userManager.FindByEmailAsync(payload.Email);
