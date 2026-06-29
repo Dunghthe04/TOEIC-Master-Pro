@@ -648,3 +648,41 @@ const logout = useAuthStore(state => state.logout)
 ```
 
 </details>
+
+---
+
+<details>
+<summary>📊 EPPlus — Đọc/ghi file Excel (.xlsx)</summary>
+
+**Là gì:** Thư viện .NET để đọc và ghi file Excel `.xlsx` mà không cần cài Microsoft Office.
+
+**Tại sao dùng:**
+- Content Manager cần import hàng trăm câu hỏi từ file Excel một lúc — gọi API từng câu sẽ mất hàng giờ.
+- EPPlus cho phép đọc toàn bộ sheet, validate từng hàng, rồi insert vào DB trong 1 request duy nhất.
+
+**Cài đặt** (vào Infrastructure project):
+```bash
+dotnet add package EPPlus --version 7.6.1
+```
+
+**Lưu ý license:** EPPlus v5+ yêu cầu khai báo license context trước khi dùng. Dự án này dùng miễn phí (non-commercial):
+```csharp
+ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+```
+
+**Cách dùng cơ bản:**
+```csharp
+using var package = new ExcelPackage(fileStream);
+var sheet = package.Workbook.Worksheets[0];  // lấy sheet đầu tiên
+var rowCount = sheet.Dimension?.Rows ?? 0;
+
+for (int row = 2; row <= rowCount; row++)    // row 1 = header
+{
+    var content = sheet.Cells[row, 3].GetValue<string>();
+    var part    = sheet.Cells[row, 1].GetValue<int>();
+}
+```
+
+**Trong project này dùng cho:** `POST /api/question/import` — CM upload file `.xlsx` chứa danh sách câu hỏi, backend parse + validate từng hàng + insert hàng loạt vào DB, trả về báo cáo (thành công/lỗi theo từng hàng).
+
+</details>

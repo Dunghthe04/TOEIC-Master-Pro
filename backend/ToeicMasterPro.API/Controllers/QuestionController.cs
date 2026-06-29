@@ -62,4 +62,21 @@ public class QuestionController : ControllerBase
         var result = await _service.DeleteAsync(id);
         return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
     }
+
+    // POST /api/question/import
+    [HttpPost("import")]
+    [Authorize(Roles = "Admin,ContentManager")]
+    public async Task<IActionResult> Import(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "Chưa chọn file." });
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext != ".xlsx")
+            return BadRequest(new { error = "Chỉ chấp nhận file .xlsx." });
+
+        await using var stream = file.OpenReadStream();
+        var result = await _service.ImportAsync(stream);
+        return Ok(result);
+    }
 }

@@ -11,4 +11,8 @@ public interface IQuestionService
     Task<IReadOnlyList<QuestionResponse>> GetListAsync(QuestionPart? part, DifficultyLevel? difficulty, bool? isPublished, string? tag);
     Task<Result> UpdateAsync(Guid id, UpdateQuestionRequest req);
     Task<Result> DeleteAsync(Guid id);
+
+    //Thêm contract ImportAsync nhận Stream (không nhận IFormFile — giữ Application layer sạch khỏi HTTP).
+    Task<ImportResultResponse> ImportAsync(Stream fileStream);
+
 }
