@@ -8,7 +8,7 @@ public interface IQuestionService
 {
     Task<Result<Guid>> CreateAsync(CreateQuestionRequest req);
     Task<Result<QuestionResponse>> GetByIdAsync(Guid id);
-    Task<IReadOnlyList<QuestionResponse>> GetListAsync(QuestionPart? part, DifficultyLevel? difficulty, bool? isPublished);
+    Task<IReadOnlyList<QuestionResponse>> GetListAsync(QuestionPart? part, DifficultyLevel? difficulty, bool? isPublished, string? tag);
     Task<Result> UpdateAsync(Guid id, UpdateQuestionRequest req);
     Task<Result> DeleteAsync(Guid id);
 }

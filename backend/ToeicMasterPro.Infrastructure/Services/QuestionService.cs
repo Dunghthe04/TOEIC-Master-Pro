@@ -6,17 +6,20 @@ using ToeicMasterPro.Domain.Enums;
 
 namespace ToeicMasterPro.Infrastructure.Services;
 
-public class QuestionService: IQuestionService{
+public class QuestionService : IQuestionService
+{
     private readonly IUnitOfWork _uow;
 
-    public QuestionService(IUnitOfWork uow) => _uow=uow;
+    public QuestionService(IUnitOfWork uow) => _uow = uow;
 
     //tạo câu hỏi
-    public async Task<Result<Guid>> CreateAsync(CreateQuestionRequest req){
+    public async Task<Result<Guid>> CreateAsync(CreateQuestionRequest req)
+    {
         var error = Validate(req.Content, req.Options);
         if (error is not null) return Result<Guid>.Failure(error);
 
-        var question = new Question{
+        var question = new Question
+        {
             Part = req.Part,
             Difficulty = req.Difficulty,
             Content = req.Content,
@@ -50,24 +53,29 @@ public class QuestionService: IQuestionService{
     }
 
     public async Task<IReadOnlyList<QuestionResponse>> GetListAsync(
-        QuestionPart? part, DifficultyLevel? difficulty, bool? isPublished)
+    QuestionPart? part, DifficultyLevel? difficulty, bool? isPublished, string? tag)
     {
-        // Lọc tùy chọn: filter nào null thì bỏ qua
         var questions = await _uow.Repository<Question>().FindAsync(q =>
             (part == null || q.Part == part) &&
             (difficulty == null || q.Difficulty == difficulty) &&
             (isPublished == null || q.IsPublished == isPublished));
 
-        // trả về mảng ids của question
+        // Filter tag in-memory — Tags là string[] được convert từ "a,b,c" trong DB
+        // EF không dịch được sang SQL với value converter nên phải lọc sau khi fetch
+        if (tag is not null)
+            questions = questions
+                .Where(q => q.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
         var ids = questions.Select(q => q.Id).ToList();
-        // Lấy options của tất cả câu trong 1 query (tránh N+1)
+        if (ids.Count == 0) return [];
+
         var options = await _uow.Repository<QuestionOption>().FindAsync(o => ids.Contains(o.QuestionId));
-        //nhóm các option có chung QuestionId thành dictionary, key=QuestionId, value=List<Option>
         var optionsByQ = options.GroupBy(o => o.QuestionId)
                                 .ToDictionary(g => g.Key, g => g.ToList());
 
         return questions
-            .Select(q => MapToResponse(q, optionsByQ.GetValueOrDefault(q.Id) ?? new()))
+            .Select(q => MapToResponse(q, optionsByQ.GetValueOrDefault(q.Id) ?? []))
             .ToList();
     }
 
@@ -107,7 +115,7 @@ public class QuestionService: IQuestionService{
         return Result.Success();
     }
 
-        public async Task<Result> DeleteAsync(Guid id)
+    public async Task<Result> DeleteAsync(Guid id)
     {
         var q = await _uow.Repository<Question>().GetByIdAsync(id);
         if (q is null) return Result.Failure("Không tìm thấy câu hỏi.");
@@ -118,14 +126,15 @@ public class QuestionService: IQuestionService{
     }
 
     //--Helpers--
-    private static string? Validate(string content, List<CreateOptionRequest> options){
-       if (string.IsNullOrWhiteSpace(content)) return "Nội dung câu hỏi không được trống.";
+    private static string? Validate(string content, List<CreateOptionRequest> options)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return "Nội dung câu hỏi không được trống.";
         if (options is null || options.Count < 2) return "Phải có ít nhất 2 đáp án.";
         if (options.Count(o => o.IsCorrect) != 1) return "Phải có đúng 1 đáp án đúng.";
         return null;
     }
 
-    private static QuestionResponse MapToResponse(Question q, List<QuestionOption>options)
+    private static QuestionResponse MapToResponse(Question q, List<QuestionOption> options)
       => new(
          q.Id, q.Part, q.Difficulty, q.Content, q.Explanation,
             q.AudioUrl, q.ImageUrl, q.Passage, q.Tags, q.IsPublished,
