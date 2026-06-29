@@ -17,6 +17,8 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import DashboardPage from '@/pages/DashboardPage'
+import TestListPage from '@/pages/cm/TestListPage'
+import TestFormPage from '@/pages/cm/TestFormPage'
 
 
 // "function App()" — định nghĩa một React Component.
@@ -31,11 +33,13 @@ function App() {
         <Route path='/login' element={<LoginPage />} />
         <Route path='/register' element={<RegisterPage />} />
         <Route path='/forgot-password' element={<ForgotPasswordPage />} />
-
         {/* Protected — phải login mới vào được, có layout sidebar+header */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/cm/tests" element={<TestListPage />} />
+            <Route path="/cm/tests/create" element={<TestFormPage />} />
+            <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
           </Route>
         </Route>
       </Routes>

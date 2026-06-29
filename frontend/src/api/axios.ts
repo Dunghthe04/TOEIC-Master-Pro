@@ -3,7 +3,7 @@ import axios from 'axios'
 import { getAccessToken } from '@/lib/token'
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: import.meta.env.VITE_BASE_URL,
 });
 
 //interceptors để chặn gửi đi, gắn token vào mới gửi đi

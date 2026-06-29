@@ -2,7 +2,7 @@
 //Dùng NavLink thay vì Link vì NavLink tự nhận biết route đang active để highlight menu đang chọn.
 
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, BookOpen, ClipboardList, BookMarked, Calendar } from 'lucide-react'
+import { LayoutDashboard, BookOpen, ClipboardList, BookMarked, Calendar, FileText } from 'lucide-react'
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -10,6 +10,7 @@ const navItems = [
     { to: '/mock-test', icon: ClipboardList, label: 'Thi thử' },
     { to: '/vocabulary', icon: BookMarked, label: 'Từ vựng' },
     { to: '/exam-schedule', icon: Calendar, label: 'Lịch thi' },
+    { to: '/cm/tests', icon: FileText, label: 'Quản lý đề thi' },
 ]
 
 export default function Sidebar() {
