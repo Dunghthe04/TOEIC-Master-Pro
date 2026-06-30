@@ -11,6 +11,7 @@
 // Syntax: import Button từ thư mục ui (do shadcn generate)
 // "@/" là alias trỏ vào thư mục "src/" — thay thế cho "../../components/ui/button"
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Toaster } from '@/components/ui/sonner'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
@@ -19,6 +20,8 @@ import MainLayout from '@/components/layout/MainLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import TestListPage from '@/pages/cm/TestListPage'
 import TestFormPage from '@/pages/cm/TestFormPage'
+import QuestionListPage from '@/pages/cm/QuestionListPage'
+import QuestionFormPage from '@/pages/cm/QuestionFormPage'
 
 
 // "function App()" — định nghĩa một React Component.
@@ -27,6 +30,7 @@ function App() {
   // return (...) — phần JSX này sẽ được render thành HTML thật trên trình duyệt.
   // JSX trông như HTML nhưng thực ra là JavaScript — Vite/TypeScript sẽ biên dịch nó.
   return (
+    <>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -40,10 +44,15 @@ function App() {
             <Route path="/cm/tests" element={<TestListPage />} />
             <Route path="/cm/tests/create" element={<TestFormPage />} />
             <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
+            <Route path="/cm/questions" element={<QuestionListPage />} />
+            <Route path="/cm/questions/create" element={<QuestionFormPage />} />
+            <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
           </Route>
         </Route>
       </Routes>
     </BrowserRouter>
+    <Toaster richColors position="top-right" />
+    </>
   )
 }
 

@@ -30,6 +30,7 @@
 | Audio | Howler.js |
 | Charts | Recharts |
 | Rich Text | TipTap (content manager) |
+| Toast | Sonner (thông báo thành công/thất bại) |
 
 ### DevOps
 | Item | Công nghệ |
@@ -684,5 +685,82 @@ for (int row = 2; row <= rowCount; row++)    // row 1 = header
 ```
 
 **Trong project này dùng cho:** `POST /api/question/import` — CM upload file `.xlsx` chứa danh sách câu hỏi, backend parse + validate từng hàng + insert hàng loạt vào DB, trả về báo cáo (thành công/lỗi theo từng hàng).
+
+</details>
+
+---
+
+<details>
+<summary>✍️ TipTap — Rich Text Editor</summary>
+
+**Là gì:** Thư viện rich text editor headless cho React — cho phép soạn thảo văn bản có định dạng (bold, italic, danh sách...) trong trình duyệt, tương tự Google Docs thu nhỏ.
+
+**Tại sao "headless":** TipTap không có giao diện sẵn — bạn tự xây toolbar và styling theo thiết kế của mình. Ngược lại với các editor như Quill hay CKEditor có giao diện cứng khó tùy chỉnh.
+
+**Cài đặt:**
+```bash
+npm install @tiptap/react @tiptap/pm @tiptap/starter-kit
+```
+
+- `@tiptap/react` — React binding
+- `@tiptap/pm` — ProseMirror core (engine bên dưới)
+- `@tiptap/starter-kit` — gói extension cơ bản (Bold, Italic, BulletList, Heading...)
+
+**Cách dùng cơ bản:**
+```tsx
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+
+const editor = useEditor({
+  extensions: [StarterKit],
+  content: '<p>Nội dung ban đầu</p>',
+  onUpdate: ({ editor }) => {
+    const html = editor.getHTML()  // lấy HTML để lưu vào DB
+  },
+})
+
+// editor.getHTML()  → "<p><strong>Câu hỏi</strong></p>"
+// editor.getText()  → "Câu hỏi" (không có tag)
+```
+
+**Tại sao lưu HTML:** Nội dung câu hỏi TOEIC có thể có bold/italic/danh sách → cần lưu HTML để render đúng. Khi hiển thị dùng `dangerouslySetInnerHTML={{ __html: content }}`.
+
+**Trong project này dùng cho:** Form tạo/sửa câu hỏi — soạn nội dung câu hỏi, giải thích đáp án, passage (đoạn văn Part 6–7) có rich text thay vì plain text.
+
+</details>
+
+---
+
+<details>
+<summary>🔔 Sonner — Toast Notifications</summary>
+
+**Là gì:** Thư viện hiển thị thông báo tạm thời (toast) góc màn hình — thay thế `alert()` của trình duyệt bằng UI đẹp, chuyên nghiệp hơn.
+
+**Tại sao không dùng `alert()`:**
+| | `alert()` | Sonner |
+|---|---|---|
+| Giao diện | Popup xấu của hệ điều hành | Toast đẹp, có animation |
+| Block UI | ✅ Chặn toàn bộ trang | ❌ Không block |
+| Tự đóng | ❌ Phải bấm OK | ✅ Tự đóng sau vài giây |
+| Customize | ❌ | ✅ màu sắc, icon, duration |
+
+**Cách dùng:**
+```tsx
+import { toast } from 'sonner'
+
+toast.success('Tạo câu hỏi thành công!')   // toast xanh lá
+toast.error('Có lỗi xảy ra!')              // toast đỏ
+toast.warning('Cảnh báo!')                 // toast vàng
+toast('Thông báo thường')                  // toast xám
+```
+
+**Cài đặt qua shadcn:**
+```bash
+npx shadcn@latest add sonner
+```
+
+Sau đó đặt `<Toaster />` một lần duy nhất ở `App.tsx` — mọi `toast()` trong toàn app đều hiển thị qua đó.
+
+**Trong project này dùng cho:** Thông báo tạo/sửa/xóa thành công hay thất bại ở các trang CM Dashboard (đề thi, câu hỏi).
 
 </details>

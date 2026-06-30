@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { TestService } from '@/services/test.service'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,13 +39,15 @@ export default function TestFormPage() {
     const onSubmit = async (data: FormData) => {
         try {
             if (isEdit) {
-                await TestService.update(id!, data);
+                await TestService.update(id!, data)
+                toast.success('Cập nhật đề thi thành công!')
             } else {
-                await TestService.create(data);
+                await TestService.create(data)
+                toast.success('Tạo đề thi thành công!')
             }
             navigate('/cm/tests')
         } catch (error) {
-            alert('Có lỗi xảy ra, vui lòng thử lại.')
+            toast.error('Có lỗi xảy ra, vui lòng thử lại.')
         }
     }
     return (
