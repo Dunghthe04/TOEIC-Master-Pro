@@ -44,3 +44,14 @@ export interface CreateQuestionRequest {
 
 //update có cấu trúc y hệt create, nên k cần viết lại
 export type UpdateQuestionRequest = CreateQuestionRequest
+
+export interface ImportRowError {
+    row: number
+    reason: string
+}
+export interface ImportResultResponse {
+    totalRows: number
+    successCount: number
+    failedCount: number
+    errors: ImportRowError[]
+}

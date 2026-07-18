@@ -22,6 +22,8 @@ import TestListPage from '@/pages/cm/TestListPage'
 import TestFormPage from '@/pages/cm/TestFormPage'
 import QuestionListPage from '@/pages/cm/QuestionListPage'
 import QuestionFormPage from '@/pages/cm/QuestionFormPage'
+import QuestionImportPage from '@/pages/cm/QuestionImportPage'
+
 
 
 // "function App()" — định nghĩa một React Component.
@@ -47,6 +49,7 @@ function App() {
             <Route path="/cm/questions" element={<QuestionListPage />} />
             <Route path="/cm/questions/create" element={<QuestionFormPage />} />
             <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
+            <Route path="/cm/questions/import" element={<QuestionImportPage />} />
           </Route>
         </Route>
       </Routes>

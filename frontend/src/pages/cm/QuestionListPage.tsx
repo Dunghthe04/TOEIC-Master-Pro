@@ -15,7 +15,9 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Settings, Trash2 } from 'lucide-react'
+import { Plus, Settings, Trash2, Upload } from 'lucide-react'
+
+
 
 export default function QuestionListPage() {
     const navigate = useNavigate()
@@ -54,11 +56,16 @@ export default function QuestionListPage() {
 
     return (
         <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
+             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">Quản lý câu hỏi</h1>
-                <Button onClick={() => navigate('/cm/questions/create')}>
-                    <Plus className="w-4 h-4 mr-2" />Tạo câu hỏi
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => navigate('/cm/questions/import')}>
+                        <Upload className="w-4 h-4 mr-2" />Import Excel
+                    </Button>
+                    <Button onClick={() => navigate('/cm/questions/create')}>
+                        <Plus className="w-4 h-4 mr-2" />Tạo câu hỏi
+                    </Button>
+                </div>
             </div>
 
             <div className="flex gap-3 flex-wrap">

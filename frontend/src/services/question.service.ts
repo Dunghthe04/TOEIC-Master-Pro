@@ -1,5 +1,10 @@
 import api from '@/api/axios'
-import type { QuestionResponse, CreateQuestionRequest, UpdateQuestionRequest } from '@/types/question.types'
+import type {
+    QuestionResponse,
+    CreateQuestionRequest,
+    UpdateQuestionRequest,
+    ImportResultResponse,
+} from '@/types/question.types'
 
 export const QuestionService = {
     getList: (param?: { part?: number; difficulty?: string; tag?: string }) =>
@@ -16,6 +21,17 @@ export const QuestionService = {
 
     delete: (id: string) =>
         api.delete(`/question/${id}`).then(r => r.data),
+
+      // Upload Excel — multipart/form-data, field name phải là "file"
+    import: (file: File) => {
+        const form = new FormData()
+        form.append('file', file)
+        return api
+            .post<ImportResultResponse>('/question/import', form, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            })
+            .then(r => r.data)
+    },
 
 
 }
