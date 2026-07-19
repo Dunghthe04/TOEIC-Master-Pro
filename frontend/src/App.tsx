@@ -24,6 +24,7 @@ import QuestionListPage from '@/pages/cm/QuestionListPage'
 import QuestionFormPage from '@/pages/cm/QuestionFormPage'
 import QuestionImportPage from '@/pages/cm/QuestionImportPage'
 import ExamSchedulePage from '@/pages/ExamSchedulePage'
+import VocabularyPage from '@/pages/VocabularyPage'
 
 
 
@@ -53,6 +54,7 @@ function App() {
             <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
             <Route path="/cm/questions/import" element={<QuestionImportPage />} />
             <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+            <Route path="/vocabulary" element={<VocabularyPage />} />
           </Route>
         </Route>
       </Routes>

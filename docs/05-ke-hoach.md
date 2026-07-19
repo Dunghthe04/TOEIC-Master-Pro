@@ -7,13 +7,12 @@
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 23** (SRS SM-2 + API learn/due/review/progress) — đã xong.
-**Tiếp theo:** **Day 24** — Flashcard UI, bài tập từ vựng, thanh tiến độ SRS.
+**Đang ở:** Hết **Day 24** (Flashcard UI + kho từ + thanh tiến độ SRS) — đã xong.
+**Tiếp theo:** **Day 25** — API Practice (lấy câu hỏi theo Part, nộp đáp án, tính điểm).
 
-**Day 23 ghi chú:**
-- API `/api/srs`: learn, due, review (quality 0–5), progress — cần JWT.
-- SM-2 cập nhật EaseFactor / IntervalDays / NextReviewDate; `IsLearned` khi IntervalDays > 21.
-- FE flashcard để Day 24.
+**Day 24 ghi chú:**
+- Route `/vocabulary` — tab Ôn hôm nay (due + review quality 0–5) và Kho từ (learn).
+- Progress bar: dueToday / learning / learned từ `GET /api/srs/progress`.
 
 **Lưu ý kỹ thuật còn treo:**
 - Swagger **chưa có nút Authorize** (Swashbuckle 10 + Microsoft.OpenApi 2.x đổi API security) → tạm test endpoint cần quyền bằng **Postman/Scalar + header `Authorization: Bearer <token>`**.
@@ -68,7 +67,7 @@
 **Tuần 4 — Ngày 4–6: Vocabulary System**
 - Ngày 22: API: danh sách từ, thêm/sửa/xóa (CM), phân chủ đề ✅
 - Ngày 23: SRS engine (SM-2 algorithm), API track tiến độ học từ ✅
-- Ngày 24: Flashcard UI, bài tập từ vựng, thanh tiến độ SRS
+- Ngày 24: Flashcard UI, bài tập từ vựng, thanh tiến độ SRS ✅
 
 </details>
 
