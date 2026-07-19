@@ -17,6 +17,11 @@ using ToeicMasterPro.API.Middleware;
 using Serilog;
 using Scalar.AspNetCore;
 using Microsoft.OpenApi;
+//Dùng được các hàm của hangFire
+using Hangfire;
+//Lưu job vào sqlServer
+using Hangfire.SqlServer;
+using ToeicMasterPro.API.Jobs;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,6 +64,26 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddScoped<ITestService, TestService>();
 builder.Services.AddScoped<IExamScheduleService, ExamScheduleService>();
+builder.Services.AddScoped<IExamReminderService, ExamReminderService>();
+builder.Services.AddScoped<IEmailSender, ConsoleEmailSender>();
+builder.Services.AddScoped<ExamReminderJob>();
+// Đăng ký Hangfire vào DI và lưu job ở cũng SQLServer, rồi bật worker chạy job
+builder.Services.AddHangfire(config => config
+    //Chọn phiên bản dữ liệu Hangfire lưu vào db
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    //Khi lưu job, Hangfire ghi tên class sẽ chạy
+    .UseSimpleAssemblyNameTypeSerializer()
+    //Cấu hình JSON serializer (Newtonsoft) theo khuyến nghị Hangfire khi serialize tham số job.
+    .UseRecommendedSerializerSettings()
+    //Cất job ở sqlver dùng chung ==> tạo bảng Hangfire.jo, Hangfire.State,...
+    .UseSqlServerStorage(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        new SqlServerStorageOptions
+        {
+            PrepareSchemaIfNecessary = true // tự tạo schema Hangfire lần đầu
+        }));
+//Bật background Job server trong process API
+builder.Services.AddHangfireServer();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
@@ -168,13 +193,24 @@ if (app.Environment.IsDevelopment())
 //ExceptionHandler phải nằm trước Authentication, Authorization và Routing
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();   // ← THÊM: log mỗi request vào: method, path, status, time
-app.UseHttpsRedirection();
+// Dev: FE gọi http://localhost:5191 — bật HTTPS redirect sẽ 307 sang https://localhost:7021
+// → trình duyệt chặn cert tự ký, request không vào được /api/auth/login
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();        // ← THÊM: phục vụ wwwroot (ảnh avatar tại /uploads/avatars/...)
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
+app.UseHangfireDashboard("/hangfire"); // Dev xem job: http://localhost:5191/hangfire
+//Đăng ký or cập nhập, job chạy theo lịch
+RecurringJob.AddOrUpdate<ExamReminderJob>(
+    "exam-reminder-email",//id
+    job => job.RunAsync(),// cứ đúng hẹn nó chạy hàm này
+    "30 0 * * *"); // cron 5 phần: phút giờ ngày tháng thứ — 00:30 mỗi ngày, * ngày, *tháng, * thứ
 app.Run();
 
 // ── Seed Method ───────────────────────────────────────────

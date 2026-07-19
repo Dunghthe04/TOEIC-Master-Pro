@@ -1,3 +1,4 @@
+using System.Text;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.ExamSchedules;
 using ToeicMasterPro.Domain.Common;
@@ -113,9 +114,50 @@ public class ExamScheduleService : IExamScheduleService
         return null;
     }
 
+    // Day 21: sinh nội dung .ics (Google Calendar / Outlook mở được)
+    public async Task<Result<(string FileName, string Content)>> GetIcalAsync(Guid id)
+    {
+        var e = await _uow.Repository<ExamSchedule>().GetByIdAsync(id);
+        if (e is null)
+            return Result<(string, string)>.Failure("Không tìm thấy lịch thi.");
+
+        // UTC dạng 20260722T083000Z — lịch client tự convert timezone
+        var start = e.ExamDate.Date.Add(e.StartTime);
+        var end = start.AddHours(2); // TOEIC L&R ~2 giờ — ước lượng
+        string Fmt(DateTime dt) => dt.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'");
+
+        var uid = $"{e.Id}@toeicmasterpro";
+        var sb = new StringBuilder();
+        sb.AppendLine("BEGIN:VCALENDAR");
+        sb.AppendLine("VERSION:2.0");
+        sb.AppendLine("PRODID:-//TOEIC Master Pro//Exam Schedule//VI");
+        sb.AppendLine("CALSCALE:GREGORIAN");
+        sb.AppendLine("METHOD:PUBLISH");
+        sb.AppendLine("BEGIN:VEVENT");
+        sb.AppendLine($"UID:{uid}");
+        sb.AppendLine($"DTSTAMP:{Fmt(DateTime.UtcNow)}");
+        sb.AppendLine($"DTSTART:{Fmt(start)}");
+        sb.AppendLine($"DTEND:{Fmt(end)}");
+        sb.AppendLine($"SUMMARY:{EscapeIcal(e.Title)}");
+        sb.AppendLine($"LOCATION:{EscapeIcal($"{e.Location}, {e.City}")}");
+        sb.AppendLine($"DESCRIPTION:{EscapeIcal($"{e.Organizer} — phí {e.Fee:N0}đ")}");
+        if (!string.IsNullOrWhiteSpace(e.RegisterUrl))
+            sb.AppendLine($"URL:{e.RegisterUrl}");
+        sb.AppendLine("END:VEVENT");
+        sb.AppendLine("END:VCALENDAR");
+
+        var fileName = $"toeic-{e.ExamDate:yyyyMMdd}.ics";
+        return Result<(string, string)>.Success((fileName, sb.ToString()));
+    }
+
+    private static string EscapeIcal(string s) =>
+        s.Replace("\\", "\\\\").Replace(";", "\\;").Replace(",", "\\,").Replace("\n", "\\n");
+
     private static ExamScheduleResponse Map(ExamSchedule e) => new(
         e.Id, e.Title, e.Organizer, e.Location, e.City,
         e.ExamDate, e.StartTime, e.RegistrationDeadline,
         e.Fee, e.AvailableSlots, e.RegisterUrl, e.IsActive, e.CreatedAt
     );
+
+
 }

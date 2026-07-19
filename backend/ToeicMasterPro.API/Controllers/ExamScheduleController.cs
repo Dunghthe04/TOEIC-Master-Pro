@@ -6,13 +6,57 @@ using ToeicMasterPro.Application.DTOs.ExamSchedules;
 namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")] // → /api/examschedule
+[Route("api/[controller]")] 
 public class ExamScheduleController : ControllerBase
 {
     private readonly IExamScheduleService _service;
+    private readonly IExamReminderService _reminders;
 
-    public ExamScheduleController(IExamScheduleService service) => _service = service;
+    public ExamScheduleController(IExamScheduleService service, IExamReminderService reminders)
+    {
+        _service = service;
+        _reminders = reminders;
+    }
 
+    // Day 21: id các kỳ thi user đã đặt nhắc — để FE tô chuông đỏ
+    [HttpGet("my-reminders")]
+    [Authorize]
+    public async Task<IActionResult> GetMyReminders()
+    {
+        var ids = await _reminders.GetMyReminderExamIdsAsync();
+        return Ok(ids);
+    }
+
+    // Day 21: đặt nhắc email — cần đăng nhập
+    [HttpPost("{id:Guid}/reminder")]
+    [Authorize]
+    public async Task<IActionResult> SubscribeReminder(Guid id)
+    {
+        var result = await _reminders.SubscribeAsync(id);
+        return result.IsSuccess
+            ? Ok(new { message = "Đã đặt nhắc email (gửi trước ~3 ngày)." })
+            : BadRequest(new { error = result.Error });
+    }
+    [HttpDelete("{id:Guid}/reminder")]
+    [Authorize]
+    public async Task<IActionResult> UnsubscribeReminder(Guid id)
+    {
+        var result = await _reminders.UnsubscribeAsync(id);
+        return result.IsSuccess
+            ? Ok(new { message = "Đã hủy nhắc." })
+            : BadRequest(new { error = result.Error });
+    }
+    // Day 21: tải file .ics — public được (ai cũng export)
+    [HttpGet("{id:Guid}/ical")]
+    public async Task<IActionResult> ExportIcal(Guid id)
+    {
+        var result = await _service.GetIcalAsync(id);
+        if (!result.IsSuccess)
+            return NotFound(new { error = result.Error });
+        var (fileName, content) = result.Value!;
+        // text/calendar — trình duyệt / Google Calendar nhận diện
+        return File(System.Text.Encoding.UTF8.GetBytes(content), "text/calendar", fileName);
+    }
     // Ai cũng xem được — Day 20 User UI lọc theo tỉnh/tháng
     [HttpGet]
     public async Task<IActionResult> GetList(

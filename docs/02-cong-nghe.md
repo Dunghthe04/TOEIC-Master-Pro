@@ -186,14 +186,86 @@ var dto = user.Adapt<UserDto>();
 <details>
 <summary>⏰ Hangfire — Background Jobs</summary>
 
-**Là gì:** Thư viện chạy tác vụ nền và tác vụ định kỳ (không block request của user).
+**Là gì:** Thư viện chạy tác vụ nền / định kỳ **trong cùng process API**, không block HTTP request của user. Job được lưu vào SQL Server (bảng `Hangfire.*`) → restart app vẫn nhớ lịch.
 
-| Job | Tần suất | Làm gì |
-|---|---|---|
-| Streak checker | Mỗi ngày 00:01 | Kiểm tra user không học → reset streak |
-| Email nhắc lịch thi | 3 ngày trước | Gửi email tới user đã đặt nhắc |
-| Gửi email verify | Ngay khi đăng ký | Không block request đăng ký |
-| Xóa expired token | Mỗi ngày 03:00 | Xóa refresh token hết hạn trong DB |
+**Package (API):** `Hangfire.AspNetCore` + `Hangfire.SqlServer` (cùng connection string `DefaultConnection`).
+
+---
+
+### Vì sao dùng Hangfire trong TOEIC Master Pro?
+
+User bấm chuông chỉ **đăng ký nhắc** (ghi DB). Không gửi mail ngay lúc đó — vì mail phải gửi **~3 ngày trước ngày thi**. Việc quét + gửi mail để Hangfire làm theo lịch, không bắt request FE chờ.
+
+```
+[User bấm chuông]
+    → POST /api/examschedule/{id}/reminder
+    → INSERT UserExamReminders (EmailSent = false)
+    → trả 200 ngay (nhanh)
+
+[Hangfire mỗi ngày 00:30]
+    → ExamReminderJob.RunAsync()
+    → tìm EmailSent=false AND ExamDate = hôm nay+3
+    → IEmailSender.SendAsync(...)
+    → EmailSent = true
+```
+
+---
+
+### Job đã có (Day 21) vs dự kiến sau
+
+| Job | Cron | Status | Class / chỗ gọi |
+|---|---|---|---|
+| Email nhắc lịch thi | `30 0 * * *` (00:30 mỗi ngày) | ✅ Day 21 | `ExamReminderJob` → `IExamReminderService.ProcessDueRemindersAsync` |
+| Streak checker | Mỗi ngày ~00:01 | ⬜ Chưa | Phase gamification |
+| Email verify lúc đăng ký | Fire-and-forget | ⬜ Chưa | Hiện Auth vẫn in Console token |
+| Xóa refresh token hết hạn | Mỗi ngày ~03:00 | ⬜ Chưa | — |
+
+---
+
+### File / đoạn code liên quan
+
+| File | Vai trò |
+|---|---|
+| `API/Program.cs` | `AddHangfire` + `AddHangfireServer` + dashboard `/hangfire` + `RecurringJob.AddOrUpdate` |
+| `API/Jobs/ExamReminderJob.cs` | Wrapper mỏng — Hangfire resolve DI rồi gọi service |
+| `Application/.../IExamReminderService.cs` | Contract: Subscribe / Unsubscribe / ProcessDue / GetMyReminderIds |
+| `Infrastructure/Services/ExamReminderService.cs` | Logic thật: query DB + gửi mail + đánh dấu `EmailSent` |
+| `Infrastructure/Services/ConsoleEmailSender.cs` | Dev: in email ra **console** (chưa SMTP) |
+| `Application/.../IEmailSender.cs` | Abstraction — sau này đổi MailKit/SendGrid không đụng job |
+| `Domain/Entities/UserExamReminder.cs` | Bảng đăng ký nhắc (`EmailSent`) |
+| `API/Controllers/ExamScheduleController.cs` | API chuông + `GET my-reminders` (không phải Hangfire) |
+| `frontend/.../ExamSchedulePage.tsx` | UI chuông toggle — chỉ gọi API subscribe/unsubscribe |
+
+---
+
+### Cấu hình trong `Program.cs` (ý nghĩa từng phần)
+
+1. **`AddHangfire` + `UseSqlServerStorage`** — lưu job/queue vào SQL; `PrepareSchemaIfNecessary = true` tự tạo bảng Hangfire lần đầu.
+2. **`AddHangfireServer`** — worker trong process API, lấy job ra chạy.
+3. **`UseHangfireDashboard("/hangfire")`** — UI Dev: `http://localhost:5191/hangfire` (Recurring → Trigger now để test).
+4. **`RecurringJob.AddOrUpdate<ExamReminderJob>(...)`** — đăng ký cron; id job = `"exam-reminder-email"`.
+
+**Cron 5 phần:** `phút giờ ngày tháng thứ` → `"30 0 * * *"` = 00:30 mỗi ngày. Thiếu phần → `ArgumentException`.
+
+> ⚠️ Tab Dashboard mở sẽ poll `POST /hangfire/stats` mỗi ~2s → log “spam”. Đóng tab thì hết. Đó **không phải** job đang chạy.
+
+---
+
+### Logic gửi nhắc (`ProcessDueRemindersAsync`)
+
+- `targetDate = UtcNow.Date.AddDays(3)` — phải có `.Date` để so khớp với `ExamDate.Date`.
+- Điều kiện: `EmailSent == false` + lịch `IsActive` + `ExamDate.Date == targetDate`.
+- Gửi xong → `EmailSent = true` (không gửi trùng).
+- Dev: nhìn console `========== EMAIL ==========` — **không** vào Gmail.
+
+---
+
+### Note kỹ thuật
+
+- Job class nên mỏng; business nằm trong Application/Infrastructure service (giữ Clean Architecture).
+- Hangfire resolve **scoped** service (`ExamReminderJob`, `DbContext`) mỗi lần chạy — OK với `AddHangfireServer`.
+- Dashboard Dev đang **không** khóa auth — production cần `DashboardOptions.Authorization` trước khi expose.
+- Email thật (MailKit/SendGrid) = implement lại `IEmailSender`, đổi DI trong `Program.cs`, không sửa Hangfire.
 
 </details>
 

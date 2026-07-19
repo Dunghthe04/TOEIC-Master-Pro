@@ -63,7 +63,13 @@ export default function LoginPage() {
             //Navigate sang dashboard
             navigate('/dashboard')
         } catch (err: any) {
-            setServerError(err.response?.data?.error ?? 'Đăng nhập thất bại, thử lại sau.')
+            // Không có response = lỗi mạng/CORS/SSL (request chưa tới API)
+            const msg =
+                err.response?.data?.error
+                ?? (err.request && !err.response
+                    ? 'Không kết nối được API. Kiểm tra backend đang chạy và VITE_BASE_URL.'
+                    : 'Đăng nhập thất bại, thử lại sau.')
+            setServerError(msg)
         }
     }
 

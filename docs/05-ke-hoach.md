@@ -7,16 +7,18 @@
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 13** (CRUD Question API) — đã xong, build sạch.
-**Tiếp theo:** **Day 14** — CRUD Test Set (gom câu hỏi thành đề).
+**Đang ở:** Hết **Day 21** (Nhắc email Hangfire + export iCal + UI chuông toggle) — đã xong.
+**Tiếp theo:** **Day 22** — API Vocabulary (CM CRUD từ, phân chủ đề).
 
-**Day 13 còn nợ (làm sau, KHÔNG chặn Day 14):**
-- ⬜ Lọc danh sách câu hỏi theo **tag** (`GET /api/Question?tag=...`) — hiện mới lưu/trả tag, chưa lọc.
-- ⬜ **Upload file** audio/ảnh thật (mới lưu URL dạng string) — kế hoạch để ở **Day 17**.
+**Day 21 ghi chú:**
+- Email Dev dùng `ConsoleEmailSender` (in console), chưa SMTP thật.
+- Hangfire dashboard: `http://localhost:5191/hangfire` — Trigger now để test job.
+- UI chuông: trắng = chưa nhắc, đỏ + rung = đã nhắc, bấm lại = unsubscribe.
 
 **Lưu ý kỹ thuật còn treo:**
 - Swagger **chưa có nút Authorize** (Swashbuckle 10 + Microsoft.OpenApi 2.x đổi API security) → tạm test endpoint cần quyền bằng **Postman/Scalar + header `Authorization: Bearer <token>`**.
 - Tài khoản test: Admin seed `admin@toeicmaster.com` / `Admin@2026`.
+- Hangfire Dashboard Dev chưa khóa auth — production cần thêm authorization.
 
 ---
 
@@ -49,19 +51,19 @@
 <summary>📋 Phase 2 — Core Content (Tuần 3–4)</summary>
 
 **Tuần 3 — Ngày 1–3: Question & Content Management API**
-- Ngày 13: API CRUD Question (text, audio, image), Part classification, tag hệ thống ✅ *(còn nợ: lọc theo tag, upload file → xem TRẠNG THÁI ở đầu file)*
-- Ngày 14: API CRUD Test Set (tạo đề thi, gán câu hỏi)
-- Ngày 15: Bulk import Excel/CSV (EPPlus), validate câu hỏi
+- Ngày 13: API CRUD Question (text, audio, image), Part classification, tag hệ thống ✅
+- Ngày 14: API CRUD Test Set (tạo đề thi, gán câu hỏi) ✅
+- Ngày 15: Bulk import Excel/CSV (EPPlus), validate câu hỏi ✅
 
 **Tuần 3 — Ngày 4–6: Content Manager Panel**
-- Ngày 16: CM Dashboard: danh sách đề thi, bộ lọc, tìm kiếm
-- Ngày 17: Form tạo/sửa câu hỏi (TipTap editor, upload audio)
-- Ngày 18: Upload Excel import, xem preview, xác nhận import
+- Ngày 16: CM Dashboard: danh sách đề thi, bộ lọc, tìm kiếm ✅
+- Ngày 17: Form tạo/sửa câu hỏi (TipTap editor, upload audio) ✅
+- Ngày 18: Upload Excel import, xem preview, xác nhận import ✅
 
 **Tuần 4 — Ngày 1–3: Exam Schedule Module**
-- Ngày 19: API CRUD ExamSchedule, phân quyền Content Manager
-- Ngày 20: Giao diện lịch thi (User): bộ lọc tỉnh/tháng, card lịch thi
-- Ngày 21: Đặt nhắc nhở Email (Hangfire job), export iCal
+- Ngày 19: API CRUD ExamSchedule, phân quyền Content Manager ✅
+- Ngày 20: Giao diện lịch thi (User): bộ lọc tỉnh/tháng, card lịch thi ✅
+- Ngày 21: Đặt nhắc nhở Email (Hangfire job), export iCal ✅ *(email Dev = Console; SMTP để sau)*
 
 **Tuần 4 — Ngày 4–6: Vocabulary System**
 - Ngày 22: API: danh sách từ, thêm/sửa/xóa (CM), phân chủ đề

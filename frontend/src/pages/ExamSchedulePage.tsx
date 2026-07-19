@@ -9,7 +9,7 @@ import {
 import {
     Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from '@/components/ui/card'
-import { Calendar, MapPin, Building2, ExternalLink, Bell } from 'lucide-react'
+import { Calendar, MapPin, Building2, ExternalLink, Bell, BellRing, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Danh sách tỉnh hay thi — phải khớp chữ City mà CM nhập khi tạo lịch
@@ -43,6 +43,9 @@ export default function ExamSchedulePage() {
     const [city, setCity] = useState('all')
     const [month, setMonth] = useState('all')
     const [year, setYear] = useState(String(new Date().getFullYear()))
+    // Tập id đã subscribe — chuông đỏ + rung
+    const [remindedIds, setRemindedIds] = useState<Set<string>>(new Set())
+    const [togglingId, setTogglingId] = useState<string | null>(null)
 
     const load = async () => {
         setLoading(true)
@@ -54,6 +57,15 @@ export default function ExamSchedulePage() {
                 isActive: true,
             })
             setItems(data)
+
+            // Load trạng thái chuông (cần đã login)
+            try {
+                const ids = await ExamScheduleService.getMyReminders()
+                setRemindedIds(new Set(ids))
+            } catch {
+                // Chưa login / 401 → coi như chưa nhắc nào
+                setRemindedIds(new Set())
+            }
         } catch {
             toast.error('Không tải được lịch thi')
         } finally {
@@ -69,6 +81,40 @@ export default function ExamSchedulePage() {
             return
         }
         window.open(url, '_blank', 'noopener,noreferrer')
+    }
+
+    // Toggle: chưa nhắc → subscribe; đã nhắc → unsubscribe
+    const handleToggleReminder = async (id: string) => {
+        const subscribed = remindedIds.has(id)
+        setTogglingId(id)
+        try {
+            if (subscribed) {
+                await ExamScheduleService.unsubscribeReminder(id)
+                setRemindedIds(prev => {
+                    const next = new Set(prev)
+                    next.delete(id)
+                    return next
+                })
+                toast.success('Đã hủy nhắc email')
+            } else {
+                await ExamScheduleService.subscribeReminder(id)
+                setRemindedIds(prev => new Set(prev).add(id))
+                toast.success('Đã đặt nhắc email (~3 ngày trước ngày thi)')
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.error ?? (subscribed ? 'Không hủy được nhắc' : 'Không đặt được nhắc'))
+        } finally {
+            setTogglingId(null)
+        }
+    }
+
+    const handleIcal = async (id: string) => {
+        try {
+            await ExamScheduleService.downloadIcal(id)
+            toast.success('Đã tải file lịch (.ics)')
+        } catch {
+            toast.error('Không tải được file iCal')
+        }
     }
 
     return (
@@ -119,55 +165,76 @@ export default function ExamSchedulePage() {
                 <p className="text-muted-foreground">Không có lịch thi phù hợp.</p>
             ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map(item => (
-                        <Card key={item.id}>
-                            <CardHeader>
-                                <div className="flex items-start justify-between gap-2">
-                                    <CardTitle className="text-lg">{item.title}</CardTitle>
-                                    <Badge variant="secondary">{item.organizer}</Badge>
-                                </div>
-                                <CardDescription className="flex items-center gap-1">
-                                    <Building2 className="w-3.5 h-3.5" />
-                                    {item.location}
-                                </CardDescription>
-                            </CardHeader>
+                    {items.map(item => {
+                        const isReminded = remindedIds.has(item.id)
+                        return (
+                            <Card key={item.id}>
+                                <CardHeader>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <CardTitle className="text-lg">{item.title}</CardTitle>
+                                        <Badge variant="secondary">{item.organizer}</Badge>
+                                    </div>
+                                    <CardDescription className="flex items-center gap-1">
+                                        <Building2 className="w-3.5 h-3.5" />
+                                        {item.location}
+                                    </CardDescription>
+                                </CardHeader>
 
-                            <CardContent className="space-y-2 text-sm">
-                                <p className="flex items-center gap-2">
-                                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                                    {item.city}
-                                </p>
-                                <p className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                                    {formatDate(item.examDate)} · {formatTime(item.startTime)}
-                                </p>
-                                <p>
-                                    Hạn ĐK: <strong>{formatDate(item.registrationDeadline)}</strong>
-                                </p>
-                                <p>
-                                    Phí: <strong>{formatFee(item.fee)}</strong>
-                                </p>
-                                {item.availableSlots != null && (
-                                    <p>Chỗ còn: {item.availableSlots}</p>
-                                )}
-                            </CardContent>
+                                <CardContent className="space-y-2 text-sm">
+                                    <p className="flex items-center gap-2">
+                                        <MapPin className="w-4 h-4 text-muted-foreground" />
+                                        {item.city}
+                                    </p>
+                                    <p className="flex items-center gap-2">
+                                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                                        {formatDate(item.examDate)} · {formatTime(item.startTime)}
+                                    </p>
+                                    <p>
+                                        Hạn ĐK: <strong>{formatDate(item.registrationDeadline)}</strong>
+                                    </p>
+                                    <p>
+                                        Phí: <strong>{formatFee(item.fee)}</strong>
+                                    </p>
+                                    {item.availableSlots != null && (
+                                        <p>Chỗ còn: {item.availableSlots}</p>
+                                    )}
+                                </CardContent>
 
-                            <CardFooter className="flex gap-2">
-                                <Button
-                                    className="flex-1"
-                                    disabled={!item.registerUrl}
-                                    onClick={() => openRegister(item.registerUrl)}
-                                >
-                                    <ExternalLink className="w-4 h-4 mr-2" />
-                                    Đăng ký
-                                </Button>
-                                {/* Day 21: gắn API nhắc email */}
-                                <Button variant="outline" disabled title="Sẽ làm ở Day 21">
-                                    <Bell className="w-4 h-4" />
-                                </Button>
-                            </CardFooter>
-                        </Card>
-                    ))}
+                                <CardFooter className="flex gap-2">
+                                    <Button
+                                        className="flex-1"
+                                        disabled={!item.registerUrl}
+                                        onClick={() => openRegister(item.registerUrl)}
+                                    >
+                                        <ExternalLink className="w-4 h-4 mr-2" />
+                                        Đăng ký
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        disabled={togglingId === item.id}
+                                        title={isReminded ? 'Bấm để hủy nhắc email' : 'Đặt nhắc email trước ngày thi'}
+                                        onClick={() => handleToggleReminder(item.id)}
+                                        className={isReminded
+                                            ? 'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'
+                                            : 'text-muted-foreground'}
+                                    >
+                                        {isReminded ? (
+                                            <BellRing className="w-4 h-4 animate-bell-ring" />
+                                        ) : (
+                                            <Bell className="w-4 h-4" />
+                                        )}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        title="Thêm vào Calendar (.ics)"
+                                        onClick={() => handleIcal(item.id)}
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        )
+                    })}
                 </div>
             )}
         </div>
