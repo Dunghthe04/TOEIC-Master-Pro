@@ -89,6 +89,7 @@ builder.Services.AddScoped<IVocabularyService, VocabularyService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<ISrsService, SrsService>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
 

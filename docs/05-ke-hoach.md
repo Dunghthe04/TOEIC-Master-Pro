@@ -7,12 +7,12 @@
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 22** (API Vocabulary CRUD + lọc topic/search) — đã xong.
-**Tiếp theo:** **Day 23** — SRS engine (SM-2), API track tiến độ học từ.
+**Đang ở:** Hết **Day 23** (SRS SM-2 + API learn/due/review/progress) — đã xong.
+**Tiếp theo:** **Day 24** — Flashcard UI, bài tập từ vựng, thanh tiến độ SRS.
 
-**Day 22 ghi chú:**
-- GET list/detail public; POST/PUT/DELETE chỉ Admin/ContentManager.
-- `Word` unique — trùng từ trả lỗi rõ.
+**Day 23 ghi chú:**
+- API `/api/srs`: learn, due, review (quality 0–5), progress — cần JWT.
+- SM-2 cập nhật EaseFactor / IntervalDays / NextReviewDate; `IsLearned` khi IntervalDays > 21.
 - FE flashcard để Day 24.
 
 **Lưu ý kỹ thuật còn treo:**
@@ -67,7 +67,7 @@
 
 **Tuần 4 — Ngày 4–6: Vocabulary System**
 - Ngày 22: API: danh sách từ, thêm/sửa/xóa (CM), phân chủ đề ✅
-- Ngày 23: SRS engine (SM-2 algorithm), API track tiến độ học từ
+- Ngày 23: SRS engine (SM-2 algorithm), API track tiến độ học từ ✅
 - Ngày 24: Flashcard UI, bài tập từ vựng, thanh tiến độ SRS
 
 </details>
