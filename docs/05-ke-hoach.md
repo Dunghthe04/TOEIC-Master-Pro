@@ -7,13 +7,13 @@
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 21** (Nhắc email Hangfire + export iCal + UI chuông toggle) — đã xong.
-**Tiếp theo:** **Day 22** — API Vocabulary (CM CRUD từ, phân chủ đề).
+**Đang ở:** Hết **Day 22** (API Vocabulary CRUD + lọc topic/search) — đã xong.
+**Tiếp theo:** **Day 23** — SRS engine (SM-2), API track tiến độ học từ.
 
-**Day 21 ghi chú:**
-- Email Dev dùng `ConsoleEmailSender` (in console), chưa SMTP thật.
-- Hangfire dashboard: `http://localhost:5191/hangfire` — Trigger now để test job.
-- UI chuông: trắng = chưa nhắc, đỏ + rung = đã nhắc, bấm lại = unsubscribe.
+**Day 22 ghi chú:**
+- GET list/detail public; POST/PUT/DELETE chỉ Admin/ContentManager.
+- `Word` unique — trùng từ trả lỗi rõ.
+- FE flashcard để Day 24.
 
 **Lưu ý kỹ thuật còn treo:**
 - Swagger **chưa có nút Authorize** (Swashbuckle 10 + Microsoft.OpenApi 2.x đổi API security) → tạm test endpoint cần quyền bằng **Postman/Scalar + header `Authorization: Bearer <token>`**.
@@ -66,7 +66,7 @@
 - Ngày 21: Đặt nhắc nhở Email (Hangfire job), export iCal ✅ *(email Dev = Console; SMTP để sau)*
 
 **Tuần 4 — Ngày 4–6: Vocabulary System**
-- Ngày 22: API: danh sách từ, thêm/sửa/xóa (CM), phân chủ đề
+- Ngày 22: API: danh sách từ, thêm/sửa/xóa (CM), phân chủ đề ✅
 - Ngày 23: SRS engine (SM-2 algorithm), API track tiến độ học từ
 - Ngày 24: Flashcard UI, bài tập từ vựng, thanh tiến độ SRS
 

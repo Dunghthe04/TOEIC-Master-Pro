@@ -85,6 +85,7 @@ builder.Services.AddHangfire(config => config
 //Bật background Job server trong process API
 builder.Services.AddHangfireServer();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IVocabularyService, VocabularyService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
