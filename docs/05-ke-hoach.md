@@ -5,17 +5,36 @@
 
 ---
 
+## 🎯 Định hướng sản phẩm
+
+**Mục đích chính (Core):** User vào web để **thi thử / làm đề TOEIC** giống format thật
+(chọn đề → full test hoặc chọn Part → intro Part + audio → làm bài → nộp → kết quả).
+Ưu tiên UX **mượt, đẹp, rõ hơn** các site thi thử khác.
+
+**Mục đích phụ (Differentiator):** AI giải thích, study plan, score predictor, vocab SRS,
+lịch thi, gamification, community… — làm **sau khi** luồng thi thử dùng được.
+
+| Ưu tiên | Module | Ghi chú |
+|--------|--------|---------|
+| #1 Core | Mock Test / Exam Engine | Từ đề import (`Test` + `TestQuestion`) |
+| #2 Phụ | Practice random (Day 25 API) | Luyện nhanh từng Part — không phải luồng chính |
+| #3 Phụ | Vocab SRS, lịch thi… | Đã làm một phần (Day 19–24) |
+| #4 Khác biệt | AI, gamification, community… | Phase 4+ |
+
+---
+
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 24** (Flashcard UI + kho từ + thanh tiến độ SRS) — đã xong.
-**Tiếp theo:** **Day 25** — API Practice (lấy câu hỏi theo Part, nộp đáp án, tính điểm).
+**Đang ở:** Hết **Day 25** (Practice API random — phụ) ✅  
+**Tiếp theo:** **Day 26 (mới)** — Exam Engine API: lấy câu theo đề, filter Part, config Directions.
 
-**Day 24 ghi chú:**
-- Route `/vocabulary` — tab Ôn hôm nay (due + review quality 0–5) và Kho từ (learn).
-- Progress bar: dueToday / learning / learned từ `GET /api/srs/progress`.
+**Day 26 cũ (UI Practice random Part 1–4):** đã code WIP ở frontend nhưng **không phải luồng chính**.
+- Giữ lại: `howler`, `AudioPlayer`, types/service Practice (tái dùng / luyện phụ).
+- Không mở rộng theo hướng “khó/dễ + random” cho menu chính.
+- Menu chính sắp tới: **Thi thử** (`/mock-test`) lấy từ đề import.
 
 **Lưu ý kỹ thuật còn treo:**
-- Swagger **chưa có nút Authorize** (Swashbuckle 10 + Microsoft.OpenApi 2.x đổi API security) → tạm test endpoint cần quyền bằng **Postman/Scalar + header `Authorization: Bearer <token>`**.
+- Swagger **chưa có nút Authorize** → test bằng Postman/Scalar + `Authorization: Bearer <token>`.
 - Tài khoản test: Admin seed `admin@toeicmaster.com` / `Admin@2026`.
 - Hangfire Dashboard Dev chưa khóa auth — production cần thêm authorization.
 
@@ -72,32 +91,41 @@
 </details>
 
 <details>
-<summary>⚡ Phase 3 — Practice & Test Engine (Tuần 5–6)</summary>
+<summary>⚡ Phase 3 — Exam Engine / Thi thử (CORE) (Tuần 5–6)</summary>
 
-**Tuần 5 — Ngày 1–3: Practice Module**
-- Ngày 25: API lấy câu hỏi theo Part/filter, nộp đáp án, tính điểm
-- Ngày 26: UI luyện Part 1–4 (audio player Howler.js, ảnh, timer tùy chọn)
-- Ngày 27: UI luyện Part 5–7 (text-based, đọc hiểu), bookmark câu hỏi
+> Tham chiếu UX: Zenlish Test Online — chọn đề → cấu trúc full/part → intro Part (+ audio) → làm bài → nộp.
 
-**Tuần 5 — Ngày 4–6: Mock Test Engine**
-- Ngày 28: API tạo phiên thi (session), lưu trạng thái, nộp bài cuối
-- Ngày 29: UI thi thử: timer countdown, navigation câu hỏi, audio Part 1–4
-- Ngày 30: Màn hình kết quả: điểm quy đổi, phân tích theo Part, review đáp án
+**Tuần 5 — Day 25–27: Nền API + Listening flow**
+- Ngày 25: API Practice phụ (random Part/filter, nộp, chấm) ✅ — *không phải luồng chính*
+- Ngày 26: **Exam Engine API** — `GET /api/test` (published), `GET /api/test/{id}/play?parts=...`
+  — câu theo `OrderIndex`, che đáp án; config Directions + URL audio intro Part 1–7
+- Ngày 27: **UI Core — chọn đề + Listening**
+  — List đề (series/card); màn cấu trúc (full mặc định / chọn Part); intro Part + audio;
+  — Layout Part 1–4 (ảnh, audio, 1 câu / nhóm câu); timer theo `DurationMinutes` hoặc Part
 
-**Tuần 6 — Ngày 1–3: Test History & Analytics**
+**Tuần 5–6 — Day 28–30: Reading + Session + Kết quả**
+- Ngày 28: API `TestSession` — tạo phiên, lưu đáp án, nộp cuối; UI Reading Part 5–7 (passage, nhóm câu, bookmark)
+- Ngày 29: Polish thi thử — timer TOEIC 120 phút (full), progress `đã làm/tổng`, NỘP BÀI, Câu trước/sau
+- Ngày 30: Màn kết quả — điểm quy đổi, phân tích theo Part, review đáp án
+
+**Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
 - Ngày 31: API lịch sử thi, so sánh điểm qua các lần
 - Ngày 32: User dashboard: biểu đồ điểm (Recharts), phân tích Part yếu
 - Ngày 33: API tracking chi tiết (câu sai theo chủ đề, Part, thời gian)
-
-**Tuần 6 — Ngày 4–6: Gamification**
 - Ngày 34: XP system, daily streak logic (Hangfire check midnight)
 - Ngày 35: Badges engine, leaderboard API (Redis sorted set)
 - Ngày 36: UI: streak display, badge showcase, leaderboard page
 
+**Ghi chú Day 26 cũ (Practice UI random):**
+- File WIP: `PracticePage`, `practice.service`, `practice.types`, `AudioPlayer`, howler
+- **Giữ** Howler + AudioPlayer (dùng cho Exam Engine)
+- **Giữ** Practice API/types làm luyện phụ sau
+- **Không** tiếp tục mở rộng PracticePage thành sản phẩm chính
+
 </details>
 
 <details>
-<summary>🤖 Phase 4 — AI Integration (Tuần 7–8)</summary>
+<summary>🤖 Phase 4 — AI Integration (Tuần 7–8) — Differentiator</summary>
 
 **Tuần 7 — Ngày 1–3: AI Explanation Engine**
 - Ngày 37: Tích hợp Claude API, tạo AIService

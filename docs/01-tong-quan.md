@@ -1,6 +1,12 @@
 # Tổng quan dự án
 
-**TOEIC Master Pro** là nền tảng luyện thi TOEIC trực tuyến thế hệ mới, tích hợp AI để cá nhân hóa lộ trình học tập, giúp người dùng đạt điểm mục tiêu nhanh hơn và hiệu quả hơn.
+**TOEIC Master Pro** là nền tảng **thi thử TOEIC trực tuyến** — ưu tiên trải nghiệm làm đề giống thi thật; sau đó mới là các tính năng phụ và khác biệt (AI, SRS, lịch thi…).
+
+### Ưu tiên sản phẩm
+
+1. **Core — Thi thử / làm đề** (list đề → full test hoặc chọn Part → intro Part + audio → làm bài → nộp → kết quả). UX phải rõ, mượt, cạnh tranh các site test online hiện có.
+2. **Phụ** — Luyện Part nhanh, từ vựng SRS, lịch thi…
+3. **Khác biệt** — AI giải thích, study plan, score predictor, chatbot, gamification… (làm sau khi core ổn).
 
 ---
 
@@ -28,23 +34,26 @@
 <details>
 <summary>⭐ Điểm khác biệt cốt lõi</summary>
 
-### 1. AI Study Coach
-- **AI giải thích đáp án** — Không chỉ nói đáp án đúng, AI giải thích *tại sao* A đúng, *tại sao* B/C/D sai, liên kết ngữ pháp, từ vựng liên quan.
-- **Lộ trình học cá nhân hóa** — Dựa trên kết quả bài thi, AI tạo kế hoạch học từng ngày.
-- **Dự đoán điểm TOEIC** — Phân tích lịch sử làm bài → ước tính điểm thi thật với độ chính xác 85–90%.
-- **Chatbot hỏi đáp** — Người dùng hỏi về ngữ pháp, từ vựng bất kỳ lúc nào.
+### 0. Exam Engine chất lượng cao (Core trước)
+Thi thử giống đề thật: full / chọn Part, intro Part + audio Listening, layout từng Part, timer TOEIC — trải nghiệm rõ, mượt hơn site chỉ “làm đề cơ bản”.
+
+### 1. AI Study Coach (sau khi core ổn)
+- **AI giải thích đáp án** — *tại sao* đúng/sai, ngữ pháp, từ vựng liên quan.
+- **Lộ trình học cá nhân hóa** — dựa trên kết quả bài thi.
+- **Dự đoán điểm TOEIC** — từ lịch sử làm bài.
+- **Chatbot hỏi đáp** — ngữ pháp, từ vựng bất kỳ lúc nào.
 
 ### 2. Adaptive Testing Engine
-Hệ thống tự động điều chỉnh độ khó câu hỏi theo năng lực thực tế (IRT - Item Response Theory). Học ít hơn, hiệu quả hơn.
+Điều chỉnh độ khó theo năng lực (IRT) — Phase sau.
 
 ### 3. Lịch thi TOEIC Live
-Cập nhật lịch thi IIG, BC Việt Nam tự động. Đặt nhắc nhở, export Google Calendar / iCal.
+Cập nhật lịch thi IIG, BC Việt Nam. Đặt nhắc nhở, export iCal.
 
 ### 4. Gamification thực sự
-Streak hằng ngày, huy hiệu, bảng xếp hạng tuần/tháng, thi đấu 1v1 real-time.
+Streak, huy hiệu, bảng xếp hạng, thi đấu 1v1.
 
 ### 5. Vocabulary Ecosystem
-Spaced Repetition System (SRS) theo thuật toán SM-2. Gợi ý từ dựa trên lỗi sai của từng người.
+SRS (SM-2). Gợi ý từ dựa trên lỗi sai.
 
 </details>
 

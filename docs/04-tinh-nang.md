@@ -1,7 +1,44 @@
 # Tính năng chi tiết
 
+> **Thứ tự ưu tiên:** Core (thi thử) → phụ (luyện / vocab / lịch) → khác biệt (AI, gamification…).
+
+---
+
 <details>
-<summary>👤 Module 1 — Authentication & User Profile</summary>
+<summary>⭐ Module 0 — Định hướng sản phẩm</summary>
+
+### Core — lý do user vào web
+- **Thi thử / làm đề TOEIC** từ đề import (ETS-style, 200 câu L&R)
+- Chọn đề → Full test (mặc định) hoặc chọn từng Part → intro Part (+ audio Listening) → làm bài → nộp → kết quả
+- Timer theo format đề (full ~120 phút); không chọn độ khó khi làm đề
+- UX tham chiếu site thi thử (vd. Zenlish), hướng tới mượt / rõ hơn
+
+### Phụ & khác biệt — làm sau core
+- Luyện nhanh random theo Part (Practice API)
+- Từ vựng SRS, lịch thi, AI, gamification, community…
+
+</details>
+
+<details>
+<summary>⏱️ Module 1 — Mock Test / Exam Engine (CORE)</summary>
+
+- Danh sách đề published (theo series / card: TEST 1 – ETS 2026…)
+- Màn cấu trúc đề: bảng Part + số câu; ☐ Chọn từng Part (off = full test)
+- Intro mỗi Part: Directions (text); Listening có audio hướng dẫn; nút Bắt đầu
+- Layout theo Part:
+  - Part 1: ảnh + audio + A/B/C/D
+  - Part 2: audio + A/B/C (thường 3 đáp án)
+  - Part 3–4: audio đoạn + nhóm câu
+  - Part 5: câu điền khuyết + Câu tiếp
+  - Part 6–7: passage trái + câu phải; bookmark
+- Header: PART X | đã làm/tổng | Timer | NỘP BÀI
+- Kết quả: điểm quy đổi, phân tích theo Part, review đáp án
+- Lịch sử thi, so sánh tiến độ (Day 31+)
+
+</details>
+
+<details>
+<summary>👤 Module 2 — Authentication & User Profile</summary>
 
 - Đăng ký / Đăng nhập (Email + Password, Google OAuth)
 - Xác thực email
@@ -12,29 +49,20 @@
 </details>
 
 <details>
-<summary>📝 Module 2 — Practice Engine (Luyện tập theo Part)</summary>
+<summary>📝 Module 3 — Practice Engine (PHỤ — luyện nhanh)</summary>
 
-- Luyện từng Part: Part 1 (Ảnh), Part 2 (Câu hỏi/Trả lời), Part 3-4 (Đoạn hội thoại), Part 5-6 (Ngữ pháp), Part 7 (Đọc hiểu)
-- Bộ lọc: Part, chủ đề, độ khó, nguồn đề
-- Nộp bài → xem kết quả ngay
-- AI giải thích từng câu sai
-- Đánh dấu câu cần ôn lại (bookmark)
+- Luyện nhanh từ kho câu hỏi (không bắt buộc gắn đề đủ 200 câu)
+- Filter: Part, độ khó, tag
+- Nộp bài → xem kết quả ngay (API Day 25)
+- Bookmark câu hỏi (sau)
+- AI giải thích từng câu sai (Phase 4)
 
-</details>
-
-<details>
-<summary>⏱️ Module 3 — Mock Test (Thi thử)</summary>
-
-- Đề thi 200 câu, đúng chuẩn format TOEIC (Listening 100 + Reading 100)
-- Timer đếm ngược 120 phút
-- Giao diện thi thật (không xem đáp án trong lúc thi)
-- Kết quả: điểm quy đổi, phân tích theo Part/chủ đề
-- Lịch sử thi, so sánh tiến độ qua các lần thi
+> Không thay thế Mock Test. Menu chính ưu tiên **Thi thử**.
 
 </details>
 
 <details>
-<summary>🤖 Module 4 — AI Study Coach</summary>
+<summary>🤖 Module 4 — AI Study Coach (Differentiator)</summary>
 
 - **Smart Explanation** — Giải thích tại sao đáp án đúng (song ngữ Việt-Anh)
 - **Study Plan Generator** — Nhập mục tiêu + ngày thi → AI tạo kế hoạch hằng ngày
@@ -58,7 +86,7 @@
 <details>
 <summary>📅 Module 6 — Lịch thi TOEIC</summary>
 
-- Hiển thị lịch thi IIG, BC Vietnam, các trung tâm
+- Hiển thị lịch thi IIG, BC Vietnam, các trung tâm (CM nhập thủ công)
 - Lọc theo tỉnh/thành phố, tháng
 - Đặt nhắc nhở qua Email / thông báo web
 - Export Google Calendar / iCal

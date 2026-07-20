@@ -1,6 +1,6 @@
 # TOEIC Master Pro
 
-Nền tảng luyện thi TOEIC trực tuyến tích hợp AI — cá nhân hóa lộ trình học, giải thích đáp án thông minh, dự đoán điểm số chính xác.
+Nền tảng **thi thử TOEIC** (core) + công cụ phụ / AI (differentiator) — ưu tiên trải nghiệm làm đề giống format thật, sau đó cá nhân hóa lộ trình và giải thích đáp án.
 
 ---
 
