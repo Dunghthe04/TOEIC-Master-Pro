@@ -35,7 +35,7 @@
 <summary>⭐ Điểm khác biệt cốt lõi</summary>
 
 ### 0. Exam Engine chất lượng cao (Core trước)
-Thi thử giống đề thật: full / chọn Part, intro Part + audio Listening, layout từng Part, timer TOEIC — trải nghiệm rõ, mượt hơn site chỉ “làm đề cơ bản”.
+Thi thử giống đề thật: full / chọn Part, Directions (+ skip), Listening audio liền mạch, layout từng Part, timer 120′ (L~45 + R 75) — rõ, mượt hơn site chỉ “làm đề cơ bản”.
 
 ### 1. AI Study Coach (sau khi core ổn)
 - **AI giải thích đáp án** — *tại sao* đúng/sai, ngữ pháp, từ vựng liên quan.

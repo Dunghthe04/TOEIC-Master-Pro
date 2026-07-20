@@ -18,7 +18,7 @@
 ### Core — lý do user vào web
 - **Thi thử / làm đề TOEIC** từ đề import (ETS-style, 200 câu L&R)
 - Chọn đề → Full test (mặc định) hoặc chọn từng Part → intro Part (+ audio Listening) → làm bài → nộp → kết quả
-- Timer theo format đề (full ~120 phút); không chọn độ khó khi làm đề
+- Timer full ~**120 phút** = Listening ~**45′** (gồm Directions) + Reading **75′**; không chọn độ khó khi làm đề
 - UX tham chiếu site thi thử (vd. Zenlish), hướng tới mượt / rõ hơn
 
 ### Phụ & khác biệt — làm sau core
@@ -32,11 +32,17 @@
 
 - Danh sách đề published (theo series / card: TEST 1 – ETS 2026…)
 - Màn cấu trúc đề: bảng Part + số câu; ☐ Chọn từng Part (off = full test)
-- Intro mỗi Part: Directions (text); Listening có audio hướng dẫn; nút Bắt đầu
+- Intro mỗi Part — **Directions**:
+  - Ảnh Directions cố định (`/exam/directions/`); Listening Part 1–4 thêm audio intro
+  - Nút **Next / Bắt đầu** chỉ hiện ở màn Directions (bỏ qua, làm luôn); **không** hiện khi đang làm câu
+  - Hết audio Directions (hoặc bấm Next) → vào câu
+- Listening — audio **playlist liền mạch** (preload track kế; `ended` → play ngay, không nghỉ giữa file):
+  - Part 1–2: 1 file / 1 câu; Part 3–4: 1 file / nhóm 3 câu (cùng `AudioUrl`, UI hiện 3 câu)
+  - Thời lượng Listening ≈ tổng duration Directions + file câu (hoặc cố định ~45′); Reading countdown 75′
 - Layout theo Part:
   - Part 1: ảnh + audio + A/B/C/D
   - Part 2: audio + A/B/C (thường 3 đáp án)
-  - Part 3–4: audio đoạn + nhóm câu
+  - Part 3–4: audio đoạn + nhóm 3 câu cùng lúc
   - Part 5: câu điền khuyết + Câu tiếp
   - Part 6–7: passage trái + câu phải; bookmark
 - Header: PART X | đã làm/tổng | Timer | NỘP BÀI
