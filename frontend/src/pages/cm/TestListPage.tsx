@@ -99,6 +99,7 @@ export default function TestListPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Tên đề thi</TableHead>
+                            <TableHead>Series</TableHead>
                             <TableHead>Thời gian</TableHead>
                             <TableHead>Số câu</TableHead>
                             <TableHead>Trạng thái</TableHead>
@@ -109,7 +110,7 @@ export default function TestListPage() {
                     <TableBody>
                         {filtered.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                <TableCell colSpan={7} className="text-center text-muted-foreground">
                                     Không có đề thi nào.
                                 </TableCell>
                             </TableRow>
@@ -117,6 +118,7 @@ export default function TestListPage() {
                         {filtered.map(t => (
                             <TableRow key={t.id}>
                                 <TableCell className="font-medium">{t.title}</TableCell>
+                                <TableCell className="text-muted-foreground">{t.series || '—'}</TableCell>
                                 <TableCell>{t.durationMinutes} phút</TableCell>
                                 <TableCell>{t.questionCount} câu</TableCell>
                                 <TableCell>

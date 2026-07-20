@@ -1,7 +1,10 @@
+using Microsoft.Extensions.Options;
 using ToeicMasterPro.Application.Common.Interfaces;
+using ToeicMasterPro.Application.Common.Options;
 using ToeicMasterPro.Application.DTOs.Tests;
 using ToeicMasterPro.Domain.Common;
 using ToeicMasterPro.Domain.Entities;
+using ToeicMasterPro.Domain.Enums;
 
 namespace ToeicMasterPro.Infrastructure.Services;
 
@@ -9,11 +12,16 @@ public class TestService : ITestService
 {
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _currentUser;
+    private readonly ToeicDirectionsOptions _directions;
 
-    public TestService(IUnitOfWork uow, ICurrentUserService currentUse)
+    public TestService(
+        IUnitOfWork uow,
+        ICurrentUserService currentUser,
+        IOptions<ToeicDirectionsOptions> directions)
     {
         _uow = uow;
-        _currentUser = currentUse;
+        _currentUser = currentUser;
+        _directions = directions.Value;
     }
 
     public async Task<IReadOnlyList<TestSummaryResponse>> GetListAsync(bool? isPublished)
@@ -28,7 +36,7 @@ public class TestService : ITestService
         var countByTest = allTq.GroupBy(tq => tq.TestId)
             .ToDictionary(g => g.Key, g => g.Count());
         return tests.Select(t => new TestSummaryResponse(
-            t.Id, t.Title, t.Description, t.DurationMinutes,
+            t.Id, t.Title, t.Series, t.Description, t.DurationMinutes,
             t.IsPublished, countByTest.GetValueOrDefault(t.Id, 0),
             t.CreatedByUserId, t.CreatedAt
         )).ToList();
@@ -83,6 +91,7 @@ public class TestService : ITestService
         var test = new Test
         {
             Title = req.Title,
+            Series = req.Series?.Trim() ?? "",
             Description = req.Description,
             DurationMinutes = req.DurationMinutes,
             IsPublished = req.IsPublished,
@@ -102,6 +111,7 @@ public class TestService : ITestService
         if (test is null) return Result.Failure("Không tìm thấy đề thi.");
 
         test.Title = req.Title;
+        test.Series = req.Series?.Trim() ?? "";
         test.Description = req.Description;
         test.DurationMinutes = req.DurationMinutes;
         test.IsPublished = req.IsPublished;
@@ -158,6 +168,100 @@ public class TestService : ITestService
         _uow.Repository<TestQuestion>().Remove(tq);
         await _uow.SaveChangesAsync();
         return Result.Success();
+    }
+
+    public async Task<IReadOnlyList<TestSummaryResponse>> GetPublishedListAsync(string? series)
+    {
+        var seriesNorm = string.IsNullOrWhiteSpace(series) ? null : series.Trim();
+        var tests = await _uow.Repository<Test>().FindAsync(t =>
+            t.IsPublished &&
+            (seriesNorm == null || t.Series == seriesNorm));
+        var testIds = tests.Select(t => t.Id).ToList();
+        var allTq = await _uow.Repository<TestQuestion>()
+            .FindAsync(tq => testIds.Contains(tq.TestId));
+        var countByTest = allTq.GroupBy(tq => tq.TestId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        return tests
+            .OrderBy(t => t.Series).ThenBy(t => t.Title)
+            .Select(t => new TestSummaryResponse(
+                t.Id, t.Title, t.Series, t.Description, t.DurationMinutes,
+                t.IsPublished, countByTest.GetValueOrDefault(t.Id, 0),
+                t.CreatedByUserId, t.CreatedAt
+            )).ToList();
+    }
+
+    public async Task<Result<TestStructureResponse>> GetStructureAsync(Guid id)
+    {
+        var test = await _uow.Repository<Test>().GetByIdAsync(id);
+        if (test is null || !test.IsPublished)
+            return Result<TestStructureResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+        var tqs = await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == id);
+        var qIds = tqs.Select(tq => tq.QuestionId).ToList();
+        var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
+        var qDict = questions.ToDictionary(q => q.Id);
+        var parts = tqs
+            .Where(tq => qDict.ContainsKey(tq.QuestionId))
+            .GroupBy(tq => qDict[tq.QuestionId].Part)
+            .OrderBy(g => (int)g.Key)
+            .Select(g => new PartStructureItem(
+                g.Key,
+                $"PART {(int)g.Key}",
+                g.Count()
+            )).ToList();
+        return Result<TestStructureResponse>.Success(new TestStructureResponse(
+            test.Id, test.Title, test.Series, test.DurationMinutes,
+            parts, tqs.Count
+        ));
+    }
+    public async Task<Result<TestPlayResponse>> GetPlayAsync(Guid id, int[]? parts)
+    {
+        var test = await _uow.Repository<Test>().GetByIdAsync(id);
+        if (test is null || !test.IsPublished)
+            return Result<TestPlayResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+        var tqs = (await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == id))
+            .OrderBy(tq => tq.OrderIndex)
+            .ToList();
+        var qIds = tqs.Select(tq => tq.QuestionId).ToList();
+        var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
+        var qDict = questions.ToDictionary(q => q.Id);
+        var options = await _uow.Repository<QuestionOption>()
+            .FindAsync(o => qIds.Contains(o.QuestionId));
+        var optByQ = options.GroupBy(o => o.QuestionId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(o => o.Label).ToList());
+        // parts null/rỗng = full test; ngược lại lọc theo enum int (1..7)
+        HashSet<QuestionPart>? partFilter = null;
+        if (parts is { Length: > 0 })
+            partFilter = parts.Select(p => (QuestionPart)p).ToHashSet();
+        var playQuestions = new List<PlayQuestionItem>();
+        foreach (var tq in tqs)
+        {
+            if (!qDict.TryGetValue(tq.QuestionId, out var q)) continue;
+            if (partFilter is not null && !partFilter.Contains(q.Part)) continue;
+            var opts = optByQ.GetValueOrDefault(q.Id, [])
+                .Select(o => new PlayOptionItem(o.Id, o.Label, o.Content))
+                .ToList();
+            playQuestions.Add(new PlayQuestionItem(
+                q.Id, tq.OrderIndex, q.Part, q.Content,
+                q.AudioUrl, q.ImageUrl, q.Passage, opts
+            ));
+        }
+        if (playQuestions.Count == 0)
+            return Result<TestPlayResponse>.Failure("Đề không có câu hỏi phù hợp filter Part.");
+        // Directions chỉ cho các Part có trong gói play
+        var usedParts = playQuestions.Select(q => q.Part).Distinct().OrderBy(p => (int)p);
+        var dirs = new List<PlayPartDirections>();
+        foreach (var part in usedParts)
+        {
+            var key = ((int)part).ToString();
+            if (_directions.Parts.TryGetValue(key, out var cfg))
+                dirs.Add(new PlayPartDirections(part, cfg.ImageUrl, cfg.AudioUrl));
+            else
+                dirs.Add(new PlayPartDirections(part, $"/exam/directions/part{(int)part}.png", null));
+        }
+        return Result<TestPlayResponse>.Success(new TestPlayResponse(
+            test.Id, test.Title, test.Series, test.DurationMinutes,
+            dirs, playQuestions
+        ));
     }
 
 }

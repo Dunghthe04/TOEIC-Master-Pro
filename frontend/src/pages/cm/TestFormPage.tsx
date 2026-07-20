@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 //Khai báo schema validate
 const schema = z.object({
     title: z.string().min(1, 'Tên đề thi không được trống'),
+    series: z.string().optional(),
     description: z.string().optional(),
     durationMinutes: z.number().min(1, 'Thời gian làm bài tối thiểu 1 phút'),
     isPublished: z.boolean()
@@ -57,8 +58,14 @@ export default function TestFormPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-1">
                     <Label>Tên đề thi</Label>
-                    <Input {...register('title')} />
+                    <Input {...register('title')} placeholder="TEST 1 – ETS 2026" />
                     {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
+                </div>
+
+                <div className="space-y-1">
+                    <Label>Series / loại đề</Label>
+                    <Input {...register('series')} placeholder="ETS 2026" />
+                    <p className="text-xs text-muted-foreground">Dùng để gom đề trên màn Thi thử (vd. ETS 2026)</p>
                 </div>
 
                 <div className="space-y-1">

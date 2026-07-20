@@ -4,6 +4,7 @@ namespace ToeicMasterPro.Application.DTOs.Tests;
 public record TestSummaryResponse(
     Guid Id,
     string Title,
+    string Series,
     string? Description,
     int DurationMinutes,
     bool IsPublished,

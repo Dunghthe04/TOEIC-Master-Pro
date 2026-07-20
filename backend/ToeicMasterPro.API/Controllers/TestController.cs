@@ -74,6 +74,44 @@ public class TestController : ControllerBase
         var result = await _service.RemoveQuestionAsync(id, questionId);
         return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
     }
+    // Day 26: User — chỉ đề published; ?series=ETS%202026
+    [HttpGet("published")]
+    public async Task<IActionResult> GetPublished([FromQuery] string? series)
+    {
+        var result = await _service.GetPublishedListAsync(series);
+        return Ok(result);
+    }
+
+    // Màn cấu trúc Part (full / chọn từng part)
+    [HttpGet("{id:Guid}/structure")]
+    public async Task<IActionResult> GetStructure(Guid id)
+    {
+        var result = await _service.GetStructureAsync(id);
+        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+    }
+
+    // Gói câu thi — ?parts=1,2,5 (bỏ trống = full)
+    [HttpGet("{id:Guid}/play")]
+    [Authorize] // cần login để thi
+    public async Task<IActionResult> GetPlay(
+        Guid id,
+        [FromQuery] string? parts)
+    {
+        int[]? partArr = null;
+        if (!string.IsNullOrWhiteSpace(parts))
+        {
+            partArr = parts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => int.TryParse(s, out var n) ? n : -1)
+                .Where(n => n >= 1 && n <= 7)
+                .ToArray();
+            if (partArr.Length == 0)
+                return BadRequest(new { error = "parts phải là số 1–7, cách nhau bởi dấu phẩy." });
+        }
+
+        var result = await _service.GetPlayAsync(id, partArr);
+        return result.IsSuccess ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
 
 }
 

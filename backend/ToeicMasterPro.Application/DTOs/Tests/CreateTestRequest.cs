@@ -5,5 +5,6 @@ public record CreateTestRequest(
     string Title,
     string? Description,
     int DurationMinutes,
-    bool IsPublished
+    bool IsPublished,
+    string? Series
 );

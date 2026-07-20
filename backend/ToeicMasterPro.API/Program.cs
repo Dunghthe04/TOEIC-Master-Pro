@@ -16,6 +16,7 @@ using ToeicMasterPro.Infrastructure.Persistence.Repositories;
 using ToeicMasterPro.API.Middleware;
 using Serilog;
 using Scalar.AspNetCore;
+using ToeicMasterPro.Application.Common.Options;
 using Microsoft.OpenApi;
 //Dùng được các hàm của hangFire
 using Hangfire;
@@ -49,6 +50,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
 // ── JWT Authentication ────────────────────────────────────
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
+
+builder.Services.Configure<ToeicDirectionsOptions>(
+    builder.Configuration.GetSection(ToeicDirectionsOptions.SectionName));
 
 //-----------gogle signin--------------
 builder.Services.Configure<GoogleAuthSettings>(

@@ -18,6 +18,8 @@ public class TestConfiguration : IEntityTypeConfiguration<Test>
         builder.Property(t => t.Title).IsRequired().HasMaxLength(200);
         builder.Property(t => t.Description).HasMaxLength(1000);
         builder.Property(t => t.DurationMinutes).HasDefaultValue(120);
+        builder.Property(t => t.Series).HasMaxLength(100);
+        builder.HasIndex(t => t.Series);
 
         // 1 Test có nhiều TestQuestion (bảng nối)
         builder.HasMany(t => t.TestQuestions)

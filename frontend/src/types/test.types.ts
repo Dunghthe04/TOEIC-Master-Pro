@@ -2,6 +2,7 @@
 export interface TestSummary {
     id: string
     title: string
+    series: string
     description: string | null
     durationMinutes: number
     isPublished: boolean
@@ -12,6 +13,7 @@ export interface TestSummary {
 
 export interface CreateTestPayload {
     title: string
+    series?: string
     description?: string
     durationMinutes: number
     isPublished: boolean
@@ -19,6 +21,7 @@ export interface CreateTestPayload {
 
 export interface UpdateTestPayload {
     title: string
+    series?: string
     description?: string
     durationMinutes: number
     isPublished: boolean

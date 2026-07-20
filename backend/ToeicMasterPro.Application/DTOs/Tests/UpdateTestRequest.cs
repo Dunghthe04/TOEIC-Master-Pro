@@ -4,5 +4,6 @@ public record UpdateTestRequest(
     string Title,
     string? Description,
     int DurationMinutes,
-    bool IsPublished
+    bool IsPublished,
+    string? Series
 );
