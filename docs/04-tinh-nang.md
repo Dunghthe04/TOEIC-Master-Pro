@@ -1,6 +1,14 @@
 # Tính năng chi tiết
 
 > **Thứ tự ưu tiên:** Core (thi thử) → phụ (luyện / vocab / lịch) → khác biệt (AI, gamification…).
+>
+> **Role:** chi tiết Day theo `User` / `ContentManager` / `Admin` xem bảng trong [`05-ke-hoach.md`](05-ke-hoach.md) (mục *Day theo role*).
+
+| Role | Module chính |
+|------|----------------|
+| **User** | Mock Test (core), Practice phụ, Vocab, lịch thi, analytics, AI, gamification |
+| **Content Manager** | Quản lý câu hỏi, đề thi, import, vocab, lịch thi (nội dung) |
+| **Admin** | Dashboard, quản lý user/CM, duyệt content, subscription (Day 55+) |
 
 ---
 
