@@ -25,7 +25,8 @@ import QuestionFormPage from '@/pages/cm/QuestionFormPage'
 import QuestionImportPage from '@/pages/cm/QuestionImportPage'
 import ExamSchedulePage from '@/pages/ExamSchedulePage'
 import VocabularyPage from '@/pages/VocabularyPage'
-
+import PracticePage from '@/pages/PracticePage'
+import MockTestPage from '@/pages/MockTestPage'
 
 
 
@@ -36,30 +37,32 @@ function App() {
   // JSX trông như HTML nhưng thực ra là JavaScript — Vite/TypeScript sẽ biên dịch nó.
   return (
     <>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path='/login' element={<LoginPage />} />
-        <Route path='/register' element={<RegisterPage />} />
-        <Route path='/forgot-password' element={<ForgotPasswordPage />} />
-        {/* Protected — phải login mới vào được, có layout sidebar+header */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<MainLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/cm/tests" element={<TestListPage />} />
-            <Route path="/cm/tests/create" element={<TestFormPage />} />
-            <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
-            <Route path="/cm/questions" element={<QuestionListPage />} />
-            <Route path="/cm/questions/create" element={<QuestionFormPage />} />
-            <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
-            <Route path="/cm/questions/import" element={<QuestionImportPage />} />
-            <Route path="/exam-schedule" element={<ExamSchedulePage />} />
-            <Route path="/vocabulary" element={<VocabularyPage />} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path='/login' element={<LoginPage />} />
+          <Route path='/register' element={<RegisterPage />} />
+          <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+          {/* Protected — phải login mới vào được, có layout sidebar+header */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<MainLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/cm/tests" element={<TestListPage />} />
+              <Route path="/cm/tests/create" element={<TestFormPage />} />
+              <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
+              <Route path="/cm/questions" element={<QuestionListPage />} />
+              <Route path="/cm/questions/create" element={<QuestionFormPage />} />
+              <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
+              <Route path="/cm/questions/import" element={<QuestionImportPage />} />
+              <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+              <Route path="/vocabulary" element={<VocabularyPage />} />
+              <Route path="/mock-test" element={<MockTestPage />} />
+              <Route path="/practice" element={<PracticePage />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </BrowserRouter>
-    <Toaster richColors position="top-right" />
+        </Routes>
+      </BrowserRouter>
+      <Toaster richColors position="top-right" />
     </>
   )
 }

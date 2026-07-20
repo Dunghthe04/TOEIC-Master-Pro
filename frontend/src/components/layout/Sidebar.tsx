@@ -4,10 +4,11 @@
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, BookOpen, ClipboardList, BookMarked, Calendar, FileText, HelpCircle } from 'lucide-react'
 
+// Thi thử = core (Day 26+); Luyện nhanh = phụ (Practice API Day 25)
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/practice', icon: BookOpen, label: 'Luyện tập' },
     { to: '/mock-test', icon: ClipboardList, label: 'Thi thử' },
+    { to: '/practice', icon: BookOpen, label: 'Luyện nhanh' },
     { to: '/vocabulary', icon: BookMarked, label: 'Từ vựng' },
     { to: '/exam-schedule', icon: Calendar, label: 'Lịch thi' },
     { to: '/cm/tests', icon: FileText, label: 'Quản lý đề thi' },
