@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using System.IO;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.Common.Options;
 using ToeicMasterPro.Application.DTOs.Tests;
@@ -170,6 +171,24 @@ public class TestService : ITestService
         return Result.Success();
     }
 
+    /*   
+   Người dùng vào danh sách đề
+           ↓
+   GetPublishedListAsync()
+           ↓
+   Chọn một đề
+           ↓
+   GetStructureAsync(id)
+           ↓
+   Xem cấu trúc đề
+           ↓
+   Bấm bắt đầu làm bài
+           ↓
+   GetPlayAsync(id, parts)
+           ↓
+   Lấy câu hỏi + đáp án + audio + image*/
+
+    //Lấy danh sách các đề thi đã publish
     public async Task<IReadOnlyList<TestSummaryResponse>> GetPublishedListAsync(string? series)
     {
         var seriesNorm = string.IsNullOrWhiteSpace(series) ? null : series.Trim();
@@ -189,7 +208,7 @@ public class TestService : ITestService
                 t.CreatedByUserId, t.CreatedAt
             )).ToList();
     }
-
+    //Lấy cấu trúc đề: có Part nào, mỗi Part bao nhiêu câu
     public async Task<Result<TestStructureResponse>> GetStructureAsync(Guid id)
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
@@ -213,6 +232,8 @@ public class TestService : ITestService
             parts, tqs.Count
         ));
     }
+
+    //Lấy toàn bộ dữ liệu để làm bài: câu hỏi, đáp án, audio, image...
     public async Task<Result<TestPlayResponse>> GetPlayAsync(Guid id, int[]? parts)
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(id);

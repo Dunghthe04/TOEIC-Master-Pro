@@ -236,19 +236,35 @@ static async Task SeedAsync(WebApplication app)
             await roleManager.CreateAsync(new IdentityRole<Guid>(role));
     }
 
-    // Seed Admin account
-    var adminEmail = config["AdminSeed:Email"]!;
-    if (await userManager.FindByEmailAsync(adminEmail) is null)
+    // Seed tài khoản theo role (Admin / ContentManager) — chỉ tạo nếu chưa có email
+    await SeedUserIfMissingAsync(userManager, config, "AdminSeed", "Admin");
+    await SeedUserIfMissingAsync(userManager, config, "ContentManagerSeed", "ContentManager");
+}
+
+/// <summary>Tạo user seed từ section config (Email/Password/FullName) nếu chưa tồn tại.</summary>
+static async Task SeedUserIfMissingAsync(
+    UserManager<ApplicationUser> userManager,
+    IConfiguration config,
+    string sectionName,
+    string role)
+{
+    var email = config[$"{sectionName}:Email"];
+    var password = config[$"{sectionName}:Password"];
+    var fullName = config[$"{sectionName}:FullName"];
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        return;
+
+    if (await userManager.FindByEmailAsync(email) is not null)
+        return;
+
+    var user = new ApplicationUser
     {
-        var admin = new ApplicationUser
-        {
-            UserName = adminEmail,
-            Email = adminEmail,
-            FullName = config["AdminSeed:FullName"]!,
-            EmailConfirmed = true
-        };
-        var result = await userManager.CreateAsync(admin, config["AdminSeed:Password"]!);
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(admin, "Admin");
-    }
+        UserName = email,
+        Email = email,
+        FullName = fullName ?? role,
+        EmailConfirmed = true
+    };
+    var result = await userManager.CreateAsync(user, password);
+    if (result.Succeeded)
+        await userManager.AddToRoleAsync(user, role);
 }

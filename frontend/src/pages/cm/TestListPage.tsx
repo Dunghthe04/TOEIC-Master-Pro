@@ -30,7 +30,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Trash2, Settings } from 'lucide-react'
+import { Plus, Trash2, Settings, Link2 } from 'lucide-react'
 
 export default function TestListPage() {
     const navigate = useNavigate();
@@ -133,6 +133,15 @@ export default function TestListPage() {
                                     <Button
                                         variant="outline"
                                         size="sm"
+                                        title="Gán câu hỏi"
+                                        onClick={() => navigate(`/cm/tests/${t.id}/questions`)}
+                                    >
+                                        <Link2 className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        title="Sửa đề"
                                         onClick={() => navigate(`/cm/tests/${t.id}/edit`)}
                                     >
                                         <Settings className="w-4 h-4" />

@@ -20,6 +20,7 @@ import MainLayout from '@/components/layout/MainLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import TestListPage from '@/pages/cm/TestListPage'
 import TestFormPage from '@/pages/cm/TestFormPage'
+import TestQuestionsPage from '@/pages/cm/TestQuestionsPage'
 import QuestionListPage from '@/pages/cm/QuestionListPage'
 import QuestionFormPage from '@/pages/cm/QuestionFormPage'
 import QuestionImportPage from '@/pages/cm/QuestionImportPage'
@@ -27,6 +28,8 @@ import ExamSchedulePage from '@/pages/ExamSchedulePage'
 import VocabularyPage from '@/pages/VocabularyPage'
 import PracticePage from '@/pages/PracticePage'
 import MockTestPage from '@/pages/MockTestPage'
+import MockTestStructurePage from '@/pages/MockTestStructurePage'
+import MockTestPlayPage from '@/pages/MockTestPlayPage'
 
 
 
@@ -50,14 +53,17 @@ function App() {
               <Route path="/cm/tests" element={<TestListPage />} />
               <Route path="/cm/tests/create" element={<TestFormPage />} />
               <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
+              <Route path="/cm/tests/:id/questions" element={<TestQuestionsPage />} />
               <Route path="/cm/questions" element={<QuestionListPage />} />
               <Route path="/cm/questions/create" element={<QuestionFormPage />} />
               <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
               <Route path="/cm/questions/import" element={<QuestionImportPage />} />
               <Route path="/exam-schedule" element={<ExamSchedulePage />} />
               <Route path="/vocabulary" element={<VocabularyPage />} />
-              <Route path="/mock-test" element={<MockTestPage />} />
               <Route path="/practice" element={<PracticePage />} />
+              <Route path="/mock-test" element={<MockTestPage />} />
+              <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
+              <Route path="/mock-test/:id/play" element={<MockTestPlayPage />} />
             </Route>
           </Route>
         </Routes>
