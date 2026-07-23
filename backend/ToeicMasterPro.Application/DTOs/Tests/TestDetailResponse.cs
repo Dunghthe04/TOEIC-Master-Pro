@@ -4,6 +4,7 @@ namespace ToeicMasterPro.Application.DTOs.Tests;
 public record TestDetailResponse(
     Guid Id,
     string Title,
+    string Series,
     string? Description,
     int DurationMinutes,
     bool IsPublished,
@@ -16,5 +17,7 @@ public record TestQuestionItem(
     Guid QuestionId,
     int OrderIndex,
     string Content,
-    string Part
+    string Part,
+    string? AudioUrl,
+    string? ImageUrl
 );

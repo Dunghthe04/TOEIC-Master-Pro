@@ -12,7 +12,9 @@ public interface IQuestionService
     Task<Result> UpdateAsync(Guid id, UpdateQuestionRequest req);
     Task<Result> DeleteAsync(Guid id);
 
-    //Thêm contract ImportAsync nhận Stream (không nhận IFormFile — giữ Application layer sạch khỏi HTTP).
-    Task<ImportResultResponse> ImportAsync(Stream fileStream);
+    // Import Excel — optional gắn đề + AudioFile/ImageFile
+    Task<ImportResultResponse> ImportAsync(Stream fileStream, ImportQuestionOptions? options = null);
 
+    /// <summary>File Excel mẫu cho CM (Part 1–4 Listening).</summary>
+    Task<byte[]> GetImportTemplateAsync();
 }

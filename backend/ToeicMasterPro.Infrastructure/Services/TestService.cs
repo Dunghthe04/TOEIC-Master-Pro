@@ -70,11 +70,13 @@ public class TestService : ITestService
                 tq.QuestionId,
                 tq.OrderIndex,
                 questionDict[tq.QuestionId].Content,
-                questionDict[tq.QuestionId].Part.ToString()
+                questionDict[tq.QuestionId].Part.ToString(),
+                questionDict[tq.QuestionId].AudioUrl,
+                questionDict[tq.QuestionId].ImageUrl
             )).ToList();
 
         return Result<TestDetailResponse>.Success(new TestDetailResponse(
-            test.Id, test.Title, test.Description, test.DurationMinutes,
+            test.Id, test.Title, test.Series, test.Description, test.DurationMinutes,
             test.IsPublished, test.CreatedByUserId, test.CreatedAt, items
         ));
 
@@ -158,6 +160,33 @@ public class TestService : ITestService
         await _uow.SaveChangesAsync();
         return Result.Success();
     }
+
+    /// <summary>Gán câu vào đề — trùng OrderIndex thì gỡ câu cũ (dùng khi import lại).</summary>
+    public async Task<Result> UpsertQuestionsByOrderAsync(Guid testId, AddQuestionsRequest req)
+    {
+        var test = await _uow.Repository<Test>().GetByIdAsync(testId);
+        if (test is null) return Result.Failure("Không tìm thấy đề thi.");
+
+        var existing = (await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == testId)).ToList();
+        var ordersToReplace = req.Items.Select(i => i.OrderIndex).ToHashSet();
+
+        foreach (var tq in existing.Where(tq => ordersToReplace.Contains(tq.OrderIndex)))
+            _uow.Repository<TestQuestion>().Remove(tq);
+
+        foreach (var item in req.Items)
+        {
+            await _uow.Repository<TestQuestion>().AddAsync(new TestQuestion
+            {
+                TestId = testId,
+                QuestionId = item.QuestionId,
+                OrderIndex = item.OrderIndex
+            });
+        }
+
+        await _uow.SaveChangesAsync();
+        return Result.Success();
+    }
+
     public async Task<Result> RemoveQuestionAsync(Guid testId, Guid questionId)
     {
         var tq = (await _uow.Repository<TestQuestion>()
@@ -283,6 +312,44 @@ public class TestService : ITestService
             test.Id, test.Title, test.Series, test.DurationMinutes,
             dirs, playQuestions
         ));
+    }
+
+    /// <summary>Gán tất cả câu Part 1–4 published chưa có trong đề, OrderIndex nối tiếp.</summary>
+    public async Task<Result<int>> AssignListeningQuestionsAsync(Guid testId)
+    {
+        var test = await _uow.Repository<Test>().GetByIdAsync(testId);
+        if (test is null) return Result<int>.Failure("Không tìm thấy đề thi.");
+
+        var existing = await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == testId);
+        var existingIds = existing.Select(tq => tq.QuestionId).ToHashSet();
+        var maxOrder = existing.Any() ? existing.Max(tq => tq.OrderIndex) : 0;
+
+        var listeningParts = new[] { QuestionPart.Part1, QuestionPart.Part2, QuestionPart.Part3, QuestionPart.Part4 };
+        var candidates = await _uow.Repository<Question>().FindAsync(q =>
+            q.IsPublished && listeningParts.Contains(q.Part) && !existingIds.Contains(q.Id));
+
+        var ordered = candidates
+            .OrderBy(q => (int)q.Part)
+            .ThenBy(q => q.CreatedAt)
+            .ToList();
+
+        if (ordered.Count == 0)
+            return Result<int>.Failure("Không có câu Listening published nào để gán.");
+
+        var order = maxOrder;
+        foreach (var q in ordered)
+        {
+            order++;
+            await _uow.Repository<TestQuestion>().AddAsync(new TestQuestion
+            {
+                TestId = testId,
+                QuestionId = q.Id,
+                OrderIndex = order
+            });
+        }
+
+        await _uow.SaveChangesAsync();
+        return Result<int>.Success(ordered.Count);
     }
 
 }

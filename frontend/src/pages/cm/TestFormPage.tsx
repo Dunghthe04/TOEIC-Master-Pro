@@ -47,8 +47,15 @@ export default function TestFormPage() {
                 toast.success('Tạo đề thi thành công!')
             }
             navigate('/cm/tests')
-        } catch (error) {
-            toast.error('Có lỗi xảy ra, vui lòng thử lại.')
+        } catch (error: unknown) {
+            const status = (error as { response?: { status?: number; data?: { error?: string } } })
+                ?.response?.status
+            const apiErr = (error as { response?: { data?: { error?: string } } })?.response?.data?.error
+            if (status === 403) {
+                toast.error('Không có quyền CM/Admin. Đăng nhập admin@ hoặc cm@toeicmaster.com.')
+            } else {
+                toast.error(apiErr ?? 'Có lỗi xảy ra, vui lòng thử lại.')
+            }
         }
     }
     return (

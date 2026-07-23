@@ -79,4 +79,15 @@ public class QuestionController : ControllerBase
         var result = await _service.ImportAsync(stream);
         return Ok(result);
     }
+
+    /// <summary>Tải file Excel mẫu import câu hỏi (có cột AudioFile, ImageFile).</summary>
+    [HttpGet("import-template")]
+    [Authorize(Roles = "Admin,ContentManager")]
+    public async Task<IActionResult> DownloadImportTemplate()
+    {
+        var bytes = await _service.GetImportTemplateAsync();
+        return File(bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "toeic-questions-template.xlsx");
+    }
 }

@@ -18,9 +18,10 @@ import {
     type ListeningUnit,
 } from '@/lib/examListening'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, ChevronRight, SkipForward } from 'lucide-react'
+import { ArrowLeft, SkipForward } from 'lucide-react'
 import { toast } from 'sonner'
+import { getMediaUrl } from '@/lib/media'
+import ExamShell from '@/components/layout/ExamShell'
 
 type Phase = 'loading' | 'directions' | 'answering' | 'done'
 
@@ -39,6 +40,8 @@ export default function MockTestPlayPage() {
     const [answers, setAnswers] = useState<Record<string, string>>({})
 
     const audioRef = useRef<HTMLAudioElement | null>(null)
+
+    const answersStorageKey = id ? `mock-test-${id}-answers` : null
 
     // Parse ?parts=1,2,3 → number[]; không có = full
     const partsFilter = useMemo(() => {
@@ -60,7 +63,15 @@ export default function MockTestPlayPage() {
                 const data = await TestService.getPlay(id, partsFilter)
                 if (cancelled) return
                 setPlay(data)
-                setAnswers({})
+                // Khôi phục đáp án tạm (chưa nộp — Day 28)
+                let saved: Record<string, string> = {}
+                if (answersStorageKey) {
+                    try {
+                        const raw = localStorage.getItem(answersStorageKey)
+                        if (raw) saved = JSON.parse(raw) as Record<string, string>
+                    } catch { /* ignore */ }
+                }
+                setAnswers(saved)
                 setPartIdx(0)
                 setUnitIdx(0)
 
@@ -145,16 +156,19 @@ export default function MockTestPlayPage() {
             onEnded()
             return
         }
-        const audio = new Audio(url)
+        const audio = new Audio(getMediaUrl(url))
         audio.preload = 'auto'
         audioRef.current = audio
         const handleEnded = () => onEnded()
         audio.addEventListener('ended', handleEnded)
-        audio.play().catch(() => {
-            // Autoplay bị chặn → user bấm Next / tương tác
-            toast.message('Trình duyệt chặn tự phát — bấm Next hoặc tương tác trang.')
+        audio.addEventListener('error', () => {
+            toast.error(
+                `Không tải được audio (${url}). Kiểm tra file trong ZIP audio/ và tên khớp Excel.`
+            )
         })
-        // cleanup listener khi stop/đổi src
+        audio.play().catch(() => {
+            // Trình duyệt chặn autoplay — thử lại khi user chọn đáp án
+        })
         audio.addEventListener(
             'emptied',
             () => audio.removeEventListener('ended', handleEnded),
@@ -216,146 +230,290 @@ export default function MockTestPlayPage() {
     }
 
     const selectOption = (questionId: string, optionId: string) => {
-        setAnswers((prev) => ({ ...prev, [questionId]: optionId }))
+        // Tương tác user → thử phát lại nếu autoplay bị chặn
+        const a = audioRef.current
+        if (a?.src && a.paused) a.play().catch(() => {})
+        setAnswers((prev) => {
+            const next = { ...prev, [questionId]: optionId }
+            if (answersStorageKey) {
+                try {
+                    localStorage.setItem(answersStorageKey, JSON.stringify(next))
+                } catch { /* ignore */ }
+            }
+            return next
+        })
     }
+
+    /** Khóa scroll body khi đang trong màn thi full screen */
+    useEffect(() => {
+        const prev = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        return () => {
+            document.body.style.overflow = prev
+        }
+    }, [])
+
+    const totalQuestions = play?.questions.length ?? 0
 
     if (phase === 'loading' || !play) {
         return (
-            <div className="p-6 text-sm text-muted-foreground">Đang tải bài thi…</div>
+            <ExamShell
+                title="…"
+                partLabel="Đang tải"
+                answeredCount={0}
+                totalCount={0}
+            >
+                <p className="text-sm text-muted-foreground py-12 text-center">
+                    Đang tải bài thi…
+                </p>
+            </ExamShell>
         )
     }
 
     // ── Directions ──────────────────────────────────────────
     if (phase === 'directions' && currentDirections) {
         return (
-            <div className="p-6 max-w-3xl mx-auto space-y-4">
-                <HeaderBar
-                    play={play}
-                    answeredCount={answeredCount}
-                    onExit={() => navigate(`/mock-test/${id}`)}
-                />
-                <Badge>Directions · {currentDirections.part}</Badge>
-                <h2 className="text-xl font-bold">Hướng dẫn Part</h2>
-                <p className="text-sm text-muted-foreground">
-                    Nghe intro (Listening) hoặc bấm Next để làm luôn.
-                </p>
-                <img
-                    src={currentDirections.imageUrl}
-                    alt={`Directions ${currentDirections.part}`}
-                    className="w-full max-h-[70vh] object-contain rounded-lg border bg-white"
-                />
-                {/* Nút Next CHỈ hiện ở Directions */}
-                <div className="flex justify-end">
+            <ExamShell
+                title={play.title}
+                partLabel={`Part ${partToNumber(currentDirections.part)} — Directions`}
+                answeredCount={answeredCount}
+                totalCount={totalQuestions}
+                footer={
                     <Button onClick={skipDirections}>
                         Next
                         <SkipForward className="w-4 h-4 ml-2" />
                     </Button>
+                }
+            >
+                <div className="rounded-lg border-2 border-[#1a4d7c]/30 bg-white overflow-hidden shadow-sm">
+                    <img
+                        src={getMediaUrl(currentDirections.imageUrl)}
+                        alt={`Directions Part ${partToNumber(currentDirections.part)}`}
+                        className="w-full max-h-[calc(100vh-220px)] object-contain mx-auto"
+                    />
                 </div>
-            </div>
+            </ExamShell>
         )
     }
 
     // ── Answering Listening ─────────────────────────────────
     if (phase === 'answering' && currentUnit) {
         return (
-            <div className="p-6 max-w-3xl mx-auto space-y-4">
-                <HeaderBar
-                    play={play}
-                    answeredCount={answeredCount}
-                    onExit={() => navigate(`/mock-test/${id}`)}
-                />
-                <div className="flex flex-wrap gap-2 text-sm">
-                    <Badge variant="secondary">{currentUnit.part}</Badge>
-                    <span className="text-muted-foreground">
-                        Nhóm {unitIdx + 1}/{units.length}
-                        {currentUnit.questions.length > 1 &&
-                            ` · ${currentUnit.questions.length} câu cùng băng`}
-                    </span>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                    Audio chạy liên tục — hết băng tự sang nhóm / Part tiếp.
-                </p>
-
-                <div className="space-y-6">
+            <ExamShell
+                title={play.title}
+                partLabel={`Part ${partToNumber(currentUnit.part)}`}
+                answeredCount={answeredCount}
+                totalCount={totalQuestions}
+            >
+                {!currentUnit.audioUrl && (
+                    <p className="text-sm text-destructive bg-red-50 border rounded-lg px-4 py-2 mb-4">
+                        ⚠ Câu này thiếu audio — kiểm tra import ZIP và cột AudioFile trong Excel.
+                    </p>
+                )}
+                <div className="space-y-4 h-full">
                     {currentUnit.questions.map((q) => (
                         <QuestionBlock
                             key={q.questionId}
                             question={q}
                             selectedId={answers[q.questionId]}
                             onSelect={selectOption}
+                            maskOptionText={partToNumber(q.part) <= 2}
+                            examMode
                         />
                     ))}
                 </div>
+            </ExamShell>
+        )
+    }
 
-                {/* Không phải Next Directions — chỉ nhảy nhóm nếu audio lỗi / muốn bỏ qua */}
-                <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={() => {
-                        stopAudio()
-                        advanceAfterUnit()
-                    }}>
-                        Nhóm tiếp
-                        <ChevronRight className="w-4 h-4 ml-1" />
+    // ── Hết Listening ───────────────────────────────────────
+    const listeningQuestions = play.questions.filter((q) => isListeningPart(q.part))
+
+    return (
+        <ExamShell
+            title={play.title}
+            partLabel="Kết thúc Listening"
+            answeredCount={answeredCount}
+            totalCount={listeningQuestions.length}
+            footer={
+                <div className="flex gap-2 w-full justify-between">
+                    <Button variant="outline" onClick={() => navigate(`/mock-test/${id}`)}>
+                        <ArrowLeft className="w-4 h-4 mr-1" />
+                        Về cấu trúc đề
                     </Button>
+                    <Button onClick={() => navigate('/mock-test')}>Danh sách đề</Button>
+                </div>
+            }
+        >
+            <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                    Đã chọn {answeredCount}/{listeningQuestions.length} câu Listening.
+                    Reading + nộp session = Day 28.
+                </p>
+
+                {listeningQuestions.some((q) => partToNumber(q.part) === 1) && (
+                    <section className="space-y-4">
+                        <h2 className="font-semibold">Xem lại Part 1 — nội dung đáp án</h2>
+                        {listeningQuestions
+                            .filter((q) => partToNumber(q.part) === 1)
+                            .map((q) => (
+                                <QuestionBlock
+                                    key={q.questionId}
+                                    question={q}
+                                    selectedId={answers[q.questionId]}
+                                    onSelect={() => {}}
+                                    maskOptionText={false}
+                                    readOnly
+                                />
+                            ))}
+                    </section>
+                )}
+            </div>
+        </ExamShell>
+    )
+}
+
+/** Một câu: Part 1 = ảnh trái + radio phải; các Part khác giữ layout cũ. */
+function QuestionBlock({
+    question,
+    selectedId,
+    onSelect,
+    maskOptionText = false,
+    readOnly = false,
+    examMode = false,
+}: {
+    question: PlayQuestion
+    selectedId?: string
+    onSelect: (questionId: string, optionId: string) => void
+    /** Part 1–2 đang thi — ẩn nội dung đáp án, chỉ A/B/C(/D) */
+    maskOptionText?: boolean
+    readOnly?: boolean
+    /** Chiếm gần hết chiều cao màn thi */
+    examMode?: boolean
+}) {
+    const partNum = partToNumber(question.part)
+    const options = question.options.filter((o) => o.content?.trim())
+    const visibleOptions = partNum === 2 ? options.filter((o) => 'ABC'.includes(o.label)) : options
+    const hideText = maskOptionText && partNum <= 2
+
+    // Part 1 — layout giống phòng thi: ảnh to bên trái, radio bên phải
+    if (partNum === 1) {
+        return (
+            <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden">
+                <div
+                    className={`grid md:grid-cols-2 ${
+                        examMode ? 'min-h-[calc(100vh-200px)]' : 'md:min-h-[360px]'
+                    }`}
+                >
+                    {/* Ảnh */}
+                    <div className="border-b md:border-b-0 md:border-r border-[#1a4d7c]/20 p-4 flex flex-col bg-white">
+                        <p className="text-sm font-semibold text-foreground mb-3">Câu hỏi</p>
+                        {question.imageUrl ? (
+                            <img
+                                src={getMediaUrl(question.imageUrl)}
+                                alt=""
+                                className={`w-full flex-1 object-contain rounded bg-white ${
+                                    examMode ? 'min-h-[280px]' : 'min-h-[240px] max-h-[520px]'
+                                }`}
+                            />
+                        ) : (
+                            <div className="flex-1 min-h-[240px] rounded border border-dashed flex items-center justify-center text-muted-foreground text-sm">
+                                Không có ảnh
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Đáp án */}
+                    <div className="p-6 md:p-8 flex flex-col">
+                        <p className="text-xl font-semibold mb-8">{question.orderIndex}.</p>
+                        <div
+                            className="space-y-5"
+                            role="radiogroup"
+                            aria-label={`Câu ${question.orderIndex}`}
+                        >
+                            {visibleOptions.map((opt) => {
+                                const selected = selectedId === opt.id
+                                const inputId = `${question.questionId}-${opt.id}`
+                                return (
+                                    <label
+                                        key={opt.id}
+                                        htmlFor={inputId}
+                                        className={`flex items-start gap-3 rounded-md px-2 py-1 -mx-2 transition-colors ${
+                                            readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-muted/40'
+                                        } ${selected ? 'bg-blue-50' : ''}`}
+                                    >
+                                        <input
+                                            id={inputId}
+                                            type="radio"
+                                            name={question.questionId}
+                                            value={opt.id}
+                                            checked={selected}
+                                            disabled={readOnly}
+                                            onChange={() => onSelect(question.questionId, opt.id)}
+                                            className="mt-1 h-5 w-5 shrink-0 accent-blue-600"
+                                        />
+                                        <span className="text-lg leading-snug">
+                                            <span className="font-semibold">{opt.label}.</span>
+                                            {!hideText && (
+                                                <span
+                                                    className="ml-2 font-normal text-base"
+                                                    dangerouslySetInnerHTML={{ __html: opt.content }}
+                                                />
+                                            )}
+                                        </span>
+                                    </label>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
         )
     }
 
-    // ── Hết Listening ───────────────────────────────────────
-    return (
-        <div className="p-6 max-w-xl mx-auto space-y-4">
-            <h1 className="text-2xl font-bold">Hết phần Listening</h1>
-            <p className="text-sm text-muted-foreground">
-                Đã chọn {answeredCount}/{play.questions.filter((q) => isListeningPart(q.part)).length} câu Listening.
-                Reading + nộp session = Day 28.
-            </p>
-            <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate(`/mock-test/${id}`)}>
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Về cấu trúc
-                </Button>
-                <Button onClick={() => navigate('/mock-test')}>Danh sách đề</Button>
+    // Part 2 — chỉ radio A / B / C (không hiện câu hỏi hay transcript)
+    if (partNum === 2 && hideText) {
+        return (
+            <div
+                className={`rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm flex flex-col items-center justify-center ${
+                    examMode ? 'min-h-[calc(100vh-220px)]' : 'min-h-[280px]'
+                } p-8 md:p-12`}
+            >
+                <p className="text-2xl font-semibold mb-10">{question.orderIndex}.</p>
+                <div
+                    className="flex flex-col sm:flex-row gap-8 sm:gap-16"
+                    role="radiogroup"
+                    aria-label={`Câu ${question.orderIndex}`}
+                >
+                    {visibleOptions.map((opt) => {
+                        const selected = selectedId === opt.id
+                        const inputId = `${question.questionId}-${opt.id}`
+                        return (
+                            <label
+                                key={opt.id}
+                                htmlFor={inputId}
+                                className={`flex items-center gap-3 cursor-pointer rounded-lg px-4 py-3 transition-colors ${
+                                    selected ? 'bg-blue-50 ring-2 ring-blue-600' : 'hover:bg-muted/40'
+                                }`}
+                            >
+                                <input
+                                    id={inputId}
+                                    type="radio"
+                                    name={question.questionId}
+                                    value={opt.id}
+                                    checked={selected}
+                                    onChange={() => onSelect(question.questionId, opt.id)}
+                                    className="h-6 w-6 accent-blue-600"
+                                />
+                                <span className="text-2xl font-bold">{opt.label}</span>
+                            </label>
+                        )
+                    })}
+                </div>
             </div>
-        </div>
-    )
-}
+        )
+    }
 
-/** Header chung: tên đề + tiến độ chọn đáp án. */
-function HeaderBar({
-    play,
-    answeredCount,
-    onExit,
-}: {
-    play: TestPlay
-    answeredCount: number
-    onExit: () => void
-}) {
-    return (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-                <h1 className="text-lg font-bold">{play.title}</h1>
-                <p className="text-xs text-muted-foreground">
-                    {play.series} · đã chọn {answeredCount}/{play.questions.length}
-                </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={onExit}>
-                Thoát
-            </Button>
-        </div>
-    )
-}
-
-/** Một câu: ảnh (P1) + nội dung + A/B/C/D. */
-function QuestionBlock({
-    question,
-    selectedId,
-    onSelect,
-}: {
-    question: PlayQuestion
-    selectedId?: string
-    onSelect: (questionId: string, optionId: string) => void
-}) {
     return (
         <div className="rounded-lg border p-4 space-y-3">
             <div className="text-sm font-medium text-muted-foreground">
@@ -363,33 +521,36 @@ function QuestionBlock({
             </div>
             {question.imageUrl && (
                 <img
-                    src={question.imageUrl}
+                    src={getMediaUrl(question.imageUrl)}
                     alt=""
                     className="max-h-64 mx-auto rounded border object-contain"
                 />
             )}
-            {question.content && (
+            {!hideText && question.content && (
                 <div
                     className="prose prose-sm max-w-none"
                     dangerouslySetInnerHTML={{ __html: question.content }}
                 />
             )}
             <div className="space-y-2">
-                {question.options.map((opt) => {
+                {visibleOptions.map((opt) => {
                     const selected = selectedId === opt.id
                     return (
                         <button
                             key={opt.id}
                             type="button"
+                            disabled={readOnly}
                             onClick={() => onSelect(question.questionId, opt.id)}
                             className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
                                 selected
                                     ? 'border-blue-600 bg-blue-50'
                                     : 'hover:bg-muted/50'
-                            }`}
+                            } ${readOnly ? 'cursor-default opacity-90' : ''}`}
                         >
                             <strong className="mr-2">{opt.label}.</strong>
-                            <span dangerouslySetInnerHTML={{ __html: opt.content }} />
+                            {!hideText && (
+                                <span dangerouslySetInnerHTML={{ __html: opt.content }} />
+                            )}
                         </button>
                     )
                 })}

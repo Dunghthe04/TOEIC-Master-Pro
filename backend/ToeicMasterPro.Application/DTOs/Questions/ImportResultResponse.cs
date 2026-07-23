@@ -5,7 +5,13 @@ public record ImportResultResponse(
     int TotalRows,
     int SuccessCount,
     int FailedCount,
-    List<ImportRowError> Errors
+    List<ImportRowError> Errors,
+    List<ImportQuestionCreatedItem> Created = null!
+);
+
+public record ImportQuestionCreatedItem(
+    Guid QuestionId,
+    int? OrderIndex
 );
 
 public record ImportRowError(

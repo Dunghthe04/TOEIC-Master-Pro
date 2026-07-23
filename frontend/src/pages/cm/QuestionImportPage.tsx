@@ -12,7 +12,7 @@ import {
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Upload, ArrowLeft } from 'lucide-react'
+import { Upload, ArrowLeft, Download } from 'lucide-react'
 
 export default function QuestionImportPage() {
     const navigate = useNavigate()
@@ -53,6 +53,20 @@ export default function QuestionImportPage() {
         }
     }
 
+    const downloadTemplate = async () => {
+        try {
+            const blob = await QuestionService.downloadImportTemplate()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'toeic-questions-template.xlsx'
+            a.click()
+            URL.revokeObjectURL(url)
+        } catch {
+            toast.error('Không tải được file mẫu')
+        }
+    }
+
     return (
         <div className="p-6 space-y-6 max-w-3xl">
             <div className="flex items-center gap-3">
@@ -64,10 +78,15 @@ export default function QuestionImportPage() {
 
             <div className="space-y-3 rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">
-                    Chọn file <code>.xlsx</code>. Cột theo thứ tự: Part, Difficulty, Content,
-                    Explanation, AudioUrl, ImageUrl, Passage, Tags, IsPublished, A, B, C, D, CorrectAnswer.
-                    Hàng 1 là header.
+                    Cột: Part, Difficulty, Content, Explanation, AudioUrl, ImageUrl,
+                    Passage, Tags, IsPublished, A–D, CorrectAnswer,
+                    <strong> OrderIndex, AudioFile, ImageFile</strong> (2 cột cuối: chỉ tên file, không gõ URL).
                 </p>
+
+                <Button variant="outline" size="sm" onClick={() => void downloadTemplate()}>
+                    <Download className="w-4 h-4 mr-1" />
+                    Tải Excel mẫu
+                </Button>
 
                 <Input
                     ref={inputRef}

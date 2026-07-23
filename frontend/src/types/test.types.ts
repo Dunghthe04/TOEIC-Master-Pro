@@ -32,13 +32,16 @@ export interface TestQuestionItem {
     questionId: string
     orderIndex: number
     content: string
-    part: string // "Part1" …
+    part: string
+    audioUrl: string | null
+    imageUrl: string | null
 }
 
 /** Chi tiết đề kèm danh sách câu đã gán */
 export interface TestDetail {
     id: string
     title: string
+    series: string
     description: string | null
     durationMinutes: number
     isPublished: boolean

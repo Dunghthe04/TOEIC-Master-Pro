@@ -33,5 +33,7 @@ export const QuestionService = {
             .then(r => r.data)
     },
 
-
+    /** Tải file Excel mẫu (cột AudioFile, ImageFile, OrderIndex). */
+    downloadImportTemplate: () =>
+        api.get('/question/import-template', { responseType: 'blob' }).then(r => r.data as Blob),
 }

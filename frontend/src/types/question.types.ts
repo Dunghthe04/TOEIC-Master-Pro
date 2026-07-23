@@ -54,4 +54,10 @@ export interface ImportResultResponse {
     successCount: number
     failedCount: number
     errors: ImportRowError[]
+    created?: { questionId: string; orderIndex: number | null }[]
+}
+
+export interface TestListeningImportResult {
+    import: ImportResultResponse
+    assignedToTest: number
 }

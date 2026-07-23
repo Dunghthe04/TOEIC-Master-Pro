@@ -7,6 +7,7 @@ import { QuestionService } from '@/services/question.service'
 import { toast } from 'sonner'
 import type { DifficultyLevel, CreateQuestionRequest } from '@/types/question.types'
 import RichTextEditor from '@/components/editor/RichTextEditor'
+import MediaUploadField from '@/components/cm/MediaUploadField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -164,17 +165,23 @@ export default function QuestionFormPage() {
                     />
                 </div>
 
-                {/* Audio URL */}
-                <div className="space-y-1">
-                    <Label>Audio URL (Part 1–4, tùy chọn)</Label>
-                    <Input {...register('audioUrl')} placeholder="https://..." />
-                </div>
+                {/* Audio — upload file, URL tự điền */}
+                <MediaUploadField
+                    kind="audio"
+                    label="Audio (Part 1–4)"
+                    hint={`Đặt tên file theo quy ước E26-T01-1.mp3 (mã đề-mã test-số câu) khi upload thủ công.`}
+                    value={watch('audioUrl') ?? ''}
+                    onChange={(url) => setValue('audioUrl', url)}
+                />
 
-                {/* Image URL */}
-                <div className="space-y-1">
-                    <Label>Image URL (Part 1, tùy chọn)</Label>
-                    <Input {...register('imageUrl')} placeholder="https://..." />
-                </div>
+                {/* Ảnh Part 1 */}
+                <MediaUploadField
+                    kind="image"
+                    label="Ảnh (Part 1)"
+                    hint="Chọn file .jpg / .png cho câu Photographs."
+                    value={watch('imageUrl') ?? ''}
+                    onChange={(url) => setValue('imageUrl', url)}
+                />
 
                 {/* 4 đáp án */}
                 <div className="space-y-2">

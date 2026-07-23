@@ -20,6 +20,15 @@ export default defineConfig({
     react(),        // Xử lý file .tsx/.jsx — biên dịch JSX thành JavaScript
     tailwindcss(),  // Scan class Tailwind trong .tsx → sinh CSS tương ứng
   ],
+  server: {
+    // Dev: proxy /uploads → API wwwroot (audio/ảnh đề thi)
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:5191',
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       // "@" = shortcut cho thư mục "src/"

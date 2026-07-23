@@ -63,8 +63,9 @@ function App() {
               <Route path="/practice" element={<PracticePage />} />
               <Route path="/mock-test" element={<MockTestPage />} />
               <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
-              <Route path="/mock-test/:id/play" element={<MockTestPlayPage />} />
             </Route>
+            {/* Thi thử — full màn hình, không sidebar */}
+            <Route path="/mock-test/:id/play" element={<MockTestPlayPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,6 +1,9 @@
+using ToeicMasterPro.Application.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IO.Compression;
 using ToeicMasterPro.Application.Common.Interfaces;
+using ToeicMasterPro.Application.DTOs.Questions;
 using ToeicMasterPro.Application.DTOs.Tests;
 
 namespace ToeicMasterPro.API.Controllers;
@@ -10,8 +13,15 @@ namespace ToeicMasterPro.API.Controllers;
 public class TestController : ControllerBase
 {
     private readonly ITestService _service;
+    private readonly IQuestionService _questionService;
+    private readonly IWebHostEnvironment _env;
 
-    public TestController(ITestService service) => _service = service;
+    public TestController(ITestService service, IQuestionService questionService, IWebHostEnvironment env)
+    {
+        _service = service;
+        _questionService = questionService;
+        _env = env;
+    }
 
     // GET /api/test?isPublished=true
     [HttpGet]
@@ -110,6 +120,119 @@ public class TestController : ControllerBase
 
         var result = await _service.GetPlayAsync(id, partArr);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>Import Excel hoặc ZIP (questions.xlsx + audio/ + images/) vào đề — Part 1–4.</summary>
+    [HttpPost("{id:Guid}/import-listening")]
+    [Authorize(Roles = "Admin,ContentManager")]
+    [RequestSizeLimit(100 * 1024 * 1024)]
+    public async Task<IActionResult> ImportListening(Guid id, IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "Chưa chọn file." });
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        Stream excelStream;
+        var disposeExcel = false;
+
+        if (ext == ".zip")
+        {
+            var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+            var audioFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "audio");
+            var imagesFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "images");
+            Directory.CreateDirectory(audioFolder);
+            Directory.CreateDirectory(imagesFolder);
+
+            using var zip = new ZipArchive(file.OpenReadStream(), ZipArchiveMode.Read);
+            var entry = zip.Entries.FirstOrDefault(e =>
+                e.Name.Equals("questions.xlsx", StringComparison.OrdinalIgnoreCase))
+                ?? zip.Entries.FirstOrDefault(e => e.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
+
+            if (entry is null)
+                return BadRequest(new { error = "ZIP phải chứa questions.xlsx (hoặc file .xlsx)." });
+
+            foreach (var ae in zip.Entries.Where(e => !string.IsNullOrEmpty(e.Name)))
+            {
+                var zipPath = ae.FullName.Replace('\\', '/');
+                string? destFolder = null;
+                if (zipPath.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
+                    || zipPath.Contains("/audio/", StringComparison.OrdinalIgnoreCase))
+                    destFolder = audioFolder;
+                else if (zipPath.StartsWith("images/", StringComparison.OrdinalIgnoreCase)
+                    || zipPath.Contains("/images/", StringComparison.OrdinalIgnoreCase))
+                    destFolder = imagesFolder;
+
+                if (destFolder is null) continue;
+
+                var name = ToeicMediaNaming.NormalizeMediaFileName(Path.GetFileName(ae.Name));
+                if (string.IsNullOrEmpty(name)) continue;
+                var dest = Path.Combine(destFolder, name);
+                await using var src = ae.Open();
+                await using var dst = System.IO.File.Create(dest);
+                await src.CopyToAsync(dst);
+            }
+
+            // Copy Excel ra memory — tránh stream bị đóng khi ZipArchive dispose
+            var excelMs = new MemoryStream();
+            await using (var entryStream = entry.Open())
+                await entryStream.CopyToAsync(excelMs);
+            excelMs.Position = 0;
+            excelStream = excelMs;
+            disposeExcel = true;
+        }
+        else if (ext == ".xlsx")
+        {
+            excelStream = file.OpenReadStream();
+            disposeExcel = true;
+        }
+        else
+        {
+            return BadRequest(new { error = "Chỉ chấp nhận .xlsx hoặc .zip." });
+        }
+
+        try
+        {
+            var importResult = await _questionService.ImportAsync(excelStream, new ImportQuestionOptions(id, true));
+            var assigned = await AssignImportedToTestAsync(id, importResult);
+            return Ok(new
+            {
+                import = importResult,
+                assignedToTest = assigned
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = $"Import thất bại: {ex.Message}" });
+        }
+        finally
+        {
+            if (disposeExcel) await excelStream.DisposeAsync();
+        }
+    }
+
+    /// <summary>Gán nhanh mọi câu Listening published chưa có trong đề.</summary>
+    [HttpPost("{id:Guid}/assign-listening")]
+    [Authorize(Roles = "Admin,ContentManager")]
+    public async Task<IActionResult> AssignListening(Guid id)
+    {
+        var result = await _service.AssignListeningQuestionsAsync(id);
+        return result.IsSuccess
+            ? Ok(new { assigned = result.Value })
+            : BadRequest(new { error = result.Error });
+    }
+
+    private async Task<int> AssignImportedToTestAsync(Guid testId, ImportResultResponse import)
+    {
+        if (import.Created is null || import.Created.Count == 0) return 0;
+
+        var items = import.Created
+            .Select((c, i) => new QuestionOrderItem(
+                c.QuestionId,
+                c.OrderIndex ?? (i + 1)))
+            .ToList();
+
+        var result = await _service.UpsertQuestionsByOrderAsync(testId, new AddQuestionsRequest(items));
+        return result.IsSuccess ? items.Count : 0;
     }
 
 

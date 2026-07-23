@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ToeicMasterPro.Domain.Entities;
 using ToeicMasterPro.Infrastructure.Persistence;
 using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ToeicMasterPro.Application.Common.Interfaces;
@@ -107,6 +108,8 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(jwtBearerOptions =>
 {
+    // Giữ claim type gốc — role trong JWT khớp [Authorize(Roles = ...)]
+    jwtBearerOptions.MapInboundClaims = false;
     jwtBearerOptions.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -116,7 +119,9 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwt.Issuer,
         ValidAudience = jwt.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SecretKey)),
-        ClockSkew = TimeSpan.Zero   // bỏ 5 phút dung sai mặc định
+        ClockSkew = TimeSpan.Zero,
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = ClaimTypes.Name,
     };
 });
 

@@ -9,6 +9,7 @@ import type {
     TestDetail,
     AddQuestionsPayload,
 } from "@/types/test.types";
+import type { TestListeningImportResult } from "@/types/question.types";
 
 export const TestService = {
     /** Danh sách đề (CM). */
@@ -56,4 +57,19 @@ export const TestService = {
                 ? { parts: parts.join(',') }
                 : undefined,
         }).then(r => r.data),
+
+    /** Import .xlsx hoặc .zip (questions.xlsx + audio/) vào đề. */
+    importListening: (testId: string, file: File) => {
+        const form = new FormData()
+        form.append('file', file)
+        return api.post<TestListeningImportResult>(
+            `/test/${testId}/import-listening`,
+            form,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+        ).then(r => r.data)
+    },
+
+    /** Gán nhanh câu Part 1–4 published chưa có trong đề. */
+    assignListeningBulk: (testId: string) =>
+        api.post<{ assigned: number }>(`/test/${testId}/assign-listening`).then(r => r.data),
 }
