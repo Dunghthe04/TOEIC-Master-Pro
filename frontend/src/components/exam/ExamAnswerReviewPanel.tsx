@@ -1,0 +1,245 @@
+/**
+ * Chi tiết từng câu sau nộp bài — đáp án user chọn vs đáp án đúng.
+ */
+import { useMemo, useState } from 'react'
+import { ArrowLeft, CheckCircle2, Circle, XCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { partToNumber } from '@/lib/examListening'
+import type { PlayQuestion } from '@/types/test.types'
+import type { SessionAnswerReview } from '@/types/test-session.types'
+
+type Filter = 'all' | 'wrong' | 'skipped'
+
+type ExamAnswerReviewPanelProps = {
+    reviews: SessionAnswerReview[]
+    questions: PlayQuestion[]
+    onBack: () => void
+}
+
+export default function ExamAnswerReviewPanel({
+    reviews,
+    questions,
+    onBack,
+}: ExamAnswerReviewPanelProps) {
+    const [filter, setFilter] = useState<Filter>('all')
+
+    const questionMap = useMemo(() => {
+        const m = new Map<string, PlayQuestion>()
+        for (const q of questions) m.set(q.questionId, q)
+        return m
+    }, [questions])
+
+    const sorted = useMemo(
+        () => [...reviews].sort((a, b) => a.orderIndex - b.orderIndex),
+        [reviews]
+    )
+
+    const filtered = useMemo(() => {
+        if (filter === 'wrong') return sorted.filter((r) => !r.isCorrect && r.selectedOptionId)
+        if (filter === 'skipped') return sorted.filter((r) => !r.selectedOptionId)
+        return sorted
+    }, [sorted, filter])
+
+    const wrongCount = sorted.filter((r) => !r.isCorrect && r.selectedOptionId).length
+    const skippedCount = sorted.filter((r) => !r.selectedOptionId).length
+    const correctCount = sorted.filter((r) => r.isCorrect).length
+
+    return (
+        <div className="space-y-4 pb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button variant="outline" size="sm" onClick={onBack}>
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Quay lại chứng chỉ
+                </Button>
+                <div className="flex flex-wrap gap-2 text-sm">
+                    <FilterChip
+                        active={filter === 'all'}
+                        onClick={() => setFilter('all')}
+                        label={`Tất cả (${sorted.length})`}
+                    />
+                    <FilterChip
+                        active={filter === 'wrong'}
+                        onClick={() => setFilter('wrong')}
+                        label={`Sai (${wrongCount})`}
+                    />
+                    <FilterChip
+                        active={filter === 'skipped'}
+                        onClick={() => setFilter('skipped')}
+                        label={`Bỏ qua (${skippedCount})`}
+                    />
+                    <span className="text-muted-foreground self-center text-xs">
+                        Đúng: {correctCount}
+                    </span>
+                </div>
+            </div>
+
+            <ul className="space-y-3">
+                {filtered.map((r) => {
+                    const question = questionMap.get(r.questionId)
+                    const selectedLabel = r.selectedOptionId
+                        ? question?.options.find((o) => o.id === r.selectedOptionId)?.label
+                        : null
+
+                    return (
+                        <li
+                            key={r.questionId}
+                            className={`rounded-lg border bg-white p-4 space-y-3 ${
+                                r.isCorrect
+                                    ? 'border-emerald-200'
+                                    : !r.selectedOptionId
+                                      ? 'border-amber-200'
+                                      : 'border-red-200'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    {r.isCorrect ? (
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                    ) : !r.selectedOptionId ? (
+                                        <Circle className="w-5 h-5 text-amber-500 shrink-0" />
+                                    ) : (
+                                        <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+                                    )}
+                                    <span className="font-semibold text-sm">
+                                        Câu {r.orderIndex} — Part {partToNumber(r.part)}
+                                    </span>
+                                </div>
+                                <StatusBadge
+                                    isCorrect={r.isCorrect}
+                                    skipped={!r.selectedOptionId}
+                                />
+                            </div>
+
+                            {question?.content && (
+                                <div
+                                    className="prose prose-sm max-w-none text-sm border-l-2 border-gray-200 pl-3"
+                                    dangerouslySetInnerHTML={{ __html: question.content }}
+                                />
+                            )}
+
+                            <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                                <div className="rounded-md bg-muted/50 px-3 py-2">
+                                    <span className="text-muted-foreground">Bạn chọn: </span>
+                                    <span className="font-semibold">
+                                        {selectedLabel ?? '— (bỏ qua)'}
+                                    </span>
+                                </div>
+                                <div className="rounded-md bg-emerald-50 px-3 py-2">
+                                    <span className="text-muted-foreground">Đáp án đúng: </span>
+                                    <span className="font-semibold text-emerald-800">
+                                        {r.correctLabel}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {question && (
+                                <div className="space-y-1.5 pt-1">
+                                    {question.options
+                                        .filter((o) => o.content?.trim())
+                                        .map((opt) => {
+                                            const isUser = opt.id === r.selectedOptionId
+                                            const isCorrect = opt.id === r.correctOptionId
+                                            return (
+                                                <div
+                                                    key={opt.id}
+                                                    className={`text-sm rounded px-2 py-1.5 border ${
+                                                        isCorrect
+                                                            ? 'border-emerald-500 bg-emerald-50'
+                                                            : isUser
+                                                              ? 'border-red-400 bg-red-50'
+                                                              : 'border-transparent'
+                                                    }`}
+                                                >
+                                                    <strong>{opt.label}.</strong>{' '}
+                                                    <span
+                                                        dangerouslySetInnerHTML={{
+                                                            __html: opt.content,
+                                                        }}
+                                                    />
+                                                    {isCorrect && (
+                                                        <span className="ml-2 text-xs text-emerald-700 font-medium">
+                                                            ✓ Đúng
+                                                        </span>
+                                                    )}
+                                                    {isUser && !isCorrect && (
+                                                        <span className="ml-2 text-xs text-red-600 font-medium">
+                                                            ✗ Bạn chọn
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                </div>
+                            )}
+
+                            {r.explanation && (
+                                <div className="text-xs text-muted-foreground border-t pt-2">
+                                    <span className="font-medium text-gray-700">Giải thích: </span>
+                                    <span dangerouslySetInnerHTML={{ __html: r.explanation }} />
+                                </div>
+                            )}
+                        </li>
+                    )
+                })}
+            </ul>
+
+            {filtered.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                    Không có câu nào trong bộ lọc này.
+                </p>
+            )}
+        </div>
+    )
+}
+
+function FilterChip({
+    active,
+    onClick,
+    label,
+}: {
+    active: boolean
+    onClick: () => void
+    label: string
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                active
+                    ? 'bg-[#1a4d7c] text-white border-[#1a4d7c]'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+        >
+            {label}
+        </button>
+    )
+}
+
+function StatusBadge({
+    isCorrect,
+    skipped,
+}: {
+    isCorrect: boolean
+    skipped: boolean
+}) {
+    if (isCorrect) {
+        return (
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                Đúng
+            </span>
+        )
+    }
+    if (skipped) {
+        return (
+            <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
+                Bỏ qua
+            </span>
+        )
+    }
+    return (
+        <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded">
+            Sai
+        </span>
+    )
+}

@@ -49,9 +49,9 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ### Tóm nhanh theo persona
 
-| Persona | Đang có (đến Day 25) | Sắp làm tiếp |
+| Persona | Đang có (đến Day 28) | Sắp làm tiếp |
 |---------|----------------------|--------------|
-| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh API/UI | **Thi thử Day 26–30** (ưu tiên), rồi history / AI… |
+| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R, TestSession, nộp bài, chứng chỉ SAMPLE** | **Day 29–30** (timer 120′, polish UX, phân tích Part), rồi history / AI… |
 | **Content Manager** | Panel câu hỏi + đề + import; API lịch thi & vocab | Bổ sung panel quản lý lịch thi UI (nếu cần); nội dung đề cho Exam Engine |
 | **Admin** | Seed account + quyền trên API CM/Admin | UI Admin Day **55–57** |
 
@@ -61,8 +61,13 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 27** (UI thi thử Listening + CM import/upload Part 1–4) ✅  
-**Tiếp theo:** **Day 28** — Reading Part 5–7 + TestSession + nộp bài.
+**Đang ở:** Hết **Day 28** (Reading Part 5–7 + TestSession + nộp bài + kết quả + chứng chỉ SAMPLE) ✅  
+**Tiếp theo:** **Day 29** — Polish thi thử: timer full 120′, progress `đã làm/tổng`, UX nộp bài.
+
+**Day 28 đã giao:**
+- Backend: `POST /api/test-session/start`, `save-answers`, `submit` (commit `5aeec68`)
+- Frontend: `test-session.service`, Reading Part 5–7 (`examReading.ts`), màn nghỉ Listening → Reading
+- Nộp bài → `ExamResultScreen`, review đáp án (`ExamAnswerReviewPanel`), chứng chỉ SAMPLE + tải PNG (`ToeicSampleCertificate`, preview `/mock-test/certificate-preview`)
 
 **Day 26 cũ (UI Practice random Part 1–4):** đã code WIP ở frontend nhưng **không phải luồng chính**.
 - Giữ lại: `howler`, `AudioPlayer`, types/service Practice (tái dùng / luyện phụ).
@@ -143,9 +148,9 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
   — CM: upload audio/ảnh, import Excel/ZIP, gán câu vào đề, preview Listening
 
 **Tuần 5–6 — Day 28–30: Reading + Session + Kết quả**
-- Ngày 28: API `TestSession` — tạo phiên, lưu đáp án, nộp cuối; UI Reading Part 5–7 (passage, nhóm câu, bookmark)
+- Ngày 28: ✅ API `TestSession` — tạo phiên, lưu đáp án, nộp cuối; UI Reading Part 5–7 (passage, nhóm câu, bookmark); màn nghỉ L→R; nộp bài; màn kết quả + review đáp án + chứng chỉ SAMPLE (tải PNG)
 - Ngày 29: Polish thi thử — timer full 120′ (L~45′ gồm Directions + R 75′), progress `đã làm/tổng`, NỘP BÀI, Câu trước/sau
-- Ngày 30: Màn kết quả — điểm quy đổi, phân tích theo Part, review đáp án
+- Ngày 30: Hoàn thiện kết quả — điểm quy đổi ETS (hiện công thức MVP), phân tích theo Part *(review đáp án đã có sớm ở Day 28)*
 
 **Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
 - Ngày 31: API lịch sử thi, so sánh điểm qua các lần

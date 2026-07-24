@@ -1,20 +1,19 @@
 /**
- * MockTestPlayPage — Màn thi Listening (Day 27).
+ * MockTestPlayPage — Màn thi Listening + Reading (Day 27–28).
  *
- * Luồng chính (giống phòng thi TOEIC):
- *   loading → directions (Part 1) → answering (câu 1, 2, 3...)
- *          → directions (Part 2) → answering → ... → done
+ * Listening: directions → answering (audio tự phát, tự chuyển).
+ * Reading (Bước 6): directions → làm câu thủ công (Next/Prev), Part 5 / 6–7 passage.
  *
- * Âm thanh tự phát + tự chuyển:
- *   - playUrl()        : phát 1 file, hết thì gọi callback
- *   - useEffect directions : phát intro Part → hết → enterAnswering()
- *   - useEffect answering  : phát audio câu → hết → advanceAfterUnit()
- *   - advanceAfterUnit()   : unit kế / Part kế / done
+ * Day 28 Bước 5 — TestSession: start(), saveAnswers() (debounce).
+ * Bước 7 — Nối Listening → Reading: màn nghỉ giữa section, user bấm tiếp tục.
+ * Bước 8 — Nộp bài (submit) + màn kết quả ExamResultScreen.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { TestService } from '@/services/test.service'
+import { TestSessionService } from '@/services/test-session.service'
 import type { PlayPartDirections, PlayQuestion, TestPlay } from '@/types/test.types'
+import type { TestSessionSubmitResult } from '@/types/test-session.types'
 import {
     buildListeningUnits,
     isListeningPart,
@@ -22,14 +21,31 @@ import {
     partToNumber,
     type ListeningUnit,
 } from '@/lib/examListening'
+import {
+    buildReadingItemsForPart,
+    isReadingPart,
+    readingPartsInOrder,
+    type ReadingItem,
+} from '@/lib/examReading'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, SkipForward } from 'lucide-react'
+import {
+    ArrowLeft,
+    BookOpen,
+    Bookmark,
+    ChevronLeft,
+    ChevronRight,
+    Headphones,
+    SkipForward,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { getMediaUrl } from '@/lib/media'
 import ExamShell from '@/components/layout/ExamShell'
+import ExamResultScreen from '@/components/exam/ExamResultScreen'
 
-/** 4 trạng thái màn hình — điều khiển phát audio và UI hiển thị */
-type Phase = 'loading' | 'directions' | 'answering' | 'done'
+/** Trạng thái màn hình — điều khiển audio (Listening) và UI */
+type Phase = 'loading' | 'directions' | 'answering' | 'section-break' | 'done' | 'results'
+/** Phần đang thi: Listening trước, Reading sau (Bước 7 nối luồng) */
+type ExamSection = 'listening' | 'reading'
 
 export default function MockTestPlayPage() {
     const { id } = useParams<{ id: string }>()
@@ -45,11 +61,31 @@ export default function MockTestPlayPage() {
     const [unitIdx, setUnitIdx] = useState(0)
     /** Đáp án user đã chọn: { questionId: optionId } */
     const [answers, setAnswers] = useState<Record<string, string>>({})
+    /** ID phiên thi trên server — từ POST /test-session/start */
+    const [sessionId, setSessionId] = useState<string | null>(null)
+    /** Thời điểm bắt đầu phiên — hiển thị trên chứng chỉ */
+    const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null)
+    /** Listening hay Reading — đổi sau khi hết Part 4 (hoặc vào thẳng Reading nếu filter chỉ P5–7) */
+    const [section, setSection] = useState<ExamSection>('listening')
+    /** Màn Reading hiện tại trong Part (0 = câu/passage đầu) */
+    const [readingItemIdx, setReadingItemIdx] = useState(0)
+    /** Câu đánh dấu xem lại — chỉ UI local, chưa sync server */
+    const [bookmarks, setBookmarks] = useState<Record<string, true>>({})
+    /** Kết quả sau submit — hiển thị màn ExamResultScreen */
+    const [submitResult, setSubmitResult] = useState<TestSessionSubmitResult | null>(null)
+    /** Đang gọi API nộp bài */
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     /** Tham chiếu tới thẻ <audio> đang phát — dùng để pause/stop khi đổi phase */
     const audioRef = useRef<HTMLAudioElement | null>(null)
-
-    const answersStorageKey = id ? `mock-test-${id}-answers` : null
+    /** Debounce gửi đáp án lên server — tránh gọi API mỗi lần click */
+    const saveAnswersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    /** sessionId mới nhất — dùng trong callback tránh stale closure */
+    const sessionIdRef = useRef<string | null>(null)
+    /** Đáp án mới nhất — flush trước khi submit */
+    const answersRef = useRef<Record<string, string>>({})
+    sessionIdRef.current = sessionId
+    answersRef.current = answers
 
     // Parse ?parts=1,2,3 → number[]; không có = full
     const partsFilter = useMemo(() => {
@@ -61,35 +97,48 @@ export default function MockTestPlayPage() {
             .filter((n) => n >= 1 && n <= 7)
     }, [search])
 
-    /** Load gói play (cần JWT). */
+    /** Load phiên thi + gói câu hỏi (cần JWT). */
     useEffect(() => {
         if (!id) return
         let cancelled = false
         ;(async () => {
             setPhase('loading')
+            setSessionId(null)
+            setSessionStartedAt(null)
+            setSubmitResult(null)
+            setIsSubmitting(false)
             try {
+                // Bước A: tạo TestSession trên server (thay localStorage Day 27)
+                const session = await TestSessionService.start({
+                    testId: id,
+                    parts: partsFilter,
+                })
+                if (cancelled) return
+                setSessionId(session.sessionId)
+                setSessionStartedAt(session.startedAt)
+
+                // Bước B: lấy câu hỏi + directions (che đáp án đúng)
                 const data = await TestService.getPlay(id, partsFilter)
                 if (cancelled) return
                 setPlay(data)
-                // Khôi phục đáp án tạm (chưa nộp — Day 28)
-                let saved: Record<string, string> = {}
-                if (answersStorageKey) {
-                    try {
-                        const raw = localStorage.getItem(answersStorageKey)
-                        if (raw) saved = JSON.parse(raw) as Record<string, string>
-                    } catch { /* ignore */ }
-                }
-                setAnswers(saved)
+                setAnswers({})
+                setBookmarks({})
                 setPartIdx(0)
                 setUnitIdx(0)
+                setReadingItemIdx(0)
 
-                const order = listeningPartsInOrder(data.questions)
-                if (order.length === 0) {
-                    // Chỉ Reading / không có Listening trong filter
-                    setPhase('done')
-                    toast.message('Gói này không có Listening — Reading UI ở Day 28.')
-                } else {
+                const listenOrder = listeningPartsInOrder(data.questions)
+                const readOrder = readingPartsInOrder(data.questions)
+                if (listenOrder.length > 0) {
+                    setSection('listening')
                     setPhase('directions')
+                } else if (readOrder.length > 0) {
+                    setSection('reading')
+                    setPhase('directions')
+                    toast.message('Gói này chỉ có Reading — bắt đầu Part 5–7.')
+                } else {
+                    setPhase('done')
+                    toast.error('Gói này không có câu hỏi.')
                 }
             } catch (err: unknown) {
                 const status = (err as { response?: { status?: number; data?: { error?: string } } })
@@ -107,17 +156,25 @@ export default function MockTestPlayPage() {
         return () => {
             cancelled = true
             stopAudio()
+            if (saveAnswersTimerRef.current) clearTimeout(saveAnswersTimerRef.current)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, search])
 
-    /** Danh sách Part Listening có trong đề, theo thứ tự: ["Part1", "Part2", "Part3", "Part4"] */
-    const partsOrder = useMemo(
+    /** Part Listening có trong đề */
+    const listeningPartsOrder = useMemo(
         () => (play ? listeningPartsInOrder(play.questions) : []),
         [play]
     )
 
-    /** Part đang làm — lấy từ partsOrder[partIdx] */
+    /** Part Reading có trong đề */
+    const readingPartsOrder = useMemo(
+        () => (play ? readingPartsInOrder(play.questions) : []),
+        [play]
+    )
+
+    /** Part đang làm — theo section Listening hoặc Reading */
+    const partsOrder = section === 'listening' ? listeningPartsOrder : readingPartsOrder
     const currentPart = partsOrder[partIdx] ?? null
 
     /**
@@ -135,17 +192,20 @@ export default function MockTestPlayPage() {
         )
     }, [play, currentPart])
 
-    /**
-     * Playlist audio của Part hiện tại.
-     * Part 1–2: 1 câu = 1 unit (1 file mp3).
-     * Part 3–4: 3 câu cùng audioUrl = 1 unit (hiện 3 câu, phát 1 file).
-     * Xem buildListeningUnits() trong examListening.ts
-     */
+    /** Playlist audio — chỉ Listening */
     const units: ListeningUnit[] = useMemo(() => {
-        if (!play || !currentPart) return []
+        if (!play || !currentPart || section !== 'listening') return []
         const qs = play.questions.filter((q) => q.part === currentPart)
         return buildListeningUnits(qs)
-    }, [play, currentPart])
+    }, [play, currentPart, section])
+
+    /** Các màn Reading trong Part hiện tại */
+    const readingItems: ReadingItem[] = useMemo(() => {
+        if (!play || !currentPart || section !== 'reading') return []
+        return buildReadingItemsForPart(play.questions, currentPart)
+    }, [play, currentPart, section])
+
+    const currentReadingItem = readingItems[readingItemIdx] ?? null
 
     /** Unit đang phát / đang hiển thị câu hỏi */
     const currentUnit = units[unitIdx] ?? null
@@ -154,6 +214,26 @@ export default function MockTestPlayPage() {
         if (!play) return 0
         return play.questions.filter((q) => answers[q.questionId]).length
     }, [play, answers])
+
+    /** Thống kê Listening — dùng màn chuyển section (Bước 7) */
+    const listeningStats = useMemo(() => {
+        if (!play) return { total: 0, answered: 0 }
+        const qs = play.questions.filter((q) => isListeningPart(q.part))
+        return {
+            total: qs.length,
+            answered: qs.filter((q) => answers[q.questionId]).length,
+        }
+    }, [play, answers])
+
+    /** Thống kê Reading — hiển thị trên màn chuyển section */
+    const readingStats = useMemo(() => {
+        if (!play) return { total: 0, parts: [] as string[] }
+        const qs = play.questions.filter((q) => isReadingPart(q.part))
+        return {
+            total: qs.length,
+            parts: readingPartsInOrder(play.questions),
+        }
+    }, [play])
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHẦN AUDIO — tự phát + tự chuyển (core của màn thi Listening)
@@ -224,40 +304,62 @@ export default function MockTestPlayPage() {
      * User có thể bấm Next (skipDirections) để bỏ qua intro.
      */
     useEffect(() => {
-        if (phase !== 'directions' || !currentDirections) return
+        if (section !== 'listening' || phase !== 'directions' || !currentDirections) return
         playUrl(currentDirections.audioUrl, () => {
             enterAnswering()
         })
         return () => stopAudio()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase, currentPart])
+    }, [section, phase, currentPart])
 
     /**
      * Hàm chuyển tiếp sau khi 1 unit audio phát xong.
      *
      * Case 1: Còn unit trong Part → unitIdx + 1 (phát audio câu tiếp)
      * Case 2: Hết unit, còn Part → phase = 'directions', partIdx + 1 (sang Part mới)
-     * Case 3: Hết Part cuối → phase = 'done'
+     * Case 3: Hết Part Listening cuối → màn nghỉ section-break (có Reading) hoặc done
      */
+    /**
+     * Hết Listening — dừng audio, chuyển màn nghỉ giữa section (không nhảy thẳng Reading).
+     * User xác nhận → startReadingSection().
+     */
+    const transitionToReading = useCallback(() => {
+        stopAudio()
+        if (readingPartsOrder.length > 0) {
+            setPhase('section-break')
+        } else {
+            setPhase('done')
+        }
+    }, [readingPartsOrder.length])
+
+    /** User bấm "Bắt đầu Reading" sau màn nghỉ giữa section */
+    const startReadingSection = useCallback(() => {
+        stopAudio()
+        setSection('reading')
+        setPartIdx(0)
+        setReadingItemIdx(0)
+        setUnitIdx(0)
+        setPhase('directions')
+    }, [])
+
     const advanceAfterUnit = useCallback(() => {
         setUnitIdx((i) => {
             const next = i + 1
             if (next < units.length) return next
 
-            // Hết units Part này → sang Part Listening tiếp theo hoặc kết thúc
             setPartIdx((p) => {
                 const nextPart = p + 1
-                if (nextPart < partsOrder.length) {
-                    setPhase('directions') // quay lại màn Directions Part mới
+                if (nextPart < listeningPartsOrder.length) {
+                    setPhase('directions')
                     setUnitIdx(0)
                     return nextPart
                 }
-                setPhase('done') // hết Part 4 (hoặc Part cuối trong filter)
+                transitionToReading()
                 return p
             })
             return i
         })
-    }, [units.length, partsOrder.length])
+    }, [units.length, listeningPartsOrder.length, transitionToReading])
 
     /**
      * useEffect #2 — ANSWERING: tự phát audio câu hiện tại, hết thì chuyển unit/Part.
@@ -266,19 +368,123 @@ export default function MockTestPlayPage() {
      * Hết audio câu → advanceAfterUnit() → unit kế hoặc Part kế.
      */
     useEffect(() => {
-        if (phase !== 'answering' || !currentUnit) return
+        if (section !== 'listening' || phase !== 'answering' || !currentUnit) return
         playUrl(currentUnit.audioUrl, () => {
             advanceAfterUnit()
         })
         return () => stopAudio()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase, partIdx, unitIdx, currentUnit?.audioUrl])
+    }, [section, phase, partIdx, unitIdx, currentUnit?.audioUrl])
 
-    /** Nút Next trên màn Directions — bỏ qua audio intro, vào làm câu ngay */
+    /** Nút Next trên Directions — Listening bỏ intro; Reading vào làm câu */
     const skipDirections = () => {
         stopAudio()
-        enterAnswering()
+        if (section === 'reading') {
+            setReadingItemIdx(0)
+            setPhase('answering')
+        } else {
+            enterAnswering()
+        }
     }
+
+    /** Chuyển màn Reading: câu/passage kế hoặc Part kế hoặc done */
+    const advanceReading = useCallback(() => {
+        if (readingItemIdx + 1 < readingItems.length) {
+            setReadingItemIdx((i) => i + 1)
+            return
+        }
+        const nextPart = partIdx + 1
+        if (nextPart < readingPartsOrder.length) {
+            setPartIdx(nextPart)
+            setReadingItemIdx(0)
+            setPhase('directions')
+            return
+        }
+        setPhase('done')
+    }, [readingItemIdx, readingItems.length, partIdx, readingPartsOrder.length])
+
+    const goBackReading = useCallback(() => {
+        if (readingItemIdx > 0) {
+            setReadingItemIdx((i) => i - 1)
+            return
+        }
+        if (partIdx > 0) {
+            const prevPart = partIdx - 1
+            const prevItems = play
+                ? buildReadingItemsForPart(play.questions, readingPartsOrder[prevPart])
+                : []
+            setPartIdx(prevPart)
+            setReadingItemIdx(Math.max(0, prevItems.length - 1))
+            setPhase('answering')
+        }
+    }, [readingItemIdx, partIdx, play, readingPartsOrder])
+
+    const toggleBookmark = (questionId: string) => {
+        setBookmarks((prev) => {
+            const next = { ...prev }
+            if (next[questionId]) delete next[questionId]
+            else next[questionId] = true
+            return next
+        })
+    }
+
+    const canGoBackReading = readingItemIdx > 0 || partIdx > 0
+
+    /**
+     * Gửi toàn bộ đáp án hiện tại lên server (debounce 400ms).
+     * Upsert theo questionId — xem TestSessionService.saveAnswers.
+     */
+    const scheduleSaveAnswers = useCallback((next: Record<string, string>) => {
+        const sid = sessionIdRef.current
+        if (!sid) return
+        if (saveAnswersTimerRef.current) clearTimeout(saveAnswersTimerRef.current)
+        saveAnswersTimerRef.current = setTimeout(() => {
+            const items = Object.entries(next).map(([questionId, selectedOptionId]) => ({
+                questionId,
+                selectedOptionId,
+            }))
+            if (items.length === 0) return
+            TestSessionService.saveAnswers(sid, items).catch(() => {
+                toast.error('Không lưu được đáp án tạm — kiểm tra mạng.')
+            })
+        }, 400)
+    }, [])
+
+    /** Gửi ngay mọi đáp án đang có — gọi trước submit để không mất câu cuối (debounce) */
+    const flushSaveAnswers = useCallback(async () => {
+        const sid = sessionIdRef.current
+        if (!sid) return
+        if (saveAnswersTimerRef.current) {
+            clearTimeout(saveAnswersTimerRef.current)
+            saveAnswersTimerRef.current = null
+        }
+        const items = Object.entries(answersRef.current).map(([questionId, selectedOptionId]) => ({
+            questionId,
+            selectedOptionId,
+        }))
+        if (items.length === 0) return
+        await TestSessionService.saveAnswers(sid, items)
+    }, [])
+
+    /** Nộp bài — flush đáp án → POST submit → màn kết quả */
+    const handleSubmit = useCallback(async () => {
+        const sid = sessionIdRef.current
+        if (!sid || isSubmitting) return
+        setIsSubmitting(true)
+        try {
+            await flushSaveAnswers()
+            const result = await TestSessionService.submit(sid)
+            setSubmitResult(result)
+            setPhase('results')
+            toast.success('Nộp bài thành công!')
+        } catch (err: unknown) {
+            const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
+                ?.error
+            toast.error(apiErr ?? 'Không nộp được bài — thử lại.')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }, [flushSaveAnswers, isSubmitting])
 
     const selectOption = (questionId: string, optionId: string) => {
         // User chọn đáp án = tương tác → browser cho phép autoplay, thử play() lại
@@ -286,11 +492,7 @@ export default function MockTestPlayPage() {
         if (a?.src && a.paused) a.play().catch(() => {})
         setAnswers((prev) => {
             const next = { ...prev, [questionId]: optionId }
-            if (answersStorageKey) {
-                try {
-                    localStorage.setItem(answersStorageKey, JSON.stringify(next))
-                } catch { /* ignore */ }
-            }
+            scheduleSaveAnswers(next)
             return next
         })
     }
@@ -305,6 +507,21 @@ export default function MockTestPlayPage() {
     }, [])
 
     const totalQuestions = play?.questions.length ?? 0
+
+    // ── UI: Màn kết quả sau nộp bài (Bước 8) ──
+    if (phase === 'results' && submitResult && play && sessionStartedAt) {
+        return (
+            <ExamResultScreen
+                title={play.title}
+                testSeries={play.series}
+                result={submitResult}
+                startedAt={sessionStartedAt}
+                questions={play.questions}
+                onBackStructure={() => navigate(`/mock-test/${id}`)}
+                onBackList={() => navigate('/mock-test')}
+            />
+        )
+    }
 
     if (phase === 'loading' || !play) {
         return (
@@ -321,12 +538,81 @@ export default function MockTestPlayPage() {
         )
     }
 
-    // ── UI: màn Directions — ảnh hướng dẫn + audio intro tự phát (useEffect #1) ──
-    if (phase === 'directions' && currentDirections) {
+    // ── UI: Màn nghỉ giữa Listening → Reading (Bước 7) ──
+    if (phase === 'section-break') {
+        const nextPartNum = readingStats.parts[0]
+            ? partToNumber(readingStats.parts[0])
+            : 5
+
         return (
             <ExamShell
                 title={play.title}
-                partLabel={`Part ${partToNumber(currentDirections.part)} — Directions`}
+                partLabel="Kết thúc Listening"
+                answeredCount={answeredCount}
+                totalCount={totalQuestions}
+                footer={
+                    <Button onClick={startReadingSection} size="lg">
+                        Bắt đầu phần Reading
+                        <BookOpen className="w-4 h-4 ml-2" />
+                    </Button>
+                }
+            >
+                <div className="max-w-2xl mx-auto space-y-6 py-4">
+                    <div className="rounded-xl border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden">
+                        <div className="bg-[#1a4d7c] text-white px-6 py-4 flex items-center gap-3">
+                            <Headphones className="w-6 h-6 shrink-0" />
+                            <div>
+                                <p className="font-semibold text-lg">Đã hoàn thành Listening</p>
+                                <p className="text-sm text-white/85">
+                                    Part 1–4 — audio đã phát xong
+                                </p>
+                            </div>
+                        </div>
+                        <div className="px-6 py-5 space-y-3 text-sm">
+                            <p>
+                                Bạn đã chọn{' '}
+                                <strong>
+                                    {listeningStats.answered}/{listeningStats.total}
+                                </strong>{' '}
+                                câu Listening.
+                            </p>
+                            <p className="text-muted-foreground">
+                                Đáp án đã được lưu tạm trên server. Bạn có thể nghỉ ngắn trước
+                                khi sang phần Reading.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-dashed border-[#1a4d7c]/40 bg-white/80 px-6 py-5 flex items-start gap-4">
+                        <BookOpen className="w-8 h-8 text-[#1a4d7c] shrink-0 mt-0.5" />
+                        <div className="space-y-2 text-sm">
+                            <p className="font-semibold text-base text-[#1a4d7c]">
+                                Tiếp theo: Reading
+                            </p>
+                            <p className="text-muted-foreground">
+                                {readingStats.total} câu — Part{' '}
+                                {readingStats.parts.map((p) => partToNumber(p)).join(', ')}.
+                                Bắt đầu từ Directions Part {nextPartNum}.
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                                Phần Reading không có audio tự phát — bạn tự điều hướng bằng
+                                nút Trước / Tiếp.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </ExamShell>
+        )
+    }
+
+    // ── UI: Directions (Listening + Reading) ──
+    if (phase === 'directions' && currentDirections) {
+        const partNum = partToNumber(currentDirections.part)
+        const sectionLabel = section === 'listening' ? 'Listening' : 'Reading'
+        return (
+            <ExamShell
+                title={play.title}
+                partLabel={`${sectionLabel} — Part ${partNum} Directions`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
                 footer={
@@ -347,12 +633,12 @@ export default function MockTestPlayPage() {
         )
     }
 
-    // ── UI: màn làm câu — audio câu tự phát (useEffect #2), hết thì tự chuyển ──
-    if (phase === 'answering' && currentUnit) {
+    // ── UI: Listening — audio tự phát, hết thì tự chuyển ──
+    if (section === 'listening' && phase === 'answering' && currentUnit) {
         return (
             <ExamShell
                 title={play.title}
-                partLabel={`Part ${partToNumber(currentUnit.part)}`}
+                partLabel={`Listening — Part ${partToNumber(currentUnit.part)}`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
             >
@@ -377,29 +663,114 @@ export default function MockTestPlayPage() {
         )
     }
 
-    // ── Hết Listening ───────────────────────────────────────
+    // ── UI: Reading Part 5–7 — điều hướng thủ công, passage nhóm P6–7 ──
+    if (section === 'reading' && phase === 'answering' && currentReadingItem && currentPart) {
+        const partNum = partToNumber(currentPart)
+        const screenLabel =
+            readingItems.length > 1
+                ? `Màn ${readingItemIdx + 1}/${readingItems.length}`
+                : ''
+
+        return (
+            <ExamShell
+                title={play.title}
+                partLabel={`Reading — Part ${partNum}${screenLabel ? ` · ${screenLabel}` : ''}`}
+                answeredCount={answeredCount}
+                totalCount={totalQuestions}
+                footer={
+                    <div className="flex w-full items-center justify-between gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={goBackReading}
+                            disabled={!canGoBackReading}
+                        >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Trước
+                        </Button>
+                        <Button onClick={advanceReading}>
+                            Tiếp
+                            <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                    </div>
+                }
+            >
+                {currentReadingItem.kind === 'single' ? (
+                    <ReadingSingleScreen
+                        question={currentReadingItem.question}
+                        selectedId={answers[currentReadingItem.question.questionId]}
+                        onSelect={selectOption}
+                        isBookmarked={!!bookmarks[currentReadingItem.question.questionId]}
+                        onToggleBookmark={() =>
+                            toggleBookmark(currentReadingItem.question.questionId)
+                        }
+                    />
+                ) : (
+                    <ReadingPassageScreen
+                        passage={currentReadingItem.passage}
+                        questions={currentReadingItem.questions}
+                        answers={answers}
+                        bookmarks={bookmarks}
+                        onSelect={selectOption}
+                        onToggleBookmark={toggleBookmark}
+                    />
+                )}
+            </ExamShell>
+        )
+    }
+
+    // ── Hết bài — sessionId giữ để Bước 8 gọi submit() ──
     const listeningQuestions = play.questions.filter((q) => isListeningPart(q.part))
+    const readingQuestions = play.questions.filter((q) => isReadingPart(q.part))
+    const isReadingOnlyDone = listeningQuestions.length === 0 && readingQuestions.length > 0
 
     return (
         <ExamShell
             title={play.title}
-            partLabel="Kết thúc Listening"
+            partLabel={isReadingOnlyDone ? 'Kết thúc Reading' : 'Kết thúc bài thi'}
             answeredCount={answeredCount}
-            totalCount={listeningQuestions.length}
+            totalCount={totalQuestions}
             footer={
-                <div className="flex gap-2 w-full justify-between">
+                <div className="flex gap-2 w-full justify-between flex-wrap">
                     <Button variant="outline" onClick={() => navigate(`/mock-test/${id}`)}>
                         <ArrowLeft className="w-4 h-4 mr-1" />
                         Về cấu trúc đề
                     </Button>
-                    <Button onClick={() => navigate('/mock-test')}>Danh sách đề</Button>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={!sessionId || isSubmitting}
+                            className="min-w-[120px]"
+                        >
+                            {isSubmitting ? 'Đang nộp…' : 'Nộp bài'}
+                        </Button>
+                        <Button variant="outline" onClick={() => navigate('/mock-test')}>
+                            Danh sách đề
+                        </Button>
+                    </div>
                 </div>
             }
         >
             <div className="space-y-6">
                 <p className="text-sm text-muted-foreground">
-                    Đã chọn {answeredCount}/{listeningQuestions.length} câu Listening.
-                    Reading + nộp session = Day 28.
+                    Đã chọn {answeredCount}/{totalQuestions} câu.
+                    {listeningQuestions.length > 0 && (
+                        <span className="block">
+                            Listening: {play.questions.filter((q) => isListeningPart(q.part) && answers[q.questionId]).length}/
+                            {listeningQuestions.length}
+                        </span>
+                    )}
+                    {readingQuestions.length > 0 && (
+                        <span className="block">
+                            Reading: {play.questions.filter((q) => isReadingPart(q.part) && answers[q.questionId]).length}/
+                            {readingQuestions.length}
+                        </span>
+                    )}
+                    {sessionId && (
+                        <span className="block text-xs mt-1 text-muted-foreground/80">
+                            Đáp án đã lưu tạm trên server — bấm <strong>Nộp bài</strong> để chấm
+                            điểm.
+                        </span>
+                    )}
                 </p>
 
                 {listeningQuestions.some((q) => partToNumber(q.part) === 1) && (
@@ -421,6 +792,195 @@ export default function MockTestPlayPage() {
                 )}
             </div>
         </ExamShell>
+    )
+}
+
+/** Nút đánh dấu câu — chỉ UI local (Day 28) */
+function BookmarkToggle({
+    active,
+    onClick,
+    label,
+}: {
+    active: boolean
+    onClick: () => void
+    label: string
+}) {
+    return (
+        <Button
+            type="button"
+            variant={active ? 'default' : 'outline'}
+            size="sm"
+            onClick={onClick}
+            className="shrink-0"
+        >
+            <Bookmark className={`w-4 h-4 mr-1 ${active ? 'fill-current' : ''}`} />
+            {label}
+        </Button>
+    )
+}
+
+/** Part 5 — 1 câu / màn, nội dung câu + đáp án A–D */
+function ReadingSingleScreen({
+    question,
+    selectedId,
+    onSelect,
+    isBookmarked,
+    onToggleBookmark,
+}: {
+    question: PlayQuestion
+    selectedId?: string
+    onSelect: (questionId: string, optionId: string) => void
+    isBookmarked: boolean
+    onToggleBookmark: () => void
+}) {
+    const options = question.options.filter((o) => o.content?.trim())
+
+    return (
+        <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm min-h-[calc(100vh-220px)] flex flex-col">
+            <div className="flex items-center justify-between gap-3 border-b border-[#1a4d7c]/15 px-4 py-3">
+                <p className="text-lg font-semibold">Câu {question.orderIndex}</p>
+                <BookmarkToggle
+                    active={isBookmarked}
+                    onClick={onToggleBookmark}
+                    label={isBookmarked ? 'Đã đánh dấu' : 'Đánh dấu'}
+                />
+            </div>
+            <div className="flex-1 p-6 md:p-8 space-y-8">
+                {question.content && (
+                    <div
+                        className="prose prose-base max-w-none text-lg leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: question.content }}
+                    />
+                )}
+                <div className="space-y-3" role="radiogroup" aria-label={`Câu ${question.orderIndex}`}>
+                    {options.map((opt) => {
+                        const selected = selectedId === opt.id
+                        const inputId = `${question.questionId}-${opt.id}`
+                        return (
+                            <label
+                                key={opt.id}
+                                htmlFor={inputId}
+                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                                    selected
+                                        ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
+                                        : 'border-border hover:bg-muted/40'
+                                }`}
+                            >
+                                <input
+                                    id={inputId}
+                                    type="radio"
+                                    name={question.questionId}
+                                    value={opt.id}
+                                    checked={selected}
+                                    onChange={() => onSelect(question.questionId, opt.id)}
+                                    className="mt-1 h-5 w-5 shrink-0 accent-blue-600"
+                                />
+                                <span className="text-base leading-snug">
+                                    <span className="font-semibold">{opt.label}.</span>
+                                    <span
+                                        className="ml-2"
+                                        dangerouslySetInnerHTML={{ __html: opt.content }}
+                                    />
+                                </span>
+                            </label>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/** Part 6–7 — passage trái, nhóm câu phải */
+function ReadingPassageScreen({
+    passage,
+    questions,
+    answers,
+    bookmarks,
+    onSelect,
+    onToggleBookmark,
+}: {
+    passage: string
+    questions: PlayQuestion[]
+    answers: Record<string, string>
+    bookmarks: Record<string, true>
+    onSelect: (questionId: string, optionId: string) => void
+    onToggleBookmark: (questionId: string) => void
+}) {
+    return (
+        <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden min-h-[calc(100vh-220px)]">
+            <div className="grid lg:grid-cols-2 min-h-[calc(100vh-220px)]">
+                <div className="border-b lg:border-b-0 lg:border-r border-[#1a4d7c]/20 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-220px)] bg-slate-50/50">
+                    <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+                        Đoạn văn
+                    </p>
+                    <div
+                        className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: passage }}
+                    />
+                </div>
+                <div className="p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-220px)] space-y-8">
+                    {questions.map((q) => {
+                        const options = q.options.filter((o) => o.content?.trim())
+                        const selectedId = answers[q.questionId]
+                        const isBookmarked = !!bookmarks[q.questionId]
+                        return (
+                            <div
+                                key={q.questionId}
+                                className="rounded-lg border border-border/80 p-4 space-y-4 bg-white"
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <p className="font-semibold text-base">Câu {q.orderIndex}</p>
+                                    <BookmarkToggle
+                                        active={isBookmarked}
+                                        onClick={() => onToggleBookmark(q.questionId)}
+                                        label={isBookmarked ? 'Đã đánh dấu' : 'Đánh dấu'}
+                                    />
+                                </div>
+                                {q.content && (
+                                    <div
+                                        className="prose prose-sm max-w-none text-sm"
+                                        dangerouslySetInnerHTML={{ __html: q.content }}
+                                    />
+                                )}
+                                <div className="space-y-2" role="radiogroup" aria-label={`Câu ${q.orderIndex}`}>
+                                    {options.map((opt) => {
+                                        const selected = selectedId === opt.id
+                                        const inputId = `${q.questionId}-${opt.id}`
+                                        return (
+                                            <label
+                                                key={opt.id}
+                                                htmlFor={inputId}
+                                                className={`flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer transition-colors ${
+                                                    selected ? 'bg-blue-50' : 'hover:bg-muted/40'
+                                                }`}
+                                            >
+                                                <input
+                                                    id={inputId}
+                                                    type="radio"
+                                                    name={q.questionId}
+                                                    value={opt.id}
+                                                    checked={selected}
+                                                    onChange={() => onSelect(q.questionId, opt.id)}
+                                                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                                                />
+                                                <span className="text-sm leading-snug">
+                                                    <span className="font-semibold">{opt.label}.</span>
+                                                    <span
+                                                        className="ml-1"
+                                                        dangerouslySetInnerHTML={{ __html: opt.content }}
+                                                    />
+                                                </span>
+                                            </label>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
     )
 }
 

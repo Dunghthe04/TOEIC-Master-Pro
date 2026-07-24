@@ -30,6 +30,7 @@ import PracticePage from '@/pages/PracticePage'
 import MockTestPage from '@/pages/MockTestPage'
 import MockTestStructurePage from '@/pages/MockTestStructurePage'
 import MockTestPlayPage from '@/pages/MockTestPlayPage'
+import CertificatePreviewPage from '@/pages/CertificatePreviewPage'
 
 
 
@@ -62,6 +63,7 @@ function App() {
               <Route path="/vocabulary" element={<VocabularyPage />} />
               <Route path="/practice" element={<PracticePage />} />
               <Route path="/mock-test" element={<MockTestPage />} />
+              <Route path="/mock-test/certificate-preview" element={<CertificatePreviewPage />} />
               <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
             </Route>
             {/* Thi thử — full màn hình, không sidebar */}
