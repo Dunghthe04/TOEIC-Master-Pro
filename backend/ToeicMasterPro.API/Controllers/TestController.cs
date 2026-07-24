@@ -122,10 +122,26 @@ public class TestController : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 
-    /// <summary>Import Excel hoặc ZIP (questions.xlsx + audio/ + images/) vào đề — Part 1–4.</summary>
+    /// <summary>
+    /// Import gói Listening Part 1–4 vào một đề thi cụ thể.
+    ///
+    /// Luồng tổng quát (CM upload 1 lần → hệ thống tự xử lý):
+    ///   1. Nhận file .zip hoặc .xlsx
+    ///   2. (ZIP) Giải nén audio/ + images/ vào wwwroot/uploads/tests/{id}/
+    ///   3. Đọc Excel → tạo Question trong DB (QuestionService.ImportAsync)
+    ///   4. Gán câu vừa tạo vào đề theo OrderIndex (AssignImportedToTestAsync)
+    ///
+    /// Cấu trúc ZIP khuyến nghị:
+    ///   questions.xlsx
+    ///   audio/ETS26-T01-1.mp3, ETS26-T01-7.mp3, ETS26-T01-38-40.mp3, ...
+    ///   images/ETS26-T01-1.png, ...
+    ///
+    /// Nếu chỉ upload .xlsx (không ZIP): media phải đã có sẵn trên disk
+    /// hoặc CM upload riêng qua POST /api/media/audio|image trước đó.
+    /// </summary>
     [HttpPost("{id:Guid}/import-listening")]
     [Authorize(Roles = "Admin,ContentManager")]
-    [RequestSizeLimit(100 * 1024 * 1024)]
+    [RequestSizeLimit(100 * 1024 * 1024)] // giới hạn 100MB cho gói ZIP
     public async Task<IActionResult> ImportListening(Guid id, IFormFile file)
     {
         if (file is null || file.Length == 0)
@@ -133,10 +149,14 @@ public class TestController : ControllerBase
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         Stream excelStream;
+        // Cờ này để biết có cần Dispose stream Excel sau khi import xong không
         var disposeExcel = false;
 
+        // ── Nhánh 1: file ZIP (Excel + media trong cùng gói) ──────────────────
         if (ext == ".zip")
         {
+            // Thư mục lưu media của đề này — khớp URL mà QuestionService sẽ ghi vào DB
+            // Ví dụ: /uploads/tests/{id}/audio/ETS26-T01-7.mp3
             var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
             var audioFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "audio");
             var imagesFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "images");
@@ -144,6 +164,8 @@ public class TestController : ControllerBase
             Directory.CreateDirectory(imagesFolder);
 
             using var zip = new ZipArchive(file.OpenReadStream(), ZipArchiveMode.Read);
+
+            // Ưu tiên file tên questions.xlsx; không có thì lấy file .xlsx đầu tiên trong ZIP
             var entry = zip.Entries.FirstOrDefault(e =>
                 e.Name.Equals("questions.xlsx", StringComparison.OrdinalIgnoreCase))
                 ?? zip.Entries.FirstOrDefault(e => e.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
@@ -151,6 +173,7 @@ public class TestController : ControllerBase
             if (entry is null)
                 return BadRequest(new { error = "ZIP phải chứa questions.xlsx (hoặc file .xlsx)." });
 
+            // Duyệt mọi entry trong ZIP — chỉ copy file nằm trong thư mục audio/ hoặc images/
             foreach (var ae in zip.Entries.Where(e => !string.IsNullOrEmpty(e.Name)))
             {
                 var zipPath = ae.FullName.Replace('\\', '/');
@@ -162,8 +185,10 @@ public class TestController : ControllerBase
                     || zipPath.Contains("/images/", StringComparison.OrdinalIgnoreCase))
                     destFolder = imagesFolder;
 
+                // Bỏ qua questions.xlsx và các file không thuộc audio/images
                 if (destFolder is null) continue;
 
+                // Chuẩn hóa tên: E26-T01-07.mp3 → E26-T01-7.mp3 (khớp quy ước ToeicMediaNaming)
                 var name = ToeicMediaNaming.NormalizeMediaFileName(Path.GetFileName(ae.Name));
                 if (string.IsNullOrEmpty(name)) continue;
                 var dest = Path.Combine(destFolder, name);
@@ -172,7 +197,7 @@ public class TestController : ControllerBase
                 await src.CopyToAsync(dst);
             }
 
-            // Copy Excel ra memory — tránh stream bị đóng khi ZipArchive dispose
+            // Copy Excel ra MemoryStream — bắt buộc vì ZipArchive dispose sẽ đóng stream gốc
             var excelMs = new MemoryStream();
             await using (var entryStream = entry.Open())
                 await entryStream.CopyToAsync(excelMs);
@@ -180,6 +205,7 @@ public class TestController : ControllerBase
             excelStream = excelMs;
             disposeExcel = true;
         }
+        // ── Nhánh 2: chỉ Excel (media upload riêng hoặc đã có trên server) ─────
         else if (ext == ".xlsx")
         {
             excelStream = file.OpenReadStream();
@@ -192,12 +218,19 @@ public class TestController : ControllerBase
 
         try
         {
+            // Bước A: đọc Excel → tạo Question
+            // ImportQuestionOptions(id, true):
+            //   - TestId = id → load Series/Title của đề để tự sinh tên file audio/ảnh
+            //   - AssignToTest = true (cờ dự phòng; gán thực tế ở bước B bên dưới)
             var importResult = await _questionService.ImportAsync(excelStream, new ImportQuestionOptions(id, true));
+
+            // Bước B: gán các câu vừa tạo vào bảng TestQuestion theo OrderIndex
             var assigned = await AssignImportedToTestAsync(id, importResult);
+
             return Ok(new
             {
-                import = importResult,
-                assignedToTest = assigned
+                import = importResult,       // báo cáo: bao nhiêu câu OK/lỗi, danh sách QuestionId
+                assignedToTest = assigned      // số câu đã gán vào đề
             });
         }
         catch (Exception ex)
@@ -221,6 +254,15 @@ public class TestController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
+    /// <summary>
+    /// Gán các câu vừa import vào đề thi (bảng TestQuestion).
+    ///
+    /// Mỗi dòng Excel có cột OrderIndex (1–100) → vị trí câu trong đề TOEIC.
+    /// Nếu OrderIndex trống → fallback theo thứ tự dòng import (1, 2, 3...).
+    ///
+    /// Gọi TestService.UpsertQuestionsByOrderAsync:
+    ///   - Trùng OrderIndex → xóa câu cũ, gán câu mới (import lại không bị duplicate).
+    /// </summary>
     private async Task<int> AssignImportedToTestAsync(Guid testId, ImportResultResponse import)
     {
         if (import.Created is null || import.Created.Count == 0) return 0;
@@ -228,7 +270,7 @@ public class TestController : ControllerBase
         var items = import.Created
             .Select((c, i) => new QuestionOrderItem(
                 c.QuestionId,
-                c.OrderIndex ?? (i + 1)))
+                c.OrderIndex ?? (i + 1))) // OrderIndex từ Excel; không có thì dùng thứ tự dòng
             .ToList();
 
         var result = await _service.UpsertQuestionsByOrderAsync(testId, new AddQuestionsRequest(items));

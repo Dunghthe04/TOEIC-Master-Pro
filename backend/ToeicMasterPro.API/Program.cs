@@ -96,6 +96,7 @@ builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ISrsService, SrsService>();
 builder.Services.AddScoped<IPracticeService, PracticeService>();
+builder.Services.AddScoped<ITestSessionService, TestSessionService>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
 

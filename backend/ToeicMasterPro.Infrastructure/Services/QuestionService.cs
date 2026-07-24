@@ -145,6 +145,23 @@ public class QuestionService : IQuestionService
       );
 
 
+    /// <summary>
+    /// Đọc file Excel và tạo Question trong DB.
+    ///
+    /// Được gọi từ 2 nơi:
+    ///   - POST /api/question/import          → import kho câu chung (không gắn đề)
+    ///   - POST /api/test/{id}/import-listening → import kèm TestId (tự sinh URL media theo đề)
+    ///
+    /// Cột Excel (sheet đầu tiên, hàng 1 = header, từ hàng 2 = dữ liệu):
+    ///   1–14: Part, Difficulty, Content, Explanation, AudioUrl, ImageUrl, Passage, Tags,
+    ///          IsPublished, A, B, C, D, CorrectAnswer
+    ///   15–17 (Day 27): OrderIndex, AudioFile, ImageFile
+    ///
+    /// Logic media khi có TestId:
+    ///   - AudioFile/ImageFile trống → tự sinh theo ToeicMediaNaming (E26-T01-7.mp3, E26-T01-38-40.mp3)
+    ///   - ResolveMediaUrl → /uploads/tests/{testId}/audio/{tên file}
+    ///   - File phải đã nằm trên disk (ZIP giải nén trước hoặc upload riêng)
+    /// </summary>
     public async Task<ImportResultResponse> ImportAsync(Stream fileStream, ImportQuestionOptions? options = null)
     {
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -153,6 +170,7 @@ public class QuestionService : IQuestionService
         var errors = new List<ImportRowError>();
         var created = new List<ImportQuestionCreatedItem>();
 
+        // Load đề thi để lấy Series + Title — dùng sinh tên file audio/ảnh mặc định
         Test? test = null;
         if (options.TestId is { } testId)
             test = await _uow.Repository<Test>().GetByIdAsync(testId);
@@ -161,6 +179,7 @@ public class QuestionService : IQuestionService
         var sheet = package.Workbook.Worksheets[0];
         var rowCount = sheet.Dimension?.Rows ?? 0;
 
+        // Bắt đầu từ hàng 2 — hàng 1 là tiêu đề cột
         for (int row = 2; row <= rowCount; row++)
         {
             var partRaw = sheet.Cells[row, 1].GetValue<string>();
@@ -179,10 +198,10 @@ public class QuestionService : IQuestionService
             var optC = sheet.Cells[row, 12].GetValue<string>();
             var optD = sheet.Cells[row, 13].GetValue<string>();
             var correctRaw = sheet.Cells[row, 14].GetValue<string>();
-            // Cột mở rộng Day 27.5
-            var orderRaw = sheet.Cells[row, 15].GetValue<string>();
-            var audioFile = sheet.Cells[row, 16].GetValue<string>();
-            var imageFile = sheet.Cells[row, 17].GetValue<string>();
+            // Cột mở rộng Day 27 — dùng cho import-listening (gán vào đề + media)
+            var orderRaw = sheet.Cells[row, 15].GetValue<string>();   // vị trí câu trong đề: 1–100
+            var audioFile = sheet.Cells[row, 16].GetValue<string>();  // tên file, vd E26-T01-7.mp3
+            var imageFile = sheet.Cells[row, 17].GetValue<string>();  // tên file ảnh Part 1
 
             if (!int.TryParse(partRaw, out var partInt) || partInt < 1 || partInt > 7)
             { errors.Add(new ImportRowError(row, "Part không hợp lệ (phải là số 1–7).")); continue; }
@@ -221,13 +240,18 @@ public class QuestionService : IQuestionService
             if (int.TryParse(orderRaw, out var oi) && oi > 0)
                 orderIndex = oi;
 
-            // Tên file mặc định: E26-T01-1 hoặc E26-T01-38-40 (Part 3–4)
+            // ── Tự sinh tên file nếu CM để trống cột AudioFile/ImageFile ──
+            // Điều kiện: phải có TestId (import-listening) + OrderIndex
+            // Part 1–4: audio; Part 1 thêm ảnh
+            // Part 3–4: 3 câu dùng chung 1 file → E26-T01-38-40.mp3 (logic trong ToeicMediaNaming)
             if (string.IsNullOrWhiteSpace(audioFile) && orderIndex.HasValue && test is not null && partInt <= 4)
                 audioFile = ToeicMediaNaming.BuildAudioFileName(test.Series, test.Title, partInt, orderIndex.Value);
 
             if (string.IsNullOrWhiteSpace(imageFile) && orderIndex.HasValue && test is not null && partInt == 1)
                 imageFile = ToeicMediaNaming.BuildImageFileName(test.Series, test.Title, orderIndex.Value);
 
+            // Ưu tiên: AudioFile/ImageFile → URL tương đối trên server
+            // Fallback: cột AudioUrl/ImageUrl (URL ngoài hoặc path tùy chỉnh)
             var audioUrl = ResolveMediaUrl(audioUrlRaw, audioFile, options.TestId, "audio");
             var imageUrl = ResolveMediaUrl(imageUrlRaw, imageFile, options.TestId, "images");
 
@@ -246,7 +270,8 @@ public class QuestionService : IQuestionService
             };
 
             await _uow.Repository<Question>().AddAsync(entity);
-            await _uow.SaveChangesAsync(); // cần Id để gán đề
+            // Save từng dòng để có QuestionId ngay — Controller dùng Id này gán vào TestQuestion
+            await _uow.SaveChangesAsync();
             created.Add(new ImportQuestionCreatedItem(entity.Id, orderIndex));
         }
 
@@ -297,6 +322,17 @@ public class QuestionService : IQuestionService
         return Task.FromResult(package.GetAsByteArray());
     }
 
+    /// <summary>
+    /// Chuyển tên file hoặc URL thành đường dẫn lưu trong DB.
+    ///
+    /// Thứ tự ưu tiên:
+    ///   1. fileName (cột AudioFile/ImageFile) → path tương đối trên wwwroot
+    ///   2. url (cột AudioUrl/ImageUrl)         → dùng nguyên giá trị CM nhập
+    ///   3. null                                 → câu không có media
+    ///
+    /// Có testId: /uploads/tests/{testId}/audio/ETS26-T01-7.mp3
+    /// Không testId: /uploads/listening/audio/... (import kho câu chung)
+    /// </summary>
     private static string? ResolveMediaUrl(string? url, string? fileName, Guid? testId, string subFolder)
     {
         if (!string.IsNullOrWhiteSpace(fileName))

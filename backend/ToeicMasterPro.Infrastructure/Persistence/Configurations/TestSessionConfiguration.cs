@@ -18,6 +18,8 @@ public class TestSessionConfiguration : IEntityTypeConfiguration<TestSession>
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Status).HasConversion<int>();
         builder.Property(s => s.StartedAt).HasDefaultValueSql("GETUTCDATE()");
+        // "1,2,5,6" — null = full test
+        builder.Property(s => s.PartsFilter).HasMaxLength(30);
 
         // Nhiều Session thuộc 1 User
         builder.HasOne(s => s.User)

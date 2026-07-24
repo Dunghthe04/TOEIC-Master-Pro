@@ -5,7 +5,7 @@ public class ToeicDirectionsOptions
 {
     public const string SectionName = "ToeicDirections";
 
-    // Key: "1".."7" tương ứng QuestionPart
+    // Key: "1".."7" tương ứng QuestionPart, ở program đã set dictionary tương ứng 1-> audio, ảnh
     public Dictionary<string, PartDirectionConfig> Parts { get; set; } = new();
 }
 

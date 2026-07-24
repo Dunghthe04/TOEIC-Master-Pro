@@ -161,28 +161,58 @@ public class TestService : ITestService
         return Result.Success();
     }
 
-    /// <summary>Gán câu vào đề — trùng OrderIndex thì gỡ câu cũ (dùng khi import lại).</summary>
+    /// <summary>
+    /// Gán (hoặc thay thế) câu hỏi vào đề theo OrderIndex — dùng sau import-listening.
+    ///
+    /// Bảng TestQuestion là bảng nối (many-to-many) giữa Test và Question:
+    ///   TestId      → đề nào
+    ///   QuestionId  → câu hỏi nào
+    ///   OrderIndex  → câu đó đứng ở vị trí mấy trong đề (1–100 theo chuẩn TOEIC)
+    ///
+    /// Upsert = Update + Insert:
+    ///   - Vị trí OrderIndex chưa có câu → thêm mới
+    ///   - Vị trí OrderIndex đã có câu   → xóa câu cũ, gán câu mới (import lại không bị trùng)
+    ///
+    /// Khác AddQuestionsAsync: hàm kia chỉ thêm, bỏ qua nếu QuestionId đã có trong đề.
+    /// Hàm này thay theo vị trí (OrderIndex), phù hợp khi CM import lại file Excel.
+    /// </summary>
     public async Task<Result> UpsertQuestionsByOrderAsync(Guid testId, AddQuestionsRequest req)
     {
+        // ── Bước 0: Kiểm tra đề thi tồn tại ──────────────────────────────────
+        // testId đến từ URL /api/test/{id}/import-listening hoặc AssignImportedToTestAsync
         var test = await _uow.Repository<Test>().GetByIdAsync(testId);
         if (test is null) return Result.Failure("Không tìm thấy đề thi.");
 
+        // ── Bước 1: Lấy danh sách câu ĐÃ gán trong đề này ───────────────────
+        // Ví dụ đề đã có: OrderIndex 7 → QuestionId AAA, OrderIndex 8 → QuestionId BBB
         var existing = (await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == testId)).ToList();
+
+        // Lấy tập OrderIndex mà lần import này muốn ghi đè
+        // req.Items = [{ QuestionId: CCC, OrderIndex: 7 }, { QuestionId: DDD, OrderIndex: 8 }, ...]
+        // → ordersToReplace = { 7, 8, ... }
         var ordersToReplace = req.Items.Select(i => i.OrderIndex).ToHashSet();
 
+        // ── Bước 2: Xóa liên kết cũ ở các vị trí sẽ được thay thế ───────────
+        // Chỉ Remove bản ghi TestQuestion (liên kết), KHÔNG xóa Question gốc trong bảng Questions
+        // Ví dụ: đề có câu AAA ở vị trí 7, import gửi câu CCC vào vị trí 7
+        //   → xóa dòng { TestId, QuestionId: AAA, OrderIndex: 7 }
+        //   → sau đó thêm dòng { TestId, QuestionId: CCC, OrderIndex: 7 }
         foreach (var tq in existing.Where(tq => ordersToReplace.Contains(tq.OrderIndex)))
             _uow.Repository<TestQuestion>().Remove(tq);
 
+        // ── Bước 3: Thêm liên kết mới cho từng câu vừa import ───────────────
+        // Mỗi item = 1 dòng Excel đã tạo Question thành công + OrderIndex tương ứng
         foreach (var item in req.Items)
         {
             await _uow.Repository<TestQuestion>().AddAsync(new TestQuestion
             {
-                TestId = testId,
-                QuestionId = item.QuestionId,
-                OrderIndex = item.OrderIndex
+                TestId = testId,              // gán vào đề nào
+                QuestionId = item.QuestionId, // câu hỏi vừa tạo từ ImportAsync
+                OrderIndex = item.OrderIndex    // vị trí trong đề: 1, 7, 38, 71...
             });
         }
 
+        // ── Bước 4: Ghi tất cả thay đổi (xóa + thêm) xuống DB một lần ───────
         await _uow.SaveChangesAsync();
         return Result.Success();
     }
@@ -314,20 +344,53 @@ public class TestService : ITestService
         ));
     }
 
-    /// <summary>Gán tất cả câu Part 1–4 published chưa có trong đề, OrderIndex nối tiếp.</summary>
+    /// <summary>
+    /// Gán nhanh tất cả câu Listening (Part 1–4) published vào đề — nút tiện ích cho CM.
+    ///
+    /// Gọi từ: POST /api/test/{id}/assign-listening
+    ///
+    /// Khác import-listening / UpsertQuestionsByOrderAsync:
+    ///   - Không đọc Excel, không dùng OrderIndex chuẩn TOEIC (1–100)
+    ///   - Lấy mọi câu Part 1–4 published chưa có trong đề
+    ///   - Gán OrderIndex nối tiếp sau vị trí cao nhất hiện có (maxOrder + 1, +2, ...)
+    ///   - Sắp xếp: Part 1 → 2 → 3 → 4, trong mỗi Part theo CreatedAt (cũ trước)
+    ///
+    /// Dùng khi: CM đã import câu vào kho chung, muốn gán hàng loạt vào đề nhanh
+    /// mà chưa có file Excel với OrderIndex chuẩn.
+    /// </summary>
+    /// <returns>Số câu đã gán thành công (ordered.Count).</returns>
     public async Task<Result<int>> AssignListeningQuestionsAsync(Guid testId)
     {
+        // ── Bước 0: Kiểm tra đề thi tồn tại ──────────────────────────────────
         var test = await _uow.Repository<Test>().GetByIdAsync(testId);
         if (test is null) return Result<int>.Failure("Không tìm thấy đề thi.");
 
+        // ── Bước 1: Xem đề đã có những câu nào ─────────────────────────────
+        // existing = tất cả dòng TestQuestion của đề này
         var existing = await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == testId);
+
+        // existingIds = tập QuestionId đã gán → tránh gán trùng cùng 1 câu 2 lần
+        // (DB có unique constraint TestId + QuestionId)
         var existingIds = existing.Select(tq => tq.QuestionId).ToHashSet();
+
+        // maxOrder = OrderIndex lớn nhất hiện tại trong đề
+        // Ví dụ đề đã có câu ở vị trí 1, 5, 10 → maxOrder = 10
+        // Câu mới sẽ bắt đầu từ 11, 12, 13... (nối tiếp, không ghi đè vị trí cũ)
         var maxOrder = existing.Any() ? existing.Max(tq => tq.OrderIndex) : 0;
 
+        // ── Bước 2: Tìm câu Listening eligible để gán ──────────────────────
         var listeningParts = new[] { QuestionPart.Part1, QuestionPart.Part2, QuestionPart.Part3, QuestionPart.Part4 };
+
+        // candidates = câu thỏa CẢ 3 điều kiện:
+        //   1. IsPublished = true     → chỉ câu đã publish, user mới thấy khi thi
+        //   2. Part thuộc 1, 2, 3, 4 → chỉ Listening (không lấy Reading Part 5–7)
+        //   3. Id chưa nằm trong existingIds → chưa có trong đề này
         var candidates = await _uow.Repository<Question>().FindAsync(q =>
             q.IsPublished && listeningParts.Contains(q.Part) && !existingIds.Contains(q.Id));
 
+        // Sắp xếp trước khi gán:
+        //   - Part 1 trước, rồi 2, 3, 4 (theo thứ tự thi TOEIC)
+        //   - Trong cùng Part: câu tạo sớm hơn (CreatedAt) đứng trước
         var ordered = candidates
             .OrderBy(q => (int)q.Part)
             .ThenBy(q => q.CreatedAt)
@@ -336,10 +399,11 @@ public class TestService : ITestService
         if (ordered.Count == 0)
             return Result<int>.Failure("Không có câu Listening published nào để gán.");
 
+        // ── Bước 3: Gán từng câu — OrderIndex tăng dần từ maxOrder + 1 ─────
         var order = maxOrder;
         foreach (var q in ordered)
         {
-            order++;
+            order++; // vị trí tiếp theo: 11, 12, 13... (không dùng 1–100 chuẩn TOEIC)
             await _uow.Repository<TestQuestion>().AddAsync(new TestQuestion
             {
                 TestId = testId,
@@ -348,6 +412,7 @@ public class TestService : ITestService
             });
         }
 
+        // ── Bước 4: Lưu DB, trả về số câu đã gán ────────────────────────────
         await _uow.SaveChangesAsync();
         return Result<int>.Success(ordered.Count);
     }

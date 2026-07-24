@@ -1,10 +1,15 @@
 /**
- * MockTestPlayPage — Directions + Listening (Day 27 Bước 4).
- * Mục đích:
- *  - Load GET /play
- *  - Mỗi Part: Directions (Next chỉ ở đây) → làm câu
- *  - Playlist audio liền (ended → unit kế); P3–4 hiện 3 câu
- *  - Chưa nộp bài (Day 28)
+ * MockTestPlayPage — Màn thi Listening (Day 27).
+ *
+ * Luồng chính (giống phòng thi TOEIC):
+ *   loading → directions (Part 1) → answering (câu 1, 2, 3...)
+ *          → directions (Part 2) → answering → ... → done
+ *
+ * Âm thanh tự phát + tự chuyển:
+ *   - playUrl()        : phát 1 file, hết thì gọi callback
+ *   - useEffect directions : phát intro Part → hết → enterAnswering()
+ *   - useEffect answering  : phát audio câu → hết → advanceAfterUnit()
+ *   - advanceAfterUnit()   : unit kế / Part kế / done
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -23,6 +28,7 @@ import { toast } from 'sonner'
 import { getMediaUrl } from '@/lib/media'
 import ExamShell from '@/components/layout/ExamShell'
 
+/** 4 trạng thái màn hình — điều khiển phát audio và UI hiển thị */
 type Phase = 'loading' | 'directions' | 'answering' | 'done'
 
 export default function MockTestPlayPage() {
@@ -31,14 +37,16 @@ export default function MockTestPlayPage() {
     const navigate = useNavigate()
 
     const [play, setPlay] = useState<TestPlay | null>(null)
+    /** Trạng thái hiện tại: đang tải / giới thiệu Part / làm câu / xong */
     const [phase, setPhase] = useState<Phase>('loading')
-    /** Index Part Listening đang làm (trong partsOrder) */
+    /** Part Listening đang ở vị trí mấy trong danh sách (0 = Part đầu tiên có trong đề) */
     const [partIdx, setPartIdx] = useState(0)
-    /** Index unit audio trong Part hiện tại */
+    /** Unit audio đang phát trong Part hiện tại (0 = unit đầu tiên) */
     const [unitIdx, setUnitIdx] = useState(0)
-    /** questionId → optionId đã chọn */
+    /** Đáp án user đã chọn: { questionId: optionId } */
     const [answers, setAnswers] = useState<Record<string, string>>({})
 
+    /** Tham chiếu tới thẻ <audio> đang phát — dùng để pause/stop khi đổi phase */
     const audioRef = useRef<HTMLAudioElement | null>(null)
 
     const answersStorageKey = id ? `mock-test-${id}-answers` : null
@@ -103,14 +111,19 @@ export default function MockTestPlayPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, search])
 
+    /** Danh sách Part Listening có trong đề, theo thứ tự: ["Part1", "Part2", "Part3", "Part4"] */
     const partsOrder = useMemo(
         () => (play ? listeningPartsInOrder(play.questions) : []),
         [play]
     )
 
+    /** Part đang làm — lấy từ partsOrder[partIdx] */
     const currentPart = partsOrder[partIdx] ?? null
 
-    /** Directions của Part đang đứng */
+    /**
+     * Màn Directions: ảnh hướng dẫn + audio intro Part.
+     * API trả play.directions; không có thì dùng ảnh mặc định /exam/directions/part{N}.png
+     */
     const currentDirections: PlayPartDirections | null = useMemo(() => {
         if (!play || !currentPart) return null
         return (
@@ -122,13 +135,19 @@ export default function MockTestPlayPage() {
         )
     }, [play, currentPart])
 
-    /** Câu Listening của Part hiện tại → units */
+    /**
+     * Playlist audio của Part hiện tại.
+     * Part 1–2: 1 câu = 1 unit (1 file mp3).
+     * Part 3–4: 3 câu cùng audioUrl = 1 unit (hiện 3 câu, phát 1 file).
+     * Xem buildListeningUnits() trong examListening.ts
+     */
     const units: ListeningUnit[] = useMemo(() => {
         if (!play || !currentPart) return []
         const qs = play.questions.filter((q) => q.part === currentPart)
         return buildListeningUnits(qs)
     }, [play, currentPart])
 
+    /** Unit đang phát / đang hiển thị câu hỏi */
     const currentUnit = units[unitIdx] ?? null
 
     const answeredCount = useMemo(() => {
@@ -136,7 +155,11 @@ export default function MockTestPlayPage() {
         return play.questions.filter((q) => answers[q.questionId]).length
     }, [play, answers])
 
-    /** Dừng audio đang phát (đổi phase / unmount). */
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHẦN AUDIO — tự phát + tự chuyển (core của màn thi Listening)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** Dừng audio đang phát — gọi khi đổi phase, unmount, hoặc trước khi phát track mới */
     function stopAudio() {
         const a = audioRef.current
         if (!a) return
@@ -147,8 +170,16 @@ export default function MockTestPlayPage() {
     }
 
     /**
-     * Phát 1 URL; hết bài gọi onEnded (playlist liền).
-     * Preload nhẹ — browser play track kế ngay khi ended.
+     * Hàm lõi phát audio — mọi chỗ phát đều đi qua đây.
+     *
+     * @param url     Đường dẫn audio từ API (vd /uploads/tests/.../ETS26-T01-7.mp3)
+     * @param onEnded Callback chạy khi file phát HẾT — đây là cơ chế "tự chuyển"
+     *
+     * Luồng:
+     *   1. stopAudio() — dừng track cũ (nếu có)
+     *   2. Không có url → gọi onEnded() ngay (nhảy tiếp không chờ)
+     *   3. new Audio() + play()
+     *   4. Lắng nghe sự kiện 'ended' → gọi onEnded()
      */
     const playUrl = useCallback((url: string | null | undefined, onEnded: () => void) => {
         stopAudio()
@@ -167,7 +198,8 @@ export default function MockTestPlayPage() {
             )
         })
         audio.play().catch(() => {
-            // Trình duyệt chặn autoplay — thử lại khi user chọn đáp án
+            // Chrome/Safari chặn autoplay nếu user chưa tương tác trang
+            // → selectOption() sẽ thử play() lại khi user chọn đáp án
         })
         audio.addEventListener(
             'emptied',
@@ -176,14 +208,21 @@ export default function MockTestPlayPage() {
         )
     }, [])
 
-    /** Sang làm câu Part hiện tại (sau Directions hoặc skip). */
+    /** Chuyển từ Directions sang làm câu — reset về unit đầu tiên của Part */
     const enterAnswering = useCallback(() => {
         stopAudio()
         setUnitIdx(0)
         setPhase('answering')
     }, [])
 
-    /** Directions: hết audio intro → tự vào làm bài (trừ khi đã skip). */
+    /**
+     * useEffect #1 — DIRECTIONS: tự phát audio intro Part, hết thì vào làm câu.
+     *
+     * Chạy khi: phase = 'directions' hoặc đổi Part (currentPart).
+     * Hết audio intro → enterAnswering() → trigger useEffect #2 bên dưới.
+     *
+     * User có thể bấm Next (skipDirections) để bỏ qua intro.
+     */
     useEffect(() => {
         if (phase !== 'directions' || !currentDirections) return
         playUrl(currentDirections.audioUrl, () => {
@@ -193,27 +232,39 @@ export default function MockTestPlayPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase, currentPart])
 
-    /** Answering: phát audio unit; ended → unit kế / Part kế. */
+    /**
+     * Hàm chuyển tiếp sau khi 1 unit audio phát xong.
+     *
+     * Case 1: Còn unit trong Part → unitIdx + 1 (phát audio câu tiếp)
+     * Case 2: Hết unit, còn Part → phase = 'directions', partIdx + 1 (sang Part mới)
+     * Case 3: Hết Part cuối → phase = 'done'
+     */
     const advanceAfterUnit = useCallback(() => {
         setUnitIdx((i) => {
             const next = i + 1
             if (next < units.length) return next
 
-            // Hết units Part này → Part Listening tiếp hoặc done
+            // Hết units Part này → sang Part Listening tiếp theo hoặc kết thúc
             setPartIdx((p) => {
                 const nextPart = p + 1
                 if (nextPart < partsOrder.length) {
-                    setPhase('directions')
+                    setPhase('directions') // quay lại màn Directions Part mới
                     setUnitIdx(0)
                     return nextPart
                 }
-                setPhase('done')
+                setPhase('done') // hết Part 4 (hoặc Part cuối trong filter)
                 return p
             })
             return i
         })
     }, [units.length, partsOrder.length])
 
+    /**
+     * useEffect #2 — ANSWERING: tự phát audio câu hiện tại, hết thì chuyển unit/Part.
+     *
+     * Chạy khi: phase = 'answering' và đổi unitIdx / partIdx / audioUrl.
+     * Hết audio câu → advanceAfterUnit() → unit kế hoặc Part kế.
+     */
     useEffect(() => {
         if (phase !== 'answering' || !currentUnit) return
         playUrl(currentUnit.audioUrl, () => {
@@ -223,14 +274,14 @@ export default function MockTestPlayPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase, partIdx, unitIdx, currentUnit?.audioUrl])
 
-    /** Next chỉ trên Directions — bỏ qua audio intro. */
+    /** Nút Next trên màn Directions — bỏ qua audio intro, vào làm câu ngay */
     const skipDirections = () => {
         stopAudio()
         enterAnswering()
     }
 
     const selectOption = (questionId: string, optionId: string) => {
-        // Tương tác user → thử phát lại nếu autoplay bị chặn
+        // User chọn đáp án = tương tác → browser cho phép autoplay, thử play() lại
         const a = audioRef.current
         if (a?.src && a.paused) a.play().catch(() => {})
         setAnswers((prev) => {
@@ -270,7 +321,7 @@ export default function MockTestPlayPage() {
         )
     }
 
-    // ── Directions ──────────────────────────────────────────
+    // ── UI: màn Directions — ảnh hướng dẫn + audio intro tự phát (useEffect #1) ──
     if (phase === 'directions' && currentDirections) {
         return (
             <ExamShell
@@ -296,7 +347,7 @@ export default function MockTestPlayPage() {
         )
     }
 
-    // ── Answering Listening ─────────────────────────────────
+    // ── UI: màn làm câu — audio câu tự phát (useEffect #2), hết thì tự chuyển ──
     if (phase === 'answering' && currentUnit) {
         return (
             <ExamShell

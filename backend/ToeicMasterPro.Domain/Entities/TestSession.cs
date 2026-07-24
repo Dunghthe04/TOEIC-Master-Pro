@@ -11,7 +11,13 @@ public class TestSession : BaseEntity
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
 
-    // K?t qu? sau khi n?p b�i
+    /// <summary>
+    /// Part user chọn lúc bắt đầu — "1,2,5" hoặc null = full đề.
+    /// Dùng khi chấm điểm: chỉ tính câu thuộc các Part này.
+    /// </summary>
+    public string? PartsFilter { get; set; }
+
+    // Kết quả sau khi nộp bài
     public int? ListeningScore { get; set; }   // 5-495
     public int? ReadingScore { get; set; }     // 5-495
     public int? TotalScore { get; set; }       // 10-990
