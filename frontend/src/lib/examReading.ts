@@ -2,7 +2,8 @@
  * Helper Exam Engine Reading (Day 28 Bước 6).
  *
  * Part 5: 1 câu / màn (điền khuyết).
- * Part 6–7: gom câu cùng passage → 1 nhóm (passage trái, câu phải).
+ * Part 6–7: gom câu cùng passage (mã nhóm) hoặc cùng ảnh → 1 nhóm.
+ * Một nhóm có thể có nhiều ảnh (double passage Part 7).
  */
 import type { PlayQuestion } from '@/types/test.types'
 import { partToNumber } from '@/lib/examListening'
@@ -24,14 +25,58 @@ export function readingPartsInOrder(questions: PlayQuestion[]): string[] {
     return order
 }
 
-/** 1 màn Reading: 1 câu (P5) hoặc 1 passage + nhiều câu (P6–7) */
+/** Tách nhiều file ảnh trong 1 ô ImageFile: a.png;b.png */
+export function parseQuestionImageUrls(imageUrl: string | null | undefined): string[] {
+    if (!imageUrl?.trim()) return []
+    return imageUrl
+        .split(/[;|]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+}
+
+/** Mã nhóm Excel (vd. 186-190) — không phải nội dung đoạn văn */
+export function isPassageGroupCode(passage: string | null | undefined): boolean {
+    if (!passage?.trim()) return false
+    return /^\d+\s*-\s*\d+$/.test(passage.trim())
+}
+
+/** 1 màn Reading: 1 câu (P5) hoặc passage/ảnh + nhiều câu (P6–7) */
 export type ReadingItem =
     | { kind: 'single'; question: PlayQuestion }
-    | { kind: 'passage'; passage: string; questions: PlayQuestion[] }
+    | {
+          kind: 'passage'
+          passage: string
+          /** Một hoặc nhiều ảnh bài đọc trong cùng unit */
+          imageUrls: string[]
+          questions: PlayQuestion[]
+      }
+
+/**
+ * Khóa nhóm Part 6–7.
+ * Ưu tiên Passage (kể cả mã nhóm "151-154") để nhiều ảnh/câu gộp 1 unit.
+ */
+function readingGroupKey(q: PlayQuestion): string | null {
+    const passage = q.passage?.trim()
+    if (passage) return `pass:${passage}`
+    const image = q.imageUrl?.trim()
+    if (image) return `img:${image}`
+    return null
+}
+
+/** Gom mọi ảnh trong nhóm — giữ thứ tự, không trùng */
+function collectGroupImageUrls(group: PlayQuestion[]): string[] {
+    const urls: string[] = []
+    for (const q of group) {
+        for (const u of parseQuestionImageUrls(q.imageUrl)) {
+            if (!urls.includes(u)) urls.push(u)
+        }
+    }
+    return urls
+}
 
 /**
  * Gom câu 1 Part Reading thành danh sách màn.
- * Part 6–7: các dòng liên tiếp có cùng passage → 1 item.
+ * Part 6–7: dòng liên tiếp cùng khóa nhóm → 1 item (có thể nhiều ảnh).
  */
 export function buildReadingItemsForPart(
     questions: PlayQuestion[],
@@ -46,19 +91,23 @@ export function buildReadingItemsForPart(
 
     while (i < partQs.length) {
         const q = partQs[i]
-        const passage = q.passage?.trim() ?? ''
+        const groupKey = partNum >= 6 && partNum <= 7 ? readingGroupKey(q) : null
 
-        if (partNum >= 6 && partNum <= 7 && passage) {
+        if (groupKey) {
             const group: PlayQuestion[] = [q]
             let j = i + 1
-            while (
-                j < partQs.length &&
-                (partQs[j].passage?.trim() ?? '') === passage
-            ) {
+            while (j < partQs.length && readingGroupKey(partQs[j]) === groupKey) {
                 group.push(partQs[j])
                 j++
             }
-            items.push({ kind: 'passage', passage, questions: group })
+            const passage =
+                group.map((x) => x.passage?.trim()).find((p) => p) ?? ''
+            items.push({
+                kind: 'passage',
+                passage,
+                imageUrls: collectGroupImageUrls(group),
+                questions: group,
+            })
             i = j
             continue
         }
@@ -68,4 +117,46 @@ export function buildReadingItemsForPart(
     }
 
     return items
+}
+
+/** Ô điều hướng 1 câu Reading — dùng bảng soát câu */
+export type ReadingNavQuestion = {
+    question: PlayQuestion
+    partIdx: number
+    readingItemIdx: number
+}
+
+export type ReadingNavPartGroup = {
+    part: string
+    partNum: number
+    partIdx: number
+    questions: ReadingNavQuestion[]
+}
+
+/** Gom câu Reading theo Part để hiển thị lưới số câu */
+export function buildReadingNavByPart(
+    allQuestions: PlayQuestion[],
+    partsOrder: string[]
+): ReadingNavPartGroup[] {
+    return partsOrder.map((part, partIdx) => {
+        const items = buildReadingItemsForPart(allQuestions, part)
+        const questions: ReadingNavQuestion[] = []
+
+        items.forEach((item, readingItemIdx) => {
+            if (item.kind === 'single') {
+                questions.push({ question: item.question, partIdx, readingItemIdx })
+            } else {
+                for (const q of item.questions) {
+                    questions.push({ question: q, partIdx, readingItemIdx })
+                }
+            }
+        })
+
+        return {
+            part,
+            partNum: partToNumber(part),
+            partIdx,
+            questions: questions.sort((a, b) => a.question.orderIndex - b.question.orderIndex),
+        }
+    })
 }

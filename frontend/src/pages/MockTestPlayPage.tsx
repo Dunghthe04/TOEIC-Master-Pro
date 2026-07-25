@@ -24,6 +24,7 @@ import {
 import {
     buildReadingItemsForPart,
     isReadingPart,
+    isPassageGroupCode,
     readingPartsInOrder,
     type ReadingItem,
 } from '@/lib/examReading'
@@ -41,6 +42,7 @@ import { toast } from 'sonner'
 import { getMediaUrl } from '@/lib/media'
 import ExamShell from '@/components/layout/ExamShell'
 import ExamResultScreen from '@/components/exam/ExamResultScreen'
+import ReadingQuestionPalette from '@/components/exam/ReadingQuestionPalette'
 
 /** Trạng thái màn hình — điều khiển audio (Listening) và UI */
 type Phase = 'loading' | 'directions' | 'answering' | 'section-break' | 'done' | 'results'
@@ -71,6 +73,8 @@ export default function MockTestPlayPage() {
     const [readingItemIdx, setReadingItemIdx] = useState(0)
     /** Câu đánh dấu xem lại — chỉ UI local, chưa sync server */
     const [bookmarks, setBookmarks] = useState<Record<string, true>>({})
+    /** Bảng soát câu Reading */
+    const [readingPaletteOpen, setReadingPaletteOpen] = useState(false)
     /** Kết quả sau submit — hiển thị màn ExamResultScreen */
     const [submitResult, setSubmitResult] = useState<TestSessionSubmitResult | null>(null)
     /** Đang gọi API nộp bài */
@@ -160,6 +164,13 @@ export default function MockTestPlayPage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, search])
+
+    /** Đóng bảng soát khi rời màn làm Reading */
+    useEffect(() => {
+        if (section !== 'reading' || phase !== 'answering') {
+            setReadingPaletteOpen(false)
+        }
+    }, [section, phase])
 
     /** Part Listening có trong đề */
     const listeningPartsOrder = useMemo(
@@ -430,6 +441,13 @@ export default function MockTestPlayPage() {
 
     const canGoBackReading = readingItemIdx > 0 || partIdx > 0
 
+    /** Nhảy tới màn Reading chứa câu được chọn trên bảng soát */
+    const jumpToReading = useCallback((targetPartIdx: number, targetReadingItemIdx: number) => {
+        setPartIdx(targetPartIdx)
+        setReadingItemIdx(targetReadingItemIdx)
+        setPhase('answering')
+    }, [])
+
     /**
      * Gửi toàn bộ đáp án hiện tại lên server (debounce 400ms).
      * Upsert theo questionId — xem TestSessionService.saveAnswers.
@@ -671,12 +689,15 @@ export default function MockTestPlayPage() {
                 ? `Màn ${readingItemIdx + 1}/${readingItems.length}`
                 : ''
 
+        const isPassageScreen = currentReadingItem.kind === 'passage'
+
         return (
             <ExamShell
                 title={play.title}
                 partLabel={`Reading — Part ${partNum}${screenLabel ? ` · ${screenLabel}` : ''}`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
+                wide={isPassageScreen}
                 footer={
                     <div className="flex w-full items-center justify-between gap-2">
                         <Button
@@ -707,6 +728,7 @@ export default function MockTestPlayPage() {
                 ) : (
                     <ReadingPassageScreen
                         passage={currentReadingItem.passage}
+                        imageUrls={currentReadingItem.imageUrls}
                         questions={currentReadingItem.questions}
                         answers={answers}
                         bookmarks={bookmarks}
@@ -714,6 +736,17 @@ export default function MockTestPlayPage() {
                         onToggleBookmark={toggleBookmark}
                     />
                 )}
+                <ReadingQuestionPalette
+                    open={readingPaletteOpen}
+                    onOpenChange={setReadingPaletteOpen}
+                    questions={play.questions}
+                    partsOrder={readingPartsOrder}
+                    answers={answers}
+                    bookmarks={bookmarks}
+                    currentPartIdx={partIdx}
+                    currentReadingItemIdx={readingItemIdx}
+                    onJump={jumpToReading}
+                />
             </ExamShell>
         )
     }
@@ -891,9 +924,10 @@ function ReadingSingleScreen({
     )
 }
 
-/** Part 6–7 — passage trái, nhóm câu phải */
+/** Part 6–7 — passage/ảnh trái, nhóm câu phải */
 function ReadingPassageScreen({
     passage,
+    imageUrls,
     questions,
     answers,
     bookmarks,
@@ -901,25 +935,64 @@ function ReadingPassageScreen({
     onToggleBookmark,
 }: {
     passage: string
+    imageUrls: string[]
     questions: PlayQuestion[]
     answers: Record<string, string>
     bookmarks: Record<string, true>
     onSelect: (questionId: string, optionId: string) => void
     onToggleBookmark: (questionId: string) => void
 }) {
+    const hasImages = imageUrls.length > 0
+    const hasPassage = !!passage?.trim() && !isPassageGroupCode(passage)
+    const multiImage = imageUrls.length > 1
+
     return (
-        <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden min-h-[calc(100vh-220px)]">
-            <div className="grid lg:grid-cols-2 min-h-[calc(100vh-220px)]">
-                <div className="border-b lg:border-b-0 lg:border-r border-[#1a4d7c]/20 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-220px)] bg-slate-50/50">
-                    <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
-                        Đoạn văn
-                    </p>
-                    <div
-                        className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: passage }}
-                    />
+        <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden h-[calc(100vh-200px)] w-full">
+            <div className="grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] h-full min-h-0">
+                {/* Cột trái — ảnh/đoạn văn, cuộn dọc */}
+                <div className="flex flex-col h-full min-h-0 border-b lg:border-b-0 lg:border-r border-[#1a4d7c]/20 bg-slate-50/50 min-w-0">
+                    <div className="shrink-0 px-2 md:px-3 pt-2 md:pt-3 pb-2 border-b border-[#1a4d7c]/10 bg-white/80">
+                        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                            {hasImages ? 'Bài đọc' : 'Đoạn văn'}
+                        </p>
+                    </div>
+                    <div className="exam-reading-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 md:px-3 py-2">
+                        {hasImages && (
+                            <div
+                                className={`pb-2 bg-white ${
+                                    multiImage
+                                        ? 'border-2 border-slate-800'
+                                        : ''
+                                }`}
+                            >
+                                {imageUrls.map((url) => (
+                                    <img
+                                        key={url}
+                                        src={getMediaUrl(url)}
+                                        alt="Bài đọc"
+                                        className={`block w-full max-w-full h-auto bg-white ${
+                                            multiImage
+                                                ? ''
+                                                : 'border-2 border-slate-800'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        {hasPassage && (
+                            <div
+                                className="prose prose-sm max-w-none whitespace-pre-wrap leading-relaxed pb-2"
+                                dangerouslySetInnerHTML={{ __html: passage }}
+                            />
+                        )}
+                        {!hasImages && !hasPassage && (
+                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                                Thiếu ảnh hoặc đoạn văn — kiểm tra cột Passage / ImageFile trong Excel.
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <div className="p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-220px)] space-y-8">
+                <div className="exam-reading-scroll p-3 md:p-4 overflow-y-auto h-full min-h-0 space-y-6 min-w-0">
                     {questions.map((q) => {
                         const options = q.options.filter((o) => o.content?.trim())
                         const selectedId = answers[q.questionId]
@@ -930,7 +1003,7 @@ function ReadingPassageScreen({
                                 className="rounded-lg border border-border/80 p-4 space-y-4 bg-white"
                             >
                                 <div className="flex items-start justify-between gap-2">
-                                    <p className="font-semibold text-base">Câu {q.orderIndex}</p>
+                                    <p className="font-semibold text-lg">Câu {q.orderIndex}</p>
                                     <BookmarkToggle
                                         active={isBookmarked}
                                         onClick={() => onToggleBookmark(q.questionId)}
@@ -939,7 +1012,7 @@ function ReadingPassageScreen({
                                 </div>
                                 {q.content && (
                                     <div
-                                        className="prose prose-sm max-w-none text-sm"
+                                        className="prose prose-base max-w-none text-base"
                                         dangerouslySetInnerHTML={{ __html: q.content }}
                                     />
                                 )}
@@ -962,9 +1035,9 @@ function ReadingPassageScreen({
                                                     value={opt.id}
                                                     checked={selected}
                                                     onChange={() => onSelect(q.questionId, opt.id)}
-                                                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                                                    className="mt-1 h-[18px] w-[18px] shrink-0 accent-blue-600"
                                                 />
-                                                <span className="text-sm leading-snug">
+                                                <span className="text-base leading-snug">
                                                     <span className="font-semibold">{opt.label}.</span>
                                                     <span
                                                         className="ml-1"

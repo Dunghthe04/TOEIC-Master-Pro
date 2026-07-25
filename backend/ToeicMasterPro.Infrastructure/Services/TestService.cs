@@ -298,25 +298,35 @@ public class TestService : ITestService
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
         if (test is null || !test.IsPublished)
             return Result<TestPlayResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+        //Lấy ra các test question của đề 
         var tqs = (await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == id))
             .OrderBy(tq => tq.OrderIndex)
             .ToList();
+        //Lấy ra id của test question
         var qIds = tqs.Select(tq => tq.QuestionId).ToList();
+        //Lấy ra các câu hỏi có id in mảng test question id
         var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
+        //Tạo dic truy cập cho dễ dựa trên id của question
         var qDict = questions.ToDictionary(q => q.Id);
+        //Lấy ra tất cả option của questions
         var options = await _uow.Repository<QuestionOption>()
             .FindAsync(o => qIds.Contains(o.QuestionId));
+        //Nhóm option theo questionId, sắp xếp theo Label (A, B, C, D) và tạo dic để truy xuất nhanh
         var optByQ = options.GroupBy(o => o.QuestionId)
             .ToDictionary(g => g.Key, g => g.OrderBy(o => o.Label).ToList());
         // parts null/rỗng = full test; ngược lại lọc theo enum int (1..7)
         HashSet<QuestionPart>? partFilter = null;
         if (parts is { Length: > 0 })
             partFilter = parts.Select(p => (QuestionPart)p).ToHashSet();
+        //Danh sách câu hỏi để trả về cho người dùng làm bài
         var playQuestions = new List<PlayQuestionItem>();
+        //duyệt từng test question, lấy ra question + option tương ứng, tạo PlayQuestionItem
         foreach (var tq in tqs)
         {
+            //nếu questionId không tồn tại trong qDict (câu hỏi đã bị xóa) → bỏ qua
             if (!qDict.TryGetValue(tq.QuestionId, out var q)) continue;
             if (partFilter is not null && !partFilter.Contains(q.Part)) continue;
+            // Lấy option của câu hỏi này, tạo PlayOptionItem
             var opts = optByQ.GetValueOrDefault(q.Id, [])
                 .Select(o => new PlayOptionItem(o.Id, o.Label, o.Content))
                 .ToList();
@@ -329,6 +339,7 @@ public class TestService : ITestService
             return Result<TestPlayResponse>.Failure("Đề không có câu hỏi phù hợp filter Part.");
         // Directions chỉ cho các Part có trong gói play
         var usedParts = playQuestions.Select(q => q.Part).Distinct().OrderBy(p => (int)p);
+        // Tạo danh sách PlayPartDirections để trả về cho client hiển thị intro + audio theo Part
         var dirs = new List<PlayPartDirections>();
         foreach (var part in usedParts)
         {

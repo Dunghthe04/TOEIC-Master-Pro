@@ -12,6 +12,8 @@ type ExamShellProps = {
     children: ReactNode
     /** Thanh phụ (vd. nút Next ở Directions) */
     footer?: ReactNode
+    /** Mở rộng vùng nội dung (Part 6–7 passage ảnh) */
+    wide?: boolean
 }
 
 export default function ExamShell({
@@ -21,6 +23,7 @@ export default function ExamShell({
     totalCount,
     children,
     footer,
+    wide = false,
 }: ExamShellProps) {
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-[#eef2f6]">
@@ -45,8 +48,14 @@ export default function ExamShell({
             </div>
 
             {/* Nội dung đề */}
-            <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                <div className="mx-auto max-w-6xl h-full">{children}</div>
+            <main
+                className={`flex-1 overflow-y-auto ${wide ? 'p-2 md:p-3' : 'p-4 md:p-6'}`}
+            >
+                <div
+                    className={`mx-auto h-full w-full ${wide ? 'max-w-[min(100%,1600px)]' : 'max-w-6xl'}`}
+                >
+                    {children}
+                </div>
             </main>
 
             {footer && (

@@ -227,8 +227,10 @@ public class TestSessionService : ITestSessionService
             ));
         }
 
-        var listeningScore = ToeicScoreHelper.ConvertSectionScore(listeningCorrect, listeningTotal);
-        var readingScore = ToeicScoreHelper.ConvertSectionScore(readingCorrect, readingTotal);
+        var listeningScore = ToeicScoreHelper.ConvertSectionScore(
+            listeningCorrect, listeningTotal, ToeicScoreHelper.ListeningSectionQuestions);
+        var readingScore = ToeicScoreHelper.ConvertSectionScore(
+            readingCorrect, readingTotal, ToeicScoreHelper.ReadingSectionQuestions);
         int? totalScore = null;
         if (listeningScore.HasValue && readingScore.HasValue)
             totalScore = listeningScore + readingScore;

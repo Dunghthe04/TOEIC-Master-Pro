@@ -143,3 +143,28 @@
   animation: bell-ring 1.2s ease-in-out infinite;
   transform-origin: top center;
 }
+
+/* Thanh cuộn vùng ảnh bài đọc Part 6–7 (giống phòng thi) */
+.exam-reading-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #1a4d7c #cbd5e1;
+}
+
+.exam-reading-scroll::-webkit-scrollbar {
+  width: 14px;
+}
+
+.exam-reading-scroll::-webkit-scrollbar-track {
+  background: #cbd5e1;
+  border-left: 1px solid #94a3b8;
+}
+
+.exam-reading-scroll::-webkit-scrollbar-thumb {
+  background: #1a4d7c;
+  border: 2px solid #cbd5e1;
+  border-radius: 2px;
+}
+
+.exam-reading-scroll::-webkit-scrollbar-thumb:hover {
+  background: #153d63;
+}

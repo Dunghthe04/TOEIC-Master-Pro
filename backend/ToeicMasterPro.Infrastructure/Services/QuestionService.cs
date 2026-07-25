@@ -337,6 +337,17 @@ public class QuestionService : IQuestionService
     {
         if (!string.IsNullOrWhiteSpace(fileName))
         {
+            // Nhiều ảnh Part 6–7: ETS26-T01-151-a.png;ETS26-T01-151-b.png
+            if (fileName.Contains(';') || fileName.Contains('|'))
+            {
+                var parts = fileName.Split(new[] { ';', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var urls = parts
+                    .Select(p => ResolveMediaUrl(null, p, testId, subFolder))
+                    .Where(u => !string.IsNullOrWhiteSpace(u))
+                    .ToList();
+                return urls.Count > 0 ? string.Join(";", urls) : null;
+            }
+
             var name = ToeicMediaNaming.NormalizeMediaFileName(fileName.Trim());
             return testId.HasValue
                 ? $"/uploads/tests/{testId}/{subFolder}/{name}"

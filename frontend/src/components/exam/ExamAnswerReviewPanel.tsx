@@ -4,7 +4,9 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, Circle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { partToNumber } from '@/lib/examListening'
+import { isListeningPart, partToNumber } from '@/lib/examListening'
+import { isReadingPart, parseQuestionImageUrls } from '@/lib/examReading'
+import { getMediaUrl } from '@/lib/media'
 import type { PlayQuestion } from '@/types/test.types'
 import type { SessionAnswerReview } from '@/types/test-session.types'
 
@@ -27,6 +29,45 @@ export default function ExamAnswerReviewPanel({
         const m = new Map<string, PlayQuestion>()
         for (const q of questions) m.set(q.questionId, q)
         return m
+    }, [questions])
+
+    /** Ảnh dùng chung trong nhóm (Listening P3–4 / Reading P6–7, có thể nhiều ảnh) */
+    const imageUrlForReview = useMemo(() => {
+        const byAudio = new Map<string, string>()
+        const byPassage = new Map<string, string>()
+        for (const q of questions) {
+            if (q.audioUrl && q.imageUrl) byAudio.set(q.audioUrl, q.imageUrl)
+            const passage = q.passage?.trim()
+            if (passage && q.imageUrl) byPassage.set(passage, q.imageUrl)
+            if (q.imageUrl) byPassage.set(`img:${q.imageUrl}`, q.imageUrl)
+        }
+        return (q: PlayQuestion) => {
+            if (q.imageUrl) return q.imageUrl
+            if (q.audioUrl) return byAudio.get(q.audioUrl) ?? null
+            const passage = q.passage?.trim()
+            if (passage) return byPassage.get(passage) ?? null
+            return null
+        }
+    }, [questions])
+
+    const readingImagesForReview = useMemo(() => {
+        const byPassage = new Map<string, string[]>()
+        for (const q of questions) {
+            if (!isReadingPart(q.part) || partToNumber(q.part) < 6) continue
+            const passage = q.passage?.trim()
+            const key = passage ? `pass:${passage}` : `img:${q.imageUrl ?? ''}`
+            if (!key || key === 'img:') continue
+            const list = byPassage.get(key) ?? []
+            for (const u of parseQuestionImageUrls(q.imageUrl)) {
+                if (!list.includes(u)) list.push(u)
+            }
+            byPassage.set(key, list)
+        }
+        return (q: PlayQuestion): string[] => {
+            const passage = q.passage?.trim()
+            if (passage) return byPassage.get(`pass:${passage}`) ?? []
+            return parseQuestionImageUrls(q.imageUrl)
+        }
     }, [questions])
 
     const sorted = useMemo(
@@ -74,11 +115,25 @@ export default function ExamAnswerReviewPanel({
             </div>
 
             <ul className="space-y-3">
-                {filtered.map((r) => {
+                {filtered.map((r, idx) => {
                     const question = questionMap.get(r.questionId)
                     const selectedLabel = r.selectedOptionId
                         ? question?.options.find((o) => o.id === r.selectedOptionId)?.label
                         : null
+                    const reviewImage = question ? imageUrlForReview(question) : null
+                    const reviewReadingImages = question ? readingImagesForReview(question) : []
+                    const prevReadingImages =
+                        idx > 0
+                            ? readingImagesForReview(
+                                  questionMap.get(filtered[idx - 1].questionId)!
+                              )
+                            : []
+                    const showReadingImage =
+                        !!question &&
+                        isReadingPart(question.part) &&
+                        partToNumber(question.part) >= 6 &&
+                        reviewReadingImages.length > 0 &&
+                        reviewReadingImages.join('|') !== prevReadingImages.join('|')
 
                     return (
                         <li
@@ -115,6 +170,37 @@ export default function ExamAnswerReviewPanel({
                                     className="prose prose-sm max-w-none text-sm border-l-2 border-gray-200 pl-3"
                                     dangerouslySetInnerHTML={{ __html: question.content }}
                                 />
+                            )}
+
+                            {question && isListeningPart(question.part) && (
+                                <ListeningReviewMedia
+                                    question={question}
+                                    imageUrl={imageUrlForReview(question)}
+                                />
+                            )}
+
+                            {showReadingImage && (
+                                <div className="rounded-md border bg-slate-50/90 p-3 space-y-3">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                        Ảnh bài đọc
+                                    </p>
+                                    <div
+                                        className={
+                                            reviewReadingImages.length > 1
+                                                ? 'grid sm:grid-cols-2 gap-3'
+                                                : ''
+                                        }
+                                    >
+                                        {reviewReadingImages.map((url) => (
+                                            <img
+                                                key={url}
+                                                src={getMediaUrl(url)}
+                                                alt=""
+                                                className="w-full max-h-80 object-contain rounded border bg-white mx-auto"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             )}
 
                             <div className="grid sm:grid-cols-2 gap-2 text-sm">
@@ -187,6 +273,59 @@ export default function ExamAnswerReviewPanel({
                 <p className="text-center text-sm text-muted-foreground py-8">
                     Không có câu nào trong bộ lọc này.
                 </p>
+            )}
+        </div>
+    )
+}
+
+/** Audio + ảnh Listening — user nghe/soát lại từng câu sau khi nộp bài */
+function ListeningReviewMedia({
+    question,
+    imageUrl,
+}: {
+    question: PlayQuestion
+    imageUrl: string | null
+}) {
+    const partNum = partToNumber(question.part)
+    const hasImage = !!imageUrl
+    const hasAudio = !!question.audioUrl
+
+    if (!hasImage && !hasAudio) {
+        return (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                Câu này thiếu file audio/ảnh — kiểm tra import.
+            </p>
+        )
+    }
+
+    return (
+        <div
+            className={`rounded-md border bg-slate-50/90 p-3 gap-3 ${
+                partNum === 1 && hasImage
+                    ? 'grid md:grid-cols-2 items-start'
+                    : 'flex flex-col'
+            }`}
+        >
+            {hasImage && (
+                <div className="min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Ảnh câu hỏi</p>
+                    <img
+                        src={getMediaUrl(imageUrl)}
+                        alt=""
+                        className="w-full max-h-64 object-contain rounded border bg-white mx-auto"
+                    />
+                </div>
+            )}
+            {hasAudio && (
+                <div className={hasImage && partNum === 1 ? 'min-w-0' : 'w-full'}>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Audio</p>
+                    <audio
+                        controls
+                        preload="none"
+                        src={getMediaUrl(question.audioUrl)}
+                        className="w-full"
+                    />
+                </div>
             )}
         </div>
     )
