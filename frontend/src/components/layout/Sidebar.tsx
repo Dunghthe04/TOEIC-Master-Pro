@@ -2,12 +2,14 @@
 //Dùng NavLink thay vì Link vì NavLink tự nhận biết route đang active để highlight menu đang chọn.
 
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, BookOpen, ClipboardList, BookMarked, Calendar, FileText, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, BookOpen, ClipboardList, BookMarked, Calendar, FileText, HelpCircle, History, TrendingUp } from 'lucide-react'
 
 // Thi thử = core (Day 26+); Luyện nhanh = phụ (Practice API Day 25)
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/mock-test', icon: ClipboardList, label: 'Thi thử' },
+    { to: '/mock-test/history', icon: History, label: 'Lịch sử thi' },
+    { to: '/mock-test/progress', icon: TrendingUp, label: 'Tiến độ thi' },
     { to: '/practice', icon: BookOpen, label: 'Luyện nhanh' },
     { to: '/vocabulary', icon: BookMarked, label: 'Từ vựng' },
     { to: '/exam-schedule', icon: Calendar, label: 'Lịch thi' },

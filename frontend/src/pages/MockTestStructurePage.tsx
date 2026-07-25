@@ -267,6 +267,14 @@ export default function MockTestStructurePage() {
                         <Play className="w-5 h-5 mr-2" />
                         Bắt đầu
                     </Button>
+                    <Button
+                        type="button"
+                        variant="link"
+                        className="text-sm text-[#1a4d7c]"
+                        onClick={() => navigate(`/mock-test/history?testId=${id}`)}
+                    >
+                        Xem lịch sử đề này
+                    </Button>
                 </div>
             </div>
         </div>

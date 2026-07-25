@@ -80,6 +80,61 @@ public class TestSessionController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
+    /// <summary>
+    /// Lịch sử thi đã nộp của user đang login (Day 31).
+    ///
+    /// Cùng đề thi nhiều lần → nhiều dòng (mới nhất trước).
+    /// Query testId = chỉ lịch sử 1 đề (màn chi tiết đề đó).
+    /// Biểu đồ best score / đề → GET /stats/by-test.
+    /// </summary>
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] Guid? testId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.GetHistoryAsync(userId.Value, testId, page, pageSize);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// Best score theo từng đề — biểu đồ cột + so với TargetScore (Day 31 Bước 3).
+    ///
+    /// fullOnly=true (mặc định): chỉ full test — tránh so sánh partial với 990.
+    /// </summary>
+    [HttpGet("stats/by-test")]
+    public async Task<IActionResult> GetScoreStatsByTest([FromQuery] bool fullOnly = true)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.GetScoreStatsByTestAsync(userId.Value, fullOnly);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// Xem lại 1 lần thi đã nộp — điểm, phân tích Part, review từng câu (Day 31 Bước 2).
+    /// Dùng khi user bấm 1 dòng trong lịch sử.
+    /// </summary>
+    [HttpGet("{id:Guid}")]
+    public async Task<IActionResult> GetDetail(Guid id)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.GetDetailAsync(userId.Value, id);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : BadRequest(new { error = result.Error });
+    }
+
     /// <summary>Lấy UserId từ JWT — null nếu token không hợp lệ.</summary>
     private Guid? RequireUserId() => _currentUser.UserId;
 }

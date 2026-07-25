@@ -38,7 +38,8 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 | **User** | 23–24 ✅ | SRS API + flashcard UI |
 | **User** | 25 ✅ *(phụ)* | Practice API luyện nhanh |
 | **User** *(core)* | **26–30** ✅ | Exam Engine / thi thử (API play → UI → session → kết quả ETS + Part) |
-| **User** | **31–33** | Lịch sử thi, dashboard analytics |
+| **User** | **31** ✅ | Lịch sử thi, tiến độ (biểu đồ best score), xem lại kết quả |
+| **User** | **32–33** | Dashboard analytics, tracking chi tiết |
 | **User** | 34–36 | Gamification UI + API |
 | **User** | 37–48 | AI coach, chatbot, adaptive… |
 | **User** | 49–51 | 1v1 challenge |
@@ -49,9 +50,9 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ### Tóm nhanh theo persona
 
-| Persona | Đang có (đến Day 30) | Sắp làm tiếp |
+| Persona | Đang có (đến Day 31) | Sắp làm tiếp |
 |---------|----------------------|--------------|
-| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R**, timer Reading, nộp bài, **điểm ETS**, **phân tích Part**, chứng chỉ, review | **Day 31** lịch sử thi, rồi dashboard / AI… |
+| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R**; **lịch sử thi**, **tiến độ/biểu đồ**, xem lại kết quả | **Day 32** dashboard tổng hợp, rồi AI… |
 | **Content Manager** | Panel câu hỏi + đề + import; API lịch thi & vocab | Bổ sung panel quản lý lịch thi UI (nếu cần); nội dung đề cho Exam Engine |
 | **Admin** | Seed account + quyền trên API CM/Admin | UI Admin Day **55–57** |
 
@@ -61,8 +62,14 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 30** (điểm quy đổi ETS + phân tích Part trên màn kết quả) ✅  
-**Tiếp theo:** **Day 31** — API lịch sử thi, so sánh điểm qua các lần.
+**Đang ở:** Hết **Day 31** (lịch sử thi + tiến độ + xem lại kết quả) ✅  
+**Tiếp theo:** **Day 32** — User dashboard: biểu đồ tổng hợp, phân tích Part yếu.
+
+**Day 31 đã giao:**
+- Backend: `GET /api/test-session/history`, `GET /api/test-session/{id}`, `GET /api/test-session/stats/by-test` (best score / đề + `targetScore`)
+- Frontend: **Lịch sử thi** (`/mock-test/history`), **Tiến độ thi** (`/mock-test/progress` — Recharts, best score vs mục tiêu, lọc full / mọi lần thi)
+- Xem lại 1 lần thi → `ExamResultScreen`; link từ cấu trúc đề + sidebar
+- Sửa lỗi **GetDetail**: chấm lại từ `SelectedOptionId`, không ghi đè điểm khi mở xem chi tiết
 
 **Day 30 đã giao:**
 - Backend: bảng tra **ETS (WIE)** `ToeicEtsConversionTable` — full section 100 câu; Part lẻ giữ công thức MVP
@@ -164,7 +171,7 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 - Ngày 30: ✅ Điểm quy đổi **ETS (WIE)** + **`partBreakdown`** API; UI phân tích Part (`ExamPartBreakdownPanel`); polish chứng chỉ / review / Reading UX
 
 **Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
-- Ngày 31: API lịch sử thi, so sánh điểm qua các lần
+- Ngày 31: ✅ API lịch sử thi (`history`, `detail`, `stats/by-test`); UI lịch sử + tiến độ (Recharts); xem lại kết quả; sửa GetDetail không ghi đè điểm
 - Ngày 32: User dashboard: biểu đồ điểm (Recharts), phân tích Part yếu
 - Ngày 33: API tracking chi tiết (câu sai theo chủ đề, Part, thời gian)
 - Ngày 34: XP system, daily streak logic (Hangfire check midnight)

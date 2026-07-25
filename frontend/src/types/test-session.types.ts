@@ -1,10 +1,10 @@
 /**
- * Types cho API TestSession (Day 28) — khớp DTO backend.
+ * Types cho API TestSession (Day 28–31) — khớp DTO backend.
  *
- * Luồng:
- *   start → sessionId
- *   saveAnswers → lưu tạm trên server
- *   submit → điểm + review
+ * Luồng thi:
+ *   start → sessionId → saveAnswers → submit
+ * Lịch sử (Day 31):
+ *   getHistory → getDetail / getScoreStatsByTest
  */
 
 /** Trạng thái phiên thi — backend serialize enum dạng string. */
@@ -77,4 +77,94 @@ export interface TestSessionSubmitResult {
     completedAt: string
     partBreakdown: PartBreakdownItem[]
     reviews: SessionAnswerReview[]
+}
+
+// ── Day 31: Lịch sử thi ───────────────────────────────────────────────────
+
+/** Một lần thi đã nộp — GET /history */
+export interface TestSessionHistoryItem {
+    sessionId: string
+    testId: string
+    testTitle: string
+    testSeries: string
+    startedAt: string
+    completedAt: string
+    partsFilter: number[] | null
+    listeningScore: number | null
+    readingScore: number | null
+    totalScore: number | null
+    correctCount: number
+    totalCount: number
+}
+
+/** Response GET /api/test-session/history */
+export interface TestSessionHistoryResponse {
+    items: TestSessionHistoryItem[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+/** Query GET /history */
+export interface TestSessionHistoryParams {
+    testId?: string
+    page?: number
+    pageSize?: number
+}
+
+/** Chi tiết 1 phiên đã nộp — GET /api/test-session/{id} */
+export interface TestSessionDetailResponse {
+    sessionId: string
+    testId: string
+    testTitle: string
+    testSeries: string
+    status: TestSessionStatus
+    startedAt: string
+    completedAt: string
+    partsFilter: number[] | null
+    correctCount: number
+    totalCount: number
+    skippedCount: number
+    listeningScore: number | null
+    readingScore: number | null
+    totalScore: number | null
+    partBreakdown: PartBreakdownItem[]
+    reviews: SessionAnswerReview[]
+}
+
+/** Best score theo đề — GET /stats/by-test (1 cột biểu đồ) */
+export interface TestScoreByTestItem {
+    testId: string
+    testTitle: string
+    testSeries: string
+    attemptCount: number
+    bestTotalScore: number | null
+    bestListeningScore: number | null
+    bestReadingScore: number | null
+    bestSessionId: string | null
+    lastCompletedAt: string | null
+}
+
+/** Response GET /api/test-session/stats/by-test */
+export interface TestScoreStatsResponse {
+    targetScore: number
+    items: TestScoreByTestItem[]
+}
+
+/** Chuyển detail → format màn kết quả (tái dùng ExamResultScreen). */
+export function sessionDetailToSubmitResult(
+    detail: TestSessionDetailResponse
+): TestSessionSubmitResult {
+    return {
+        sessionId: detail.sessionId,
+        correctCount: detail.correctCount,
+        totalCount: detail.totalCount,
+        skippedCount: detail.skippedCount,
+        listeningScore: detail.listeningScore,
+        readingScore: detail.readingScore,
+        totalScore: detail.totalScore,
+        completedAt: detail.completedAt,
+        partBreakdown: detail.partBreakdown,
+        reviews: detail.reviews,
+    }
 }

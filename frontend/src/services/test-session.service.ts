@@ -1,12 +1,7 @@
 /**
- * Gọi API /api/test-session — phiên thi Day 28.
+ * Gọi API /api/test-session — phiên thi Day 28–31.
  *
  * Cần JWT (axios interceptor tự gắn Bearer token).
- *
- * Luồng MockTestPlayPage (Bước 5):
- *   1. start(testId, parts)     → lưu sessionId vào state
- *   2. saveAnswers(sessionId,…) → thay localStorage
- *   3. submit(sessionId)        → màn kết quả
  */
 import api from '@/api/axios'
 import type {
@@ -15,6 +10,10 @@ import type {
     SessionAnswerItem,
     SaveSessionAnswersResult,
     TestSessionSubmitResult,
+    TestSessionHistoryParams,
+    TestSessionHistoryResponse,
+    TestSessionDetailResponse,
+    TestScoreStatsResponse,
 } from '@/types/test-session.types'
 
 export const TestSessionService = {
@@ -44,5 +43,25 @@ export const TestSessionService = {
     submit: (sessionId: string) =>
         api
             .post<TestSessionSubmitResult>(`/test-session/${sessionId}/submit`)
+            .then((r) => r.data),
+
+    /** Danh sách lần thi đã nộp — Day 31 Bước 1 */
+    getHistory: (params?: TestSessionHistoryParams) =>
+        api
+            .get<TestSessionHistoryResponse>('/test-session/history', { params })
+            .then((r) => r.data),
+
+    /** Xem lại 1 lần thi — Day 31 Bước 2 */
+    getDetail: (sessionId: string) =>
+        api
+            .get<TestSessionDetailResponse>(`/test-session/${sessionId}`)
+            .then((r) => r.data),
+
+    /** Best score / đề cho biểu đồ — Day 31 Bước 3 */
+    getScoreStatsByTest: (fullOnly = true) =>
+        api
+            .get<TestScoreStatsResponse>('/test-session/stats/by-test', {
+                params: { fullOnly },
+            })
             .then((r) => r.data),
 }

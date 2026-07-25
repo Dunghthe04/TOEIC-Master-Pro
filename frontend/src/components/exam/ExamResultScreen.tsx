@@ -24,6 +24,8 @@ type ExamResultScreenProps = {
     questions: PlayQuestion[]
     onBackStructure: () => void
     onBackList: () => void
+    /** Nhãn nút quay danh sách — mặc định "Danh sách đề" */
+    backListLabel?: string
 }
 
 export default function ExamResultScreen({
@@ -34,6 +36,7 @@ export default function ExamResultScreen({
     questions,
     onBackStructure,
     onBackList,
+    backListLabel = 'Danh sách đề',
 }: ExamResultScreenProps) {
     const user = useAuthStore((s) => s.user)
     const [view, setView] = useState<ResultView>('certificate')
@@ -51,7 +54,7 @@ export default function ExamResultScreen({
                         Về cấu trúc đề
                     </Button>
                     <Button variant="outline" onClick={onBackList}>
-                        Danh sách đề
+                        {backListLabel}
                     </Button>
                 </div>
             }

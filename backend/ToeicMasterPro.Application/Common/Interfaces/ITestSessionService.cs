@@ -32,4 +32,25 @@ public interface ITestSessionService
   /// Nộp bài: chấm điểm, ghi điểm vào TestSession, Status → Completed.
   /// </summary>
   Task<Result<TestSessionSubmitResponse>> SubmitAsync(Guid userId, Guid sessionId);
+
+  /// <summary>
+  /// Lịch sử các lần thi đã nộp của user (Day 31).
+  /// Cùng đề nhiều lần → nhiều dòng. Biểu đồ best score gom ở API stats (bước sau).
+  /// </summary>
+  Task<Result<TestSessionHistoryResponse>> GetHistoryAsync(
+      Guid userId,
+      Guid? testId = null,
+      int page = 1,
+      int pageSize = 20);
+
+  /// <summary>
+  /// Xem lại 1 phiên đã nộp — điểm + part breakdown + review (Day 31 Bước 2).
+  /// </summary>
+  Task<Result<TestSessionDetailResponse>> GetDetailAsync(Guid userId, Guid sessionId);
+
+  /// <summary>
+  /// Best score theo từng đề — phục vụ biểu đồ cột (Day 31 Bước 3).
+  /// Mặc định chỉ tính full test (PartsFilter null).
+  /// </summary>
+  Task<Result<TestScoreStatsResponse>> GetScoreStatsByTestAsync(Guid userId, bool fullOnly = true);
 }
