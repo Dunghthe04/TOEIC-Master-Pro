@@ -59,15 +59,15 @@ export default function ReadingQuestionPalette({
 
     return (
         <>
-            {/* Nút góc — luôn hiện khi đang làm Reading */}
+            {/* Nút góc trên phải — dưới thanh Part, trên vùng làm bài */}
             <button
                 type="button"
                 onClick={() => onOpenChange(!open)}
-                className="fixed bottom-20 right-4 z-[55] flex h-11 w-11 items-center justify-center rounded-md bg-sky-400 text-white shadow-lg hover:bg-sky-500 transition-colors"
+                className="fixed top-[7.5rem] right-4 md:right-6 z-[55] flex h-14 w-14 items-center justify-center rounded-lg bg-sky-500 text-white shadow-lg hover:bg-sky-600 transition-colors"
                 aria-label={open ? 'Đóng danh sách câu' : 'Mở danh sách câu Reading'}
                 aria-expanded={open}
             >
-                <LayoutGrid className="h-5 w-5" />
+                <LayoutGrid className="h-7 w-7" />
             </button>
 
             {open && (
@@ -79,7 +79,7 @@ export default function ReadingQuestionPalette({
                         onClick={() => onOpenChange(false)}
                     />
                     <aside
-                        className="fixed right-0 top-[88px] bottom-[64px] z-[61] w-full max-w-sm bg-[#eef2f6] shadow-2xl border-l overflow-y-auto"
+                        className="fixed right-0 top-[7.5rem] bottom-[4.5rem] z-[61] w-full max-w-sm bg-[#eef2f6] shadow-2xl border-l overflow-y-auto"
                         role="dialog"
                         aria-label="Danh sách câu Reading"
                     >

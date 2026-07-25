@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { buildCertificateFilename, downloadElementAsPng } from '@/lib/downloadCertificate'
 import { getMediaUrl } from '@/lib/media'
+import { cn } from '@/lib/utils'
 
 
 
@@ -61,6 +62,12 @@ function scoreToPercent(score: number): number {
 
     return Math.min(100, Math.max(0, ((score - 5) / 490) * 100))
 
+}
+
+/** Vị trí marker trên thanh — tránh dính sát mép (điểm 5 che nhãn). */
+function scoreMarkerLeftPercent(score: number): number {
+    const pct = scoreToPercent(score)
+    return Math.min(96, Math.max(8, pct))
 }
 
 
@@ -171,37 +178,21 @@ export default function ToeicSampleCertificate({
 
 
 
-                    {/* Giữa: Listening + Reading */}
+                    {/* Giữa: Listening + Reading — luôn hiện cả 2 thanh (partial test: section chưa làm = —) */}
 
                     <div className="flex-[1.15] flex flex-col justify-center gap-6 px-4 md:px-5 py-5 z-[1] border-b xl:border-b-0 xl:border-r border-gray-300 min-w-0">
 
-                        {listeningScore != null && (
+                        <ScoreBarRow
+                            icon={<Headphones className="w-4 h-4" strokeWidth={2.5} />}
+                            label="LISTENING"
+                            score={listeningScore}
+                        />
 
-                            <ScoreBarRow
-
-                                icon={<Headphones className="w-4 h-4" strokeWidth={2.5} />}
-
-                                label="LISTENING"
-
-                                score={listeningScore}
-
-                            />
-
-                        )}
-
-                        {readingScore != null && (
-
-                            <ScoreBarRow
-
-                                icon={<BookOpen className="w-4 h-4" strokeWidth={2.5} />}
-
-                                label="READING"
-
-                                score={readingScore}
-
-                            />
-
-                        )}
+                        <ScoreBarRow
+                            icon={<BookOpen className="w-4 h-4" strokeWidth={2.5} />}
+                            label="READING"
+                            score={readingScore}
+                        />
 
                     </div>
 
@@ -381,27 +372,32 @@ function ScoreBarRow({
 }: {
     icon: ReactNode
     label: string
-    score: number
+    /** null = chưa làm section này trong phiên (partial test) */
+    score: number | null
 }) {
-    const pct = scoreToPercent(score)
+    const hasScore = score != null
+    const markerLeft = hasScore ? scoreMarkerLeftPercent(score) : null
 
     return (
-        <div className="w-full">
-            <div className="inline-flex items-center gap-2 bg-[#e85d04] text-white text-[11px] font-bold px-3 py-1.5 rounded-sm shadow-sm">
+        <div className={cn('w-full', !hasScore && 'opacity-75')}>
+            <div
+                className={cn(
+                    'inline-flex items-center gap-2 text-white text-[11px] font-bold px-3 py-1.5 rounded-sm shadow-sm',
+                    hasScore ? 'bg-[#e85d04]' : 'bg-gray-400',
+                )}
+            >
                 {icon}
                 <span className="tracking-wide">{label}</span>
             </div>
 
-            {/* Thanh scale — căn trái cùng badge, dài ~full cột giữa */}
-            <div className="flex items-end gap-2 mt-2 w-full">
-                <span className="text-[10px] text-gray-700 shrink-0 pb-[38px] whitespace-nowrap">
-                    Your score
-                </span>
-
-                <div className="relative flex-1 h-[72px] min-w-[240px]">
+            <p className="text-[10px] text-gray-700 mt-3 mb-1">
+                {hasScore ? 'Your score' : 'Chưa thi phần này'}
+            </p>
+            <div className="relative h-[72px] w-full min-w-[240px] pl-1">
+                {hasScore && markerLeft != null ? (
                     <div
                         className="absolute bottom-[16px] flex flex-col items-center -translate-x-1/2 z-[2]"
-                        style={{ left: `${pct}%` }}
+                        style={{ left: `${markerLeft}%` }}
                     >
                         <div className="w-[44px] h-[44px] rounded-full border-2 border-black bg-white flex items-center justify-center shadow-sm">
                             <span className="text-[15px] font-bold text-gray-900 tabular-nums leading-none">
@@ -417,12 +413,25 @@ function ScoreBarRow({
                             }}
                         />
                     </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 h-[14px] rounded-[2px] bg-gradient-to-r from-gray-200 via-gray-600 to-gray-900 shadow-inner" />
-                    <div className="absolute -bottom-4 left-0 right-0 flex justify-between text-[10px] text-gray-500 font-medium">
-                        <span>5</span>
-                        <span>495</span>
+                ) : (
+                    <div className="absolute bottom-[16px] left-1/2 flex flex-col items-center -translate-x-1/2 z-[2]">
+                        <div className="w-[44px] h-[44px] rounded-full border-2 border-dashed border-gray-400 bg-gray-50 flex items-center justify-center">
+                            <span className="text-lg font-bold text-gray-400 leading-none">—</span>
+                        </div>
                     </div>
+                )}
+
+                <div
+                    className={cn(
+                        'absolute bottom-0 left-0 right-0 h-[14px] rounded-[2px] shadow-inner',
+                        hasScore
+                            ? 'bg-gradient-to-r from-gray-200 via-gray-600 to-gray-900'
+                            : 'bg-gradient-to-r from-gray-100 via-gray-200 to-gray-300',
+                    )}
+                />
+                <div className="absolute -bottom-4 left-0 right-0 flex justify-between text-[10px] text-gray-500 font-medium">
+                    <span>5</span>
+                    <span>495</span>
                 </div>
             </div>
         </div>

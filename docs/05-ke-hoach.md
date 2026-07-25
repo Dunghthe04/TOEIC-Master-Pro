@@ -37,8 +37,8 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 | **CM** (+ Admin) | 22 ✅ | API CRUD Vocabulary |
 | **User** | 23–24 ✅ | SRS API + flashcard UI |
 | **User** | 25 ✅ *(phụ)* | Practice API luyện nhanh |
-| **User** *(core)* | **26–30** | Exam Engine / thi thử (API play → UI → session → kết quả) |
-| **User** | 31–33 | Lịch sử thi, dashboard analytics |
+| **User** *(core)* | **26–30** ✅ | Exam Engine / thi thử (API play → UI → session → kết quả ETS + Part) |
+| **User** | **31–33** | Lịch sử thi, dashboard analytics |
 | **User** | 34–36 | Gamification UI + API |
 | **User** | 37–48 | AI coach, chatbot, adaptive… |
 | **User** | 49–51 | 1v1 challenge |
@@ -49,9 +49,9 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ### Tóm nhanh theo persona
 
-| Persona | Đang có (đến Day 28) | Sắp làm tiếp |
+| Persona | Đang có (đến Day 30) | Sắp làm tiếp |
 |---------|----------------------|--------------|
-| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R, timer Reading, nộp bài, chứng chỉ** | **Day 30** (phân tích Part, điểm ETS), rồi history / AI… |
+| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R**, timer Reading, nộp bài, **điểm ETS**, **phân tích Part**, chứng chỉ, review | **Day 31** lịch sử thi, rồi dashboard / AI… |
 | **Content Manager** | Panel câu hỏi + đề + import; API lịch thi & vocab | Bổ sung panel quản lý lịch thi UI (nếu cần); nội dung đề cho Exam Engine |
 | **Admin** | Seed account + quyền trên API CM/Admin | UI Admin Day **55–57** |
 
@@ -61,8 +61,14 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 29** (timer Reading 75′, tự nộp khi hết giờ, nút Nộp bài + xác nhận) ✅  
-**Tiếp theo:** **Day 30** — điểm quy đổi ETS + phân tích theo Part.
+**Đang ở:** Hết **Day 30** (điểm quy đổi ETS + phân tích Part trên màn kết quả) ✅  
+**Tiếp theo:** **Day 31** — API lịch sử thi, so sánh điểm qua các lần.
+
+**Day 30 đã giao:**
+- Backend: bảng tra **ETS (WIE)** `ToeicEtsConversionTable` — full section 100 câu; Part lẻ giữ công thức MVP
+- `ToeicScoreHelper` + tests; API submit trả **`partBreakdown`** (đúng/tổng/skip theo Part 1–7)
+- Frontend: `ExamPartBreakdownPanel` (chart + bảng + highlight Part yếu) trên `ExamResultScreen`
+- Polish: chứng chỉ luôn 2 thanh L/R; review lọc **Đúng**; Reading UX (reset scroll unit, palette, font/nút)
 
 **Day 29 đã giao:**
 - Timer **75 phút** chỉ hiện khi vào **Reading** (Listening theo audio, không đếm ngược)
@@ -155,7 +161,7 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 **Tuần 5–6 — Day 28–30: Reading + Session + Kết quả**
 - Ngày 28: ✅ API `TestSession` — tạo phiên, lưu đáp án, nộp cuối; UI Reading Part 5–7 (passage, nhóm câu, bookmark); màn nghỉ L→R; nộp bài; màn kết quả + review đáp án + chứng chỉ SAMPLE (tải PNG)
 - Ngày 29: ✅ Polish thi thử — timer Reading **75′** (Listening không timer); tự nộp khi hết giờ; nút NỘP BÀI + xác nhận; progress `đã làm/tổng`
-- Ngày 30: Hoàn thiện kết quả — điểm quy đổi ETS (hiện công thức MVP), phân tích theo Part *(review đáp án đã có sớm ở Day 28)*
+- Ngày 30: ✅ Điểm quy đổi **ETS (WIE)** + **`partBreakdown`** API; UI phân tích Part (`ExamPartBreakdownPanel`); polish chứng chỉ / review / Reading UX
 
 **Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
 - Ngày 31: API lịch sử thi, so sánh điểm qua các lần

@@ -1,12 +1,13 @@
 /**
  * Màn kết quả sau nộp bài:
- *   1. Chứng chỉ SAMPLE + nút xem chi tiết
+ *   1. Chứng chỉ SAMPLE + phân tích Part
  *   2. Panel review từng câu / đáp án
  */
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import ExamShell from '@/components/layout/ExamShell'
 import ToeicSampleCertificate from '@/components/exam/ToeicSampleCertificate'
+import ExamPartBreakdownPanel from '@/components/exam/ExamPartBreakdownPanel'
 import ExamAnswerReviewPanel from '@/components/exam/ExamAnswerReviewPanel'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth.store'
@@ -56,18 +57,21 @@ export default function ExamResultScreen({
             }
         >
             {view === 'certificate' ? (
-                <ToeicSampleCertificate
-                    fullName={user?.fullName ?? 'Thí sinh'}
-                    avatarUrl={user?.avatarUrl}
-                    testSeries={testSeries}
-                    testTitle={title}
-                    startedAt={startedAt}
-                    completedAt={result.completedAt}
-                    listeningScore={result.listeningScore}
-                    readingScore={result.readingScore}
-                    totalScore={result.totalScore}
-                    onViewDetails={() => setView('details')}
-                />
+                <div className="w-full">
+                    <ToeicSampleCertificate
+                        fullName={user?.fullName ?? 'Thí sinh'}
+                        avatarUrl={user?.avatarUrl}
+                        testSeries={testSeries}
+                        testTitle={title}
+                        startedAt={startedAt}
+                        completedAt={result.completedAt}
+                        listeningScore={result.listeningScore}
+                        readingScore={result.readingScore}
+                        totalScore={result.totalScore}
+                        onViewDetails={() => setView('details')}
+                    />
+                    <ExamPartBreakdownPanel items={result.partBreakdown ?? []} />
+                </div>
             ) : (
                 <ExamAnswerReviewPanel
                     reviews={result.reviews}

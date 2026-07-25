@@ -1,10 +1,17 @@
 namespace ToeicMasterPro.Application.Common;
 
+/// <summary>Section được chấm điểm scaled (Listening / Reading).</summary>
+public enum ToeicScoredSection
+{
+    Listening,
+    Reading,
+}
+
 /// <summary>
 /// Quy đổi số câu đúng → điểm TOEIC (thang 5–495 mỗi section).
 ///
-/// Ghi chú: Bảng quy đổi ETS thật là bảng tra cứu phi tuyến.
-/// Day 28 dùng công thức tỷ lệ + làm tròn bội 5 — đủ cho MVP; Day 30 có thể thay bảng ETS.
+/// Full section (100 câu trong phạm vi): bảng tra ETS (WIE) — <see cref="ToeicEtsConversionTable"/>.
+/// Partial (Part lẻ): công thức tỷ lệ MVP + làm tròn bội 5.
 /// </summary>
 public static class ToeicScoreHelper
 {
@@ -24,11 +31,33 @@ public static class ToeicScoreHelper
     public static int? ConvertSectionScore(
         int correct,
         int questionsInScope,
+        ToeicScoredSection section,
         int fullSectionQuestions = 100)
     {
         if (questionsInScope <= 0) return null;
         if (fullSectionQuestions <= 0) fullSectionQuestions = 100;
 
+        // Đủ 100 câu section trong phiên → tra bảng ETS (Listening ≠ Reading)
+        if (questionsInScope == fullSectionQuestions
+            && fullSectionQuestions == ListeningSectionQuestions)
+        {
+            return section switch
+            {
+                ToeicScoredSection.Listening => ToeicEtsConversionTable.LookupListening(correct),
+                ToeicScoredSection.Reading => ToeicEtsConversionTable.LookupReading(correct),
+                _ => throw new ArgumentOutOfRangeException(nameof(section)),
+            };
+        }
+
+        return ConvertSectionScoreMvp(correct, questionsInScope, fullSectionQuestions);
+    }
+
+    /// <summary>Công thức tỷ lệ MVP cho partial test (Part lẻ).</summary>
+    private static int ConvertSectionScoreMvp(
+        int correct,
+        int questionsInScope,
+        int fullSectionQuestions)
+    {
         var maxForScope = (int)(Math.Round((double)questionsInScope / fullSectionQuestions * 495 / 5) * 5);
         maxForScope = Math.Clamp(maxForScope, 5, 495);
 

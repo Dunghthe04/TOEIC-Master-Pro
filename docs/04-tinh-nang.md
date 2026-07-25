@@ -46,7 +46,7 @@
   - Part 5: câu điền khuyết + Câu tiếp
   - Part 6–7: passage trái + câu phải; bookmark
 - Header: PART X | đã làm/tổng | Timer Reading 75′ (khi vào Reading) | NỘP BÀI ✅ *(Day 29)*
-- Kết quả: điểm quy đổi, phân tích theo Part *(Day 30)*, review đáp án ✅ *(Day 28)*
+- Kết quả: điểm quy đổi ETS ✅ *(Day 30)*, phân tích theo Part ✅ *(Day 30)*, review đáp án ✅ *(Day 28)*
 - Chứng chỉ SAMPLE sau nộp bài + tải PNG ✅ *(Day 28)*
 - Lịch sử thi, so sánh tiến độ (Day 31+)
 

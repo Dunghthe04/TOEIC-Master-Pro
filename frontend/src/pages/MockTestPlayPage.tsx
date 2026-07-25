@@ -168,7 +168,6 @@ export default function MockTestPlayPage() {
                     setSection('reading')
                     setPhase('directions')
                     setReadingSecondsLeft(READING_SECTION_SECONDS)
-                    toast.message('Gói này chỉ có Reading — bắt đầu Part 5–7.')
                 } else {
                     setPhase('done')
                     toast.error('Gói này không có câu hỏi.')
@@ -627,8 +626,8 @@ export default function MockTestPlayPage() {
         section === 'reading' && (phase === 'directions' || phase === 'answering') ? (
             <Button
                 type="button"
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide"
+                size="lg"
+                className="h-10 md:h-11 px-4 md:px-5 bg-red-600 hover:bg-red-700 text-white text-sm md:text-base font-bold uppercase tracking-wide"
                 onClick={openSubmitConfirm}
                 disabled={!sessionId || isSubmitting}
             >
@@ -639,11 +638,13 @@ export default function MockTestPlayPage() {
     /** Dialog xác nhận nộp — dùng chung Reading + màn done */
     const submitConfirmDialog = (
         <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Xác nhận nộp bài</AlertDialogTitle>
+            <AlertDialogContent className="max-w-lg sm:max-w-xl p-6 sm:p-8 gap-5 data-[size=default]:max-w-xl">
+                <AlertDialogHeader className="text-left place-items-start">
+                    <AlertDialogTitle className="text-xl sm:text-2xl font-semibold">
+                        Xác nhận nộp bài
+                    </AlertDialogTitle>
                     <AlertDialogDescription asChild>
-                        <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="space-y-3 text-base text-muted-foreground text-left">
                             <p>
                                 Sau khi nộp bạn không sửa được đáp án. Đã trả lời{' '}
                                 <strong>
@@ -664,9 +665,10 @@ export default function MockTestPlayPage() {
                         </div>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Tiếp tục làm</AlertDialogCancel>
+                <AlertDialogFooter className="sm:gap-3">
+                    <AlertDialogCancel className="sm:min-w-[140px]">Tiếp tục làm</AlertDialogCancel>
                     <AlertDialogAction
+                        className="sm:min-w-[140px] bg-red-600 hover:bg-red-700"
                         onClick={() => {
                             setSubmitConfirmOpen(false)
                             void handleSubmit()
@@ -749,9 +751,9 @@ export default function MockTestPlayPage() {
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
                 footer={
-                    <Button onClick={startReadingSection} size="lg">
+                    <Button onClick={startReadingSection} size="lg" className="h-10 md:h-11 px-6 text-base">
                         Bắt đầu phần Reading
-                        <BookOpen className="w-4 h-4 ml-2" />
+                        <BookOpen className="w-5 h-5 ml-2" />
                     </Button>
                 }
             >
@@ -816,9 +818,9 @@ export default function MockTestPlayPage() {
                 timerSeconds={shellTimerSeconds}
                 submitControl={section === 'reading' ? readingSubmitControl : undefined}
                 footer={
-                    <Button onClick={skipDirections}>
+                    <Button onClick={skipDirections} size="lg" className="h-10 md:h-11 px-6 text-base">
                         Next
-                        <SkipForward className="w-4 h-4 ml-2" />
+                        <SkipForward className="w-5 h-5 ml-2" />
                     </Button>
                 }
             >
@@ -883,18 +885,24 @@ export default function MockTestPlayPage() {
                 submitControl={readingSubmitControl}
                 wide={isPassageScreen}
                 footer={
-                    <div className="flex w-full items-center justify-between gap-2">
+                    <div className="flex w-full items-center justify-between gap-3">
                         <Button
                             variant="outline"
+                            size="lg"
+                            className="h-10 md:h-11 min-w-[120px] px-5 text-base"
                             onClick={goBackReading}
                             disabled={!canGoBackReading}
                         >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            <ChevronLeft className="w-5 h-5 mr-1.5" />
                             Trước
                         </Button>
-                        <Button onClick={advanceReading}>
+                        <Button
+                            size="lg"
+                            className="h-10 md:h-11 min-w-[120px] px-5 text-base"
+                            onClick={advanceReading}
+                        >
                             Tiếp
-                            <ChevronRight className="w-4 h-4 ml-2" />
+                            <ChevronRight className="w-5 h-5 ml-2" />
                         </Button>
                     </div>
                 }
@@ -911,6 +919,7 @@ export default function MockTestPlayPage() {
                     />
                 ) : (
                     <ReadingPassageScreen
+                        key={currentReadingItem.questions[0]?.questionId ?? readingItemIdx}
                         passage={currentReadingItem.passage}
                         imageUrls={currentReadingItem.imageUrls}
                         questions={currentReadingItem.questions}
@@ -1035,11 +1044,11 @@ function BookmarkToggle({
         <Button
             type="button"
             variant={active ? 'default' : 'outline'}
-            size="sm"
+            size="default"
             onClick={onClick}
-            className="shrink-0"
+            className="shrink-0 h-9 px-3 text-[15px]"
         >
-            <Bookmark className={`w-4 h-4 mr-1 ${active ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-[18px] h-[18px] mr-1.5 ${active ? 'fill-current' : ''}`} />
             {label}
         </Button>
     )
@@ -1074,7 +1083,7 @@ function ReadingSingleScreen({
             <div className="flex-1 p-6 md:p-8 space-y-8">
                 {question.content && (
                     <div
-                        className="prose prose-base max-w-none text-lg leading-relaxed"
+                        className="prose prose-lg max-w-none text-lg leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: question.content }}
                     />
                 )}
@@ -1101,7 +1110,7 @@ function ReadingSingleScreen({
                                     onChange={() => onSelect(question.questionId, opt.id)}
                                     className="mt-1 h-5 w-5 shrink-0 accent-blue-600"
                                 />
-                                <span className="text-base leading-snug">
+                                <span className="text-lg leading-snug">
                                     <span className="font-semibold">{opt.label}.</span>
                                     <span
                                         className="ml-2"
@@ -1135,6 +1144,16 @@ function ReadingPassageScreen({
     onSelect: (questionId: string, optionId: string) => void
     onToggleBookmark: (questionId: string) => void
 }) {
+    const passageScrollRef = useRef<HTMLDivElement>(null)
+    const questionsScrollRef = useRef<HTMLDivElement>(null)
+    const scrollResetKey = `${passage}|${imageUrls.join(',')}|${questions.map((q) => q.questionId).join(',')}`
+
+    // Sang unit/passage khác → cuộn về đầu (cả cột bài đọc và cột câu hỏi)
+    useEffect(() => {
+        passageScrollRef.current?.scrollTo(0, 0)
+        questionsScrollRef.current?.scrollTo(0, 0)
+    }, [scrollResetKey])
+
     const hasImages = imageUrls.length > 0
     const hasPassage = !!passage?.trim() && !isPassageGroupCode(passage)
     const multiImage = imageUrls.length > 1
@@ -1149,7 +1168,10 @@ function ReadingPassageScreen({
                             {hasImages ? 'Bài đọc' : 'Đoạn văn'}
                         </p>
                     </div>
-                    <div className="exam-reading-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 md:px-3 py-2">
+                    <div
+                        ref={passageScrollRef}
+                        className="exam-reading-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 md:px-3 py-2"
+                    >
                         {hasImages && (
                             <div
                                 className={`pb-2 bg-white ${
@@ -1185,7 +1207,10 @@ function ReadingPassageScreen({
                         )}
                     </div>
                 </div>
-                <div className="exam-reading-scroll p-3 md:p-4 overflow-y-auto h-full min-h-0 space-y-6 min-w-0">
+                <div
+                    ref={questionsScrollRef}
+                    className="exam-reading-scroll p-3 md:p-4 overflow-y-auto h-full min-h-0 space-y-6 min-w-0"
+                >
                     {questions.map((q) => {
                         const options = q.options.filter((o) => o.content?.trim())
                         const selectedId = answers[q.questionId]
@@ -1205,7 +1230,7 @@ function ReadingPassageScreen({
                                 </div>
                                 {q.content && (
                                     <div
-                                        className="prose prose-base max-w-none text-base"
+                                        className="prose prose-lg max-w-none text-lg leading-relaxed"
                                         dangerouslySetInnerHTML={{ __html: q.content }}
                                     />
                                 )}
@@ -1230,7 +1255,7 @@ function ReadingPassageScreen({
                                                     onChange={() => onSelect(q.questionId, opt.id)}
                                                     className="mt-1 h-[18px] w-[18px] shrink-0 accent-blue-600"
                                                 />
-                                                <span className="text-base leading-snug">
+                                                <span className="text-lg leading-snug">
                                                     <span className="font-semibold">{opt.label}.</span>
                                                     <span
                                                         className="ml-1"

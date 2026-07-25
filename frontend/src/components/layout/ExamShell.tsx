@@ -52,26 +52,26 @@ export default function ExamShell({
             </header>
 
             {/* Thanh Part + timer (Reading) + tiến độ */}
-            <div className="shrink-0 bg-white border-b px-4 md:px-8 py-2.5 flex items-center justify-between gap-3">
+            <div className="shrink-0 bg-white border-b px-4 md:px-8 py-3 flex items-center justify-between gap-3">
                 <span className="text-[#1a4d7c] font-bold text-lg md:text-xl uppercase min-w-0 truncate">
                     {partLabel}
                 </span>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2.5 md:gap-3 shrink-0">
                     {submitControl}
                     {showTimer && (
                         <span
-                            className={`inline-flex items-center gap-1.5 text-sm font-bold tabular-nums px-3 py-1 rounded border ${
+                            className={`inline-flex items-center gap-2 text-base md:text-lg font-bold tabular-nums px-4 py-2 rounded-md min-h-10 ${
                                 isTimerWarning
-                                    ? 'bg-red-600 text-white border-red-700'
-                                    : 'bg-[#1a4d7c] text-white border-[#153d63]'
+                                    ? 'bg-red-600 text-white border border-red-700'
+                                    : 'bg-[#1a4d7c] text-white border border-[#153d63]'
                             }`}
                             title="Thời gian còn lại — Reading"
                         >
-                            <Clock className="w-4 h-4 shrink-0" />
+                            <Clock className="w-5 h-5 shrink-0" />
                             {formatExamCountdown(timerSeconds)}
                         </span>
                     )}
-                    <span className="bg-[#f97316] text-white text-sm font-semibold px-3 py-1 rounded">
+                    <span className="bg-[#f97316] text-white text-base md:text-lg font-semibold px-4 py-2 rounded-md min-h-10 inline-flex items-center tabular-nums">
                         {answeredCount}/{totalCount}
                     </span>
                 </div>
@@ -89,7 +89,7 @@ export default function ExamShell({
             </main>
 
             {footer && (
-                <footer className="shrink-0 border-t bg-white px-4 md:px-8 py-3 flex justify-end">
+                <footer className="shrink-0 border-t bg-white px-4 md:px-8 py-4 flex justify-end">
                     {footer}
                 </footer>
             )}

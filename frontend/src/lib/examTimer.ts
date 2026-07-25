@@ -3,7 +3,7 @@
  */
 
 /** Thời gian Reading chuẩn TOEIC L&R (giây) */
-export const READING_SECTION_SECONDS = 10
+export const READING_SECTION_SECONDS = 75 * 60
 
 /** Định dạng đếm ngược MM:SS — vd. 4500 → "75:00" */
 export function formatExamCountdown(totalSeconds: number): string {

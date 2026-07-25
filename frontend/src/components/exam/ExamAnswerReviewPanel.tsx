@@ -10,7 +10,7 @@ import { getMediaUrl } from '@/lib/media'
 import type { PlayQuestion } from '@/types/test.types'
 import type { SessionAnswerReview } from '@/types/test-session.types'
 
-type Filter = 'all' | 'wrong' | 'skipped'
+type Filter = 'all' | 'correct' | 'wrong' | 'skipped'
 
 type ExamAnswerReviewPanelProps = {
     reviews: SessionAnswerReview[]
@@ -76,6 +76,7 @@ export default function ExamAnswerReviewPanel({
     )
 
     const filtered = useMemo(() => {
+        if (filter === 'correct') return sorted.filter((r) => r.isCorrect)
         if (filter === 'wrong') return sorted.filter((r) => !r.isCorrect && r.selectedOptionId)
         if (filter === 'skipped') return sorted.filter((r) => !r.selectedOptionId)
         return sorted
@@ -108,9 +109,11 @@ export default function ExamAnswerReviewPanel({
                         onClick={() => setFilter('skipped')}
                         label={`Bỏ qua (${skippedCount})`}
                     />
-                    <span className="text-muted-foreground self-center text-xs">
-                        Đúng: {correctCount}
-                    </span>
+                    <FilterChip
+                        active={filter === 'correct'}
+                        onClick={() => setFilter('correct')}
+                        label={`Đúng (${correctCount})`}
+                    />
                 </div>
             </div>
 

@@ -56,6 +56,15 @@ export interface SessionAnswerReview {
     explanation: string | null
 }
 
+/** Thống kê đúng/sai theo Part — Day 30 Phần 2 */
+export interface PartBreakdownItem {
+    part: number
+    correct: number
+    total: number
+    skipped: number
+    accuracyPercent: number
+}
+
 /** Response POST /api/test-session/{id}/submit */
 export interface TestSessionSubmitResult {
     sessionId: string
@@ -66,5 +75,6 @@ export interface TestSessionSubmitResult {
     readingScore: number | null
     totalScore: number | null
     completedAt: string
+    partBreakdown: PartBreakdownItem[]
     reviews: SessionAnswerReview[]
 }

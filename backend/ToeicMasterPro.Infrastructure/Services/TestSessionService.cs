@@ -167,6 +167,7 @@ public class TestSessionService : ITestSessionService
         var listeningTotal = 0;
         var readingCorrect = 0;
         var readingTotal = 0;
+        var partStats = new Dictionary<int, (int Correct, int Total, int Skipped)>();
 
         foreach (var (tq, q) in scopeQuestions)
         {
@@ -195,6 +196,14 @@ public class TestSessionService : ITestSessionService
                 readingTotal++;
                 if (isCorrect) readingCorrect++;
             }
+
+            // Gom thống kê theo Part (Day 30 Phần 2)
+            if (!partStats.TryGetValue(partNum, out var ps))
+                ps = (0, 0, 0);
+            partStats[partNum] = (
+                ps.Correct + (isCorrect ? 1 : 0),
+                ps.Total + 1,
+                ps.Skipped + (isSkipped ? 1 : 0));
 
             // Cập nhật hoặc tạo bản ghi answer kèm IsCorrect
             if (ansRow is not null)
@@ -228,9 +237,9 @@ public class TestSessionService : ITestSessionService
         }
 
         var listeningScore = ToeicScoreHelper.ConvertSectionScore(
-            listeningCorrect, listeningTotal, ToeicScoreHelper.ListeningSectionQuestions);
+            listeningCorrect, listeningTotal, ToeicScoredSection.Listening);
         var readingScore = ToeicScoreHelper.ConvertSectionScore(
-            readingCorrect, readingTotal, ToeicScoreHelper.ReadingSectionQuestions);
+            readingCorrect, readingTotal, ToeicScoredSection.Reading);
         int? totalScore = null;
         if (listeningScore.HasValue && readingScore.HasValue)
             totalScore = listeningScore + readingScore;
@@ -238,6 +247,8 @@ public class TestSessionService : ITestSessionService
             totalScore = listeningScore;
         else if (readingScore.HasValue)
             totalScore = readingScore;
+
+        var partBreakdown = PartBreakdownBuilder.Build(partStats);
 
         var completedAt = DateTime.UtcNow;
         session.Status = TestSessionStatus.Completed;
@@ -260,6 +271,7 @@ public class TestSessionService : ITestSessionService
             readingScore,
             totalScore,
             completedAt,
+            partBreakdown,
             reviews
         ));
     }
