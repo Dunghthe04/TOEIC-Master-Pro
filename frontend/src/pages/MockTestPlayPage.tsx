@@ -7,8 +7,11 @@
  * Day 28 Bước 5 — TestSession: start(), saveAnswers() (debounce).
  * Bước 7 — Nối Listening → Reading: màn nghỉ giữa section, user bấm tiếp tục.
  * Bước 8 — Nộp bài (submit) + màn kết quả ExamResultScreen.
+ * Day 29 Bước 2 — Timer Reading 75′ (Listening không hiện timer).
+ * Day 29 Bước 3 — Hết giờ Reading → tự nộp bài.
+ * Day 29 Bước 4b–c — Nút NỘP BÀI Reading + xác nhận, polish màn done.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { TestService } from '@/services/test.service'
 import { TestSessionService } from '@/services/test-session.service'
@@ -30,6 +33,16 @@ import {
 } from '@/lib/examReading'
 import { Button } from '@/components/ui/button'
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
     ArrowLeft,
     BookOpen,
     Bookmark,
@@ -45,6 +58,7 @@ import {
     type AudioErrorContext,
 } from '@/lib/examMediaMessages'
 import ExamShell from '@/components/layout/ExamShell'
+import { formatExamCountdown, READING_SECTION_SECONDS } from '@/lib/examTimer'
 import ExamResultScreen from '@/components/exam/ExamResultScreen'
 import ReadingQuestionPalette from '@/components/exam/ReadingQuestionPalette'
 
@@ -83,6 +97,10 @@ export default function MockTestPlayPage() {
     const [submitResult, setSubmitResult] = useState<TestSessionSubmitResult | null>(null)
     /** Đang gọi API nộp bài */
     const [isSubmitting, setIsSubmitting] = useState(false)
+    /** Giây còn lại Reading — null = chưa bắt đầu / đang Listening */
+    const [readingSecondsLeft, setReadingSecondsLeft] = useState<number | null>(null)
+    /** Dialog xác nhận trước khi nộp bài thủ công */
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false)
 
     /** Tham chiếu tới thẻ <audio> đang phát — dùng để pause/stop khi đổi phase */
     const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -94,6 +112,8 @@ export default function MockTestPlayPage() {
     const sessionIdRef = useRef<string | null>(null)
     /** Đáp án mới nhất — flush trước khi submit */
     const answersRef = useRef<Record<string, string>>({})
+    /** Tránh gọi auto-submit Reading nhiều lần khi timer về 0 */
+    const readingAutoSubmitTriggeredRef = useRef(false)
     sessionIdRef.current = sessionId
     answersRef.current = answers
 
@@ -117,6 +137,8 @@ export default function MockTestPlayPage() {
             setSessionStartedAt(null)
             setSubmitResult(null)
             setIsSubmitting(false)
+            setReadingSecondsLeft(null)
+            readingAutoSubmitTriggeredRef.current = false
             try {
                 // Bước A: tạo TestSession trên server (thay localStorage Day 27)
                 const session = await TestSessionService.start({
@@ -145,6 +167,7 @@ export default function MockTestPlayPage() {
                 } else if (readOrder.length > 0) {
                     setSection('reading')
                     setPhase('directions')
+                    setReadingSecondsLeft(READING_SECTION_SECONDS)
                     toast.message('Gói này chỉ có Reading — bắt đầu Part 5–7.')
                 } else {
                     setPhase('done')
@@ -177,6 +200,35 @@ export default function MockTestPlayPage() {
             setReadingPaletteOpen(false)
         }
     }, [section, phase])
+
+    /**
+     * Day 29 — Đếm ngược Reading 75′ khi đang làm bài (directions + answering).
+     * Về 0 → Bước 3 tự nộp bài.
+     */
+    const readingTimerTicking =
+        section === 'reading' &&
+        (phase === 'directions' || phase === 'answering') &&
+        readingSecondsLeft != null &&
+        readingSecondsLeft > 0
+
+    useEffect(() => {
+        if (!readingTimerTicking) return
+        const timerId = window.setInterval(() => {
+            setReadingSecondsLeft((prev) => {
+                if (prev == null || prev <= 1) return 0
+                return prev - 1
+            })
+        }, 1000)
+        return () => window.clearInterval(timerId)
+    }, [readingTimerTicking])
+
+    /** Timer hiện trên ExamShell — chỉ khi đang làm Reading (không hiện ở màn done) */
+    const shellTimerSeconds =
+        section === 'reading' &&
+        readingSecondsLeft != null &&
+        (phase === 'directions' || phase === 'answering')
+            ? readingSecondsLeft
+            : null
 
     /** Part Listening có trong đề */
     const listeningPartsOrder = useMemo(
@@ -372,6 +424,7 @@ export default function MockTestPlayPage() {
         setReadingItemIdx(0)
         setUnitIdx(0)
         setPhase('directions')
+        setReadingSecondsLeft(READING_SECTION_SECONDS)
     }, [])
 
     const advanceAfterUnit = useCallback(() => {
@@ -510,24 +563,128 @@ export default function MockTestPlayPage() {
     }, [])
 
     /** Nộp bài — flush đáp án → POST submit → màn kết quả */
-    const handleSubmit = useCallback(async () => {
+    const handleSubmit = useCallback(async (options?: { auto?: boolean }) => {
         const sid = sessionIdRef.current
         if (!sid || isSubmitting) return
         setIsSubmitting(true)
+        if (options?.auto) {
+            toast.message('Hết thời gian Reading — đang tự động nộp bài…')
+        }
         try {
             await flushSaveAnswers()
             const result = await TestSessionService.submit(sid)
             setSubmitResult(result)
             setPhase('results')
-            toast.success('Nộp bài thành công!')
+            toast.success(
+                options?.auto ? 'Hết giờ Reading — đã nộp bài.' : 'Nộp bài thành công!'
+            )
         } catch (err: unknown) {
             const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
                 ?.error
             toast.error(apiErr ?? 'Không nộp được bài — thử lại.')
+            if (options?.auto) {
+                readingAutoSubmitTriggeredRef.current = false
+            }
         } finally {
             setIsSubmitting(false)
         }
     }, [flushSaveAnswers, isSubmitting])
+
+    /**
+     * Day 29 Bước 3 — timer Reading về 0 → tự nộp (giống thi thật).
+     */
+    useEffect(() => {
+        if (readingSecondsLeft !== 0) return
+        if (section !== 'reading') return
+        if (phase !== 'directions' && phase !== 'answering') return
+        if (readingAutoSubmitTriggeredRef.current) return
+        if (!sessionIdRef.current) return
+
+        readingAutoSubmitTriggeredRef.current = true
+        stopAudio()
+        void handleSubmit({ auto: true })
+    }, [readingSecondsLeft, section, phase, handleSubmit])
+
+    /** Cảnh báo khi đóng tab / reload giữa chừng bài thi */
+    useEffect(() => {
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (phase === 'loading' || phase === 'results') return
+            e.preventDefault()
+        }
+        window.addEventListener('beforeunload', onBeforeUnload)
+        return () => window.removeEventListener('beforeunload', onBeforeUnload)
+    }, [phase])
+
+    const openSubmitConfirm = useCallback(() => {
+        if (!sessionIdRef.current || isSubmitting) return
+        setSubmitConfirmOpen(true)
+    }, [isSubmitting])
+
+    const totalQuestions = play?.questions.length ?? 0
+
+    /** Nút NỘP BÀI trên thanh Reading (Bước 4b) */
+    const readingSubmitControl =
+        section === 'reading' && (phase === 'directions' || phase === 'answering') ? (
+            <Button
+                type="button"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wide"
+                onClick={openSubmitConfirm}
+                disabled={!sessionId || isSubmitting}
+            >
+                {isSubmitting ? 'Đang nộp…' : 'Nộp bài'}
+            </Button>
+        ) : null
+
+    /** Dialog xác nhận nộp — dùng chung Reading + màn done */
+    const submitConfirmDialog = (
+        <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Xác nhận nộp bài</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                            <p>
+                                Sau khi nộp bạn không sửa được đáp án. Đã trả lời{' '}
+                                <strong>
+                                    {answeredCount}/{totalQuestions}
+                                </strong>{' '}
+                                câu.
+                            </p>
+                            {readingSecondsLeft != null &&
+                                readingSecondsLeft > 0 &&
+                                section === 'reading' &&
+                                (phase === 'directions' || phase === 'answering') && (
+                                    <p>
+                                        Còn{' '}
+                                        <strong>{formatExamCountdown(readingSecondsLeft)}</strong>{' '}
+                                        thời gian Reading.
+                                    </p>
+                                )}
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Tiếp tục làm</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => {
+                            setSubmitConfirmOpen(false)
+                            void handleSubmit()
+                        }}
+                    >
+                        Nộp bài
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+
+    const wrapWithSubmitDialog = (node: ReactNode) => (
+        <>
+            {node}
+            {submitConfirmDialog}
+        </>
+    )
 
     const selectOption = (questionId: string, optionId: string) => {
         // User chọn đáp án = tương tác → browser cho phép autoplay, thử play() lại
@@ -548,8 +705,6 @@ export default function MockTestPlayPage() {
             document.body.style.overflow = prev
         }
     }, [])
-
-    const totalQuestions = play?.questions.length ?? 0
 
     // ── UI: Màn kết quả sau nộp bài (Bước 8) ──
     if (phase === 'results' && submitResult && play && sessionStartedAt) {
@@ -652,12 +807,14 @@ export default function MockTestPlayPage() {
     if (phase === 'directions' && currentDirections) {
         const partNum = partToNumber(currentDirections.part)
         const sectionLabel = section === 'listening' ? 'Listening' : 'Reading'
-        return (
+        return wrapWithSubmitDialog(
             <ExamShell
                 title={play.title}
                 partLabel={`${sectionLabel} — Part ${partNum} Directions`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
+                timerSeconds={shellTimerSeconds}
+                submitControl={section === 'reading' ? readingSubmitControl : undefined}
                 footer={
                     <Button onClick={skipDirections}>
                         Next
@@ -716,12 +873,14 @@ export default function MockTestPlayPage() {
 
         const isPassageScreen = currentReadingItem.kind === 'passage'
 
-        return (
+        return wrapWithSubmitDialog(
             <ExamShell
                 title={play.title}
                 partLabel={`Reading — Part ${partNum}${screenLabel ? ` · ${screenLabel}` : ''}`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
+                timerSeconds={shellTimerSeconds}
+                submitControl={readingSubmitControl}
                 wide={isPassageScreen}
                 footer={
                     <div className="flex w-full items-center justify-between gap-2">
@@ -781,7 +940,7 @@ export default function MockTestPlayPage() {
     const readingQuestions = play.questions.filter((q) => isReadingPart(q.part))
     const isReadingOnlyDone = listeningQuestions.length === 0 && readingQuestions.length > 0
 
-    return (
+    return wrapWithSubmitDialog(
         <ExamShell
             title={play.title}
             partLabel={isReadingOnlyDone ? 'Kết thúc Reading' : 'Kết thúc bài thi'}
@@ -795,9 +954,9 @@ export default function MockTestPlayPage() {
                     </Button>
                     <div className="flex gap-2">
                         <Button
-                            onClick={handleSubmit}
+                            onClick={openSubmitConfirm}
                             disabled={!sessionId || isSubmitting}
-                            className="min-w-[120px]"
+                            className="min-w-[120px] bg-red-600 hover:bg-red-700"
                         >
                             {isSubmitting ? 'Đang nộp…' : 'Nộp bài'}
                         </Button>
@@ -809,6 +968,15 @@ export default function MockTestPlayPage() {
             }
         >
             <div className="space-y-6">
+                {readingQuestions.length > 0 &&
+                    readingSecondsLeft != null &&
+                    readingSecondsLeft > 0 && (
+                        <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                            Đồng hồ Reading đã tạm dừng. Bạn còn{' '}
+                            <strong>{formatExamCountdown(readingSecondsLeft)}</strong> — bấm{' '}
+                            <strong>Nộp bài</strong> để chấm điểm.
+                        </p>
+                    )}
                 <p className="text-sm text-muted-foreground">
                     Đã chọn {answeredCount}/{totalQuestions} câu.
                     {listeningQuestions.length > 0 && (

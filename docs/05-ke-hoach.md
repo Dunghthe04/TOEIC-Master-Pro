@@ -51,7 +51,7 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 | Persona | Đang có (đến Day 28) | Sắp làm tiếp |
 |---------|----------------------|--------------|
-| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R, TestSession, nộp bài, chứng chỉ SAMPLE** | **Day 29–30** (timer 120′, polish UX, phân tích Part), rồi history / AI… |
+| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R, timer Reading, nộp bài, chứng chỉ** | **Day 30** (phân tích Part, điểm ETS), rồi history / AI… |
 | **Content Manager** | Panel câu hỏi + đề + import; API lịch thi & vocab | Bổ sung panel quản lý lịch thi UI (nếu cần); nội dung đề cho Exam Engine |
 | **Admin** | Seed account + quyền trên API CM/Admin | UI Admin Day **55–57** |
 
@@ -61,8 +61,13 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 28** (Reading Part 5–7 + TestSession + nộp bài + kết quả + chứng chỉ SAMPLE) ✅  
-**Tiếp theo:** **Day 29** — Polish thi thử: timer full 120′, progress `đã làm/tổng`, UX nộp bài.
+**Đang ở:** Hết **Day 29** (timer Reading 75′, tự nộp khi hết giờ, nút Nộp bài + xác nhận) ✅  
+**Tiếp theo:** **Day 30** — điểm quy đổi ETS + phân tích theo Part.
+
+**Day 29 đã giao:**
+- Timer **75 phút** chỉ hiện khi vào **Reading** (Listening theo audio, không đếm ngược)
+- Hết giờ Reading → **tự động nộp bài**
+- Nút **Nộp bài** trên thanh Reading + dialog xác nhận; cảnh báo khi đóng tab giữa chừng
 
 **Day 28 đã giao:**
 - Backend: `POST /api/test-session/start`, `save-answers`, `submit` (commit `5aeec68`)
@@ -149,7 +154,7 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 **Tuần 5–6 — Day 28–30: Reading + Session + Kết quả**
 - Ngày 28: ✅ API `TestSession` — tạo phiên, lưu đáp án, nộp cuối; UI Reading Part 5–7 (passage, nhóm câu, bookmark); màn nghỉ L→R; nộp bài; màn kết quả + review đáp án + chứng chỉ SAMPLE (tải PNG)
-- Ngày 29: Polish thi thử — timer full 120′ (L~45′ gồm Directions + R 75′), progress `đã làm/tổng`, NỘP BÀI, Câu trước/sau
+- Ngày 29: ✅ Polish thi thử — timer Reading **75′** (Listening không timer); tự nộp khi hết giờ; nút NỘP BÀI + xác nhận; progress `đã làm/tổng`
 - Ngày 30: Hoàn thiện kết quả — điểm quy đổi ETS (hiện công thức MVP), phân tích theo Part *(review đáp án đã có sớm ở Day 28)*
 
 **Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
