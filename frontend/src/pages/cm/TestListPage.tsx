@@ -31,6 +31,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Plus, Trash2, Settings, Link2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function TestListPage() {
     const navigate = useNavigate();
@@ -56,9 +57,15 @@ export default function TestListPage() {
 
     const handleDeleteConfirm = async () => {
         if (!deleteId) return
-        await TestService.delete(deleteId)
-        setTests(prev => prev.filter(t => t.id !== deleteId))
-        setDeleteId(null)
+        try {
+            await TestService.delete(deleteId)
+            setTests(prev => prev.filter(t => t.id !== deleteId))
+            toast.success('Đã xóa đề thi.')
+            setDeleteId(null)
+        } catch (err: unknown) {
+            const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+            toast.error(apiErr ?? 'Không xóa được đề thi — vui lòng thử lại.')
+        }
     }
 
     const filtered = tests.filter(t => t.title.toLowerCase().includes(search.toLowerCase()));

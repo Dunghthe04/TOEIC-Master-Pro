@@ -128,6 +128,16 @@ public class TestService : ITestService
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
         if (test is null) return Result.Failure("Không tìm thấy đề thi.");
 
+        // Không xóa đề nếu đã có lịch sử thi — FK TestSessions.TestId (Restrict)
+        var sessions = await _uow.Repository<TestSession>().FindAsync(s => s.TestId == id);
+        var sessionCount = sessions.Count;
+        if (sessionCount > 0)
+        {
+            return Result.Failure(
+                $"Không thể xóa đề \"{test.Title}\" vì đã có {sessionCount} lượt thi được ghi nhận. " +
+                "Hãy chuyển sang nháp (bỏ xuất bản) để user không thấy đề này nữa.");
+        }
+
         _uow.Repository<Test>().Remove(test); // cascade xóa TestQuestion theo
         await _uow.SaveChangesAsync();
         return Result.Success();

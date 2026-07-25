@@ -40,6 +40,10 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getMediaUrl } from '@/lib/media'
+import {
+    formatListeningAudioError,
+    type AudioErrorContext,
+} from '@/lib/examMediaMessages'
 import ExamShell from '@/components/layout/ExamShell'
 import ExamResultScreen from '@/components/exam/ExamResultScreen'
 import ReadingQuestionPalette from '@/components/exam/ReadingQuestionPalette'
@@ -84,6 +88,8 @@ export default function MockTestPlayPage() {
     const audioRef = useRef<HTMLAudioElement | null>(null)
     /** Debounce gửi đáp án lên server — tránh gọi API mỗi lần click */
     const saveAnswersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    /** Tránh toast lỗi audio trùng lặp cho cùng một file */
+    const audioErrorShownRef = useRef<Set<string>>(new Set())
     /** sessionId mới nhất — dùng trong callback tránh stale closure */
     const sessionIdRef = useRef<string | null>(null)
     /** Đáp án mới nhất — flush trước khi submit */
@@ -272,7 +278,11 @@ export default function MockTestPlayPage() {
      *   3. new Audio() + play()
      *   4. Lắng nghe sự kiện 'ended' → gọi onEnded()
      */
-    const playUrl = useCallback((url: string | null | undefined, onEnded: () => void) => {
+    const playUrl = useCallback((
+        url: string | null | undefined,
+        onEnded: () => void,
+        errorContext?: Omit<AudioErrorContext, 'url'>
+    ) => {
         stopAudio()
         if (!url) {
             onEnded()
@@ -284,9 +294,17 @@ export default function MockTestPlayPage() {
         const handleEnded = () => onEnded()
         audio.addEventListener('ended', handleEnded)
         audio.addEventListener('error', () => {
-            toast.error(
-                `Không tải được audio (${url}). Kiểm tra file trong ZIP audio/ và tên khớp Excel.`
-            )
+            const ctx: AudioErrorContext = {
+                kind: errorContext?.kind ?? 'question',
+                part: errorContext?.part ?? '',
+                orderIndexes: errorContext?.orderIndexes,
+                url,
+            }
+            const dedupeKey = `${ctx.kind}|${url}`
+            if (audioErrorShownRef.current.has(dedupeKey)) return
+            audioErrorShownRef.current.add(dedupeKey)
+            console.warn('[Exam audio] Không tải được:', url, ctx)
+            toast.error(formatListeningAudioError(ctx), { duration: 8000 })
         })
         audio.play().catch(() => {
             // Chrome/Safari chặn autoplay nếu user chưa tương tác trang
@@ -318,6 +336,9 @@ export default function MockTestPlayPage() {
         if (section !== 'listening' || phase !== 'directions' || !currentDirections) return
         playUrl(currentDirections.audioUrl, () => {
             enterAnswering()
+        }, {
+            kind: 'directions',
+            part: currentPart,
         })
         return () => stopAudio()
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -382,6 +403,10 @@ export default function MockTestPlayPage() {
         if (section !== 'listening' || phase !== 'answering' || !currentUnit) return
         playUrl(currentUnit.audioUrl, () => {
             advanceAfterUnit()
+        }, {
+            kind: 'question',
+            part: currentUnit.part,
+            orderIndexes: currentUnit.questions.map((q) => q.orderIndex),
         })
         return () => stopAudio()
         // eslint-disable-next-line react-hooks/exhaustive-deps
