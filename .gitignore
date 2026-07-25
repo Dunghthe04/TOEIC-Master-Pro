@@ -490,3 +490,8 @@ $RECYCLE.BIN/
 # Logs
 logs/
 *.log
+
+# Media upload local (import CM / avatar) — không commit vào git
+**/wwwroot/uploads/**
+!**/wwwroot/uploads/**/
+!**/wwwroot/uploads/**/.gitkeep
