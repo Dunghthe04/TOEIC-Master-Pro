@@ -16,7 +16,7 @@
 | ORM | Entity Framework Core 8 | ✅ |
 | Truy cập dữ liệu | Repository\<T\> + UnitOfWork tự viết | ✅ |
 | Database | SQL Server 2022 | ✅ |
-| Cache | Redis (StackExchange.Redis) | ✅ |
+| Cache | Redis (StackExchange.Redis) — **đã dựng, chưa service nào dùng** | ⚠️ |
 | Auth | ASP.NET Identity + JWT + Refresh Token + Google OAuth | ✅ |
 | Background Jobs | Hangfire (lưu job vào SQL Server) | ✅ |
 | Import Excel | EPPlus | ✅ |
@@ -69,7 +69,7 @@
 
 **Dùng để lưu:** Toàn bộ dữ liệu chính — users, câu hỏi, đề thi, kết quả, từ vựng, lịch thi, bình luận.
 
-**Trong Docker:** Chạy ở `localhost:1433`, tài khoản `sa`, password trong `.env`.
+**Trong Docker:** Chạy ở **`localhost:1434`** (compose map `1434:1433` để không đụng SQL Server cài sẵn trên máy), tài khoản `sa`, password trong `.env`.
 
 > ⚠️ Docker chỉ cung cấp SQL Server engine (phần mềm). Muốn có tables thì phải chạy EF Core Migrations.
 
@@ -84,13 +84,21 @@
 
 **Tại sao dùng:** Những dữ liệu đọc nhiều, viết ít thì cache vào Redis thay vì query SQL Server mỗi lần → giảm tải DB, tăng tốc response.
 
-**Dùng để:**
+> ⚠️ **SỰ THẬT (kiểm chứng 2026-07-26): Redis đã dựng dây nhưng CHƯA DÙNG.**
+> `ICacheService` chỉ xuất hiện ở dòng đăng ký DI (`Program.cs:67`) và chính class implement —
+> **không service nào inject nó**. Rate limiting hiện dùng bộ đếm **in-memory** của .NET, không phải Redis.
+>
+> Nghịch lý: là code chết nhưng lại là **dependency bắt buộc lúc khởi động** (`Program.cs:66` connect
+> đồng bộ) → Redis sập là API không start được.
+> Xem [09-hien-trang-va-khuyen-nghi.md](09-hien-trang-va-khuyen-nghi.md) mục 1.6.
+
+**Dự kiến dùng để (⬜ chưa cái nào được implement):**
 | Mục đích | Ví dụ cụ thể |
 |---|---|
 | Cache AI response | Giải thích câu hỏi đã có → cache 7 ngày, lần sau không gọi API lại |
+| Cache dashboard stats | Query nặng nhất hệ thống, chỉ đổi khi user nộp bài mới |
 | JWT Blacklist | Token bị logout → lưu vào Redis đến hết expire |
-| Rate limiting | Đếm số lần gọi API của từng user trong 1 phút |
-| Leaderboard | `ZADD leaderboard 2450 userId` → `ZRANGE` lấy top 10 tức thì |
+| Leaderboard | `ZADD leaderboard 2450 userId` → `ZREVRANGE` lấy top 10 tức thì |
 | Session thi thử | Lưu trạng thái bài đang làm tránh mất dữ liệu |
 
 **Trong Docker:** Chạy ở `localhost:6379`. Tool xem dữ liệu: **RedisInsight** (GUI miễn phí).
