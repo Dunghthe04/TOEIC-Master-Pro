@@ -53,4 +53,10 @@ public interface ITestSessionService
   /// Mặc định chỉ tính full test (PartsFilter null).
   /// </summary>
   Task<Result<TestScoreStatsResponse>> GetScoreStatsByTestAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Dữ liệu tổng hợp cho Dashboard (Day 32) — xu hướng điểm + độ chính xác theo Part.
+  /// </summary>
+  /// <param name="recentLimit">Số lần thi gần nhất vẽ lên biểu đồ đường (kẹp trong 3–30).</param>
+  Task<Result<DashboardSummaryResponse>> GetDashboardAsync(Guid userId, int recentLimit = 10);
 }

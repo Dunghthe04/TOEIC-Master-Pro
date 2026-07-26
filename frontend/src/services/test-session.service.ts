@@ -14,6 +14,7 @@ import type {
     TestSessionHistoryResponse,
     TestSessionDetailResponse,
     TestScoreStatsResponse,
+    DashboardSummaryResponse,
 } from '@/types/test-session.types'
 
 export const TestSessionService = {
@@ -62,6 +63,17 @@ export const TestSessionService = {
         api
             .get<TestScoreStatsResponse>('/test-session/stats/by-test', {
                 params: { fullOnly },
+            })
+            .then((r) => r.data),
+
+    /**
+     * Tổng hợp trang chủ — Day 32.
+     * 1 request duy nhất trả cả xu hướng điểm lẫn accuracy theo Part.
+     */
+    getDashboard: (recentLimit = 10) =>
+        api
+            .get<DashboardSummaryResponse>('/test-session/dashboard', {
+                params: { recentLimit },
             })
             .then((r) => r.data),
 }

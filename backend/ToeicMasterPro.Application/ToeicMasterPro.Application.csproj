@@ -5,11 +5,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="11.11.0" />
-    <PackageReference Include="Mapster" Version="7.4.0" />
-    <PackageReference Include="Mapster.DependencyInjection" Version="1.0.1" />
-    <PackageReference Include="MediatR" Version="12.4.1" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <!--
+      Chỉ giữ package thực sự có code dùng tới.
+      Đã gỡ (2026-07-26): FluentValidation, Mapster, MediatR — cài từ đầu dự án
+      nhưng không có file nào dùng. Validate hiện làm bằng DataAnnotations +
+      kiểm tra trong Service; mapping viết tay trong Service; không dùng CQRS.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
   </ItemGroup>
 
   <PropertyGroup>

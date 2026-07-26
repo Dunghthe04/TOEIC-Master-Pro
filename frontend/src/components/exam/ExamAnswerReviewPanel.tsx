@@ -123,7 +123,6 @@ export default function ExamAnswerReviewPanel({
                     const selectedLabel = r.selectedOptionId
                         ? question?.options.find((o) => o.id === r.selectedOptionId)?.label
                         : null
-                    const reviewImage = question ? imageUrlForReview(question) : null
                     const reviewReadingImages = question ? readingImagesForReview(question) : []
                     const prevReadingImages =
                         idx > 0

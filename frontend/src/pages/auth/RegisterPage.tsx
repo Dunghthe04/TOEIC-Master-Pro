@@ -47,7 +47,7 @@ export default function Register() {
         try {
             const res = await authService.Register(data);
             setSuccessMsg(res.message);
-        } catch (error) {
+        } catch (error: any) {
             setserverError(error.response?.data?.error ?? 'Đăng ký thất bại, thử lại sau.')
         }
     }

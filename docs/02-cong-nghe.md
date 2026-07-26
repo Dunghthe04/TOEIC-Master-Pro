@@ -1,45 +1,60 @@
 # Công nghệ sử dụng
 
+> **Quy ước cột Trạng thái** — đối chiếu với code thật, cập nhật 2026-07-26:
+> ✅ đang chạy trong code · ⚠️ có nhưng tạm/chưa hoàn chỉnh · ⬜ mới nằm trong kế hoạch
+>
+> Bảng này là **nguồn sự thật**. Không ghi vào đây thứ chưa có trong code.
+
 <details>
 <summary>📋 Bảng tổng hợp stack</summary>
 
 ### Backend
-| Layer | Công nghệ |
-|---|---|
-| Framework | ASP.NET Core 8 (Web API) |
-| ORM | Entity Framework Core 8 |
-| Database | SQL Server 2022 |
-| Cache | Redis (StackExchange.Redis) |
-| Auth | ASP.NET Identity + JWT + Refresh Token |
-| Real-time | SignalR |
-| Background Jobs | Hangfire |
-| AI | Claude API (Anthropic) |
-| File Storage | Azure Blob Storage / MinIO (local dev) |
-| Email | MailKit + SendGrid |
-| Logging | Serilog |
-| API Docs | Scalar |
+| Layer | Công nghệ | Trạng thái |
+|---|---|---|
+| Framework | ASP.NET Core 8 (Web API) | ✅ |
+| Kiến trúc | Clean Architecture 4 tầng (Domain / Application / Infrastructure / API) | ✅ |
+| ORM | Entity Framework Core 8 | ✅ |
+| Truy cập dữ liệu | Repository\<T\> + UnitOfWork tự viết | ✅ |
+| Database | SQL Server 2022 | ✅ |
+| Cache | Redis (StackExchange.Redis) | ✅ |
+| Auth | ASP.NET Identity + JWT + Refresh Token + Google OAuth | ✅ |
+| Background Jobs | Hangfire (lưu job vào SQL Server) | ✅ |
+| Import Excel | EPPlus | ✅ |
+| Logging | Serilog (Console + File, xoay theo ngày) | ✅ |
+| API Docs | Swagger + Scalar (chỉ bật ở Development) | ✅ |
+| Rate limiting | `RateLimiter` built-in của .NET 8 | ✅ |
+| Xử lý lỗi | `IExceptionHandler` + ProblemDetails | ✅ |
+| Email | `ConsoleEmailSender` — in ra console, chưa gửi thật | ⚠️ |
+| File Storage | Lưu thẳng vào `wwwroot` trên đĩa | ⚠️ |
+| Real-time | SignalR | ⬜ chưa cài package |
+| AI | Claude API (Anthropic) | ⬜ chưa bắt đầu |
 
 ### Frontend
-| Layer | Công nghệ |
-|---|---|
-| Build Tool | Vite |
-| Framework | React 18 + TypeScript |
-| UI | shadcn/ui + Tailwind CSS |
-| State | Zustand |
-| Data Fetching | TanStack Query |
-| Audio | Howler.js |
-| Charts | Recharts |
-| Rich Text | TipTap (content manager) |
-| Toast | Sonner (thông báo thành công/thất bại) |
+| Layer | Công nghệ | Trạng thái |
+|---|---|---|
+| Build Tool | Vite 8 | ✅ |
+| Framework | **React 19** + TypeScript 6 | ✅ |
+| UI | shadcn/ui + Tailwind CSS 4 | ✅ |
+| State toàn cục | Zustand 5 (+ middleware `persist`) | ✅ |
+| Gọi API | **Axios** — instance dùng chung + interceptor gắn JWT | ✅ |
+| Form | React Hook Form + Zod | ✅ |
+| Routing | React Router 7 | ✅ |
+| Audio | Howler.js | ✅ |
+| Charts | Recharts | ✅ |
+| Rich Text | TipTap (content manager) | ✅ |
+| Toast | Sonner | ✅ |
+| Google Sign-In | @react-oauth/google | ✅ |
+| Server-state cache | TanStack Query | ⬜ **không dùng** — gọi axios trực tiếp trong `useEffect` |
 
 ### DevOps
-| Item | Công nghệ |
-|---|---|
-| Container | Docker + Docker Compose |
-| CI/CD | GitHub Actions |
-| Reverse Proxy | Nginx |
-| Hosting | VPS (Ubuntu) hoặc Azure App Service |
-| Monitoring | Grafana + Prometheus |
+| Item | Công nghệ | Trạng thái |
+|---|---|---|
+| Container (dev) | Docker Compose — SQL Server + Redis | ✅ |
+| Container (app) | Dockerfile cho API và Frontend | ⬜ chưa viết |
+| CI/CD | GitHub Actions | ⬜ `.github/workflows` đang rỗng |
+| Reverse Proxy | Nginx | ⬜ chưa |
+| Hosting | VPS Ubuntu | ⬜ chưa deploy lần nào |
+| Monitoring | Grafana + Prometheus | ⬜ chưa |
 
 </details>
 
@@ -85,66 +100,93 @@
 ---
 
 <details>
-<summary>🔀 MediatR — CQRS Pattern</summary>
+<summary>🚫 MediatR / FluentValidation / Mapster — cân nhắc nhưng KHÔNG dùng</summary>
 
-**Là gì:** Thư viện implement Mediator pattern — Controller gửi "request", MediatR tìm đúng "handler" xử lý, tách biệt hoàn toàn HTTP layer với business logic.
-
-**CQRS = Command Query Responsibility Segregation:**
-```
-Command  = thay đổi dữ liệu  → SubmitTestCommand, RegisterCommand
-Query    = chỉ đọc dữ liệu   → GetTestByIdQuery, GetLeaderboardQuery
-```
-
-**Luồng thực tế:**
-```
-POST /api/tests/submit
-  → Controller.Submit()
-  → mediator.Send(new SubmitTestCommand(...))
-  → SubmitTestCommandHandler.Handle()   ← MediatR tìm đúng handler
-  → return TestResultDto
-```
-
-</details>
+> **Sự thật:** ba package này được cài từ những ngày đầu dự án nhưng **chưa từng có dòng code nào dùng tới**.
+> Đã gỡ khỏi `ToeicMasterPro.Application.csproj` ngày 2026-07-26.
+>
+> Giữ mục này lại vì **phỏng vấn rất hay hỏi "sao không dùng CQRS/AutoMapper?"** — và trả lời được
+> *vì sao không cần* thì mạnh hơn nhiều so với dùng theo quán tính.
 
 ---
 
-<details>
-<summary>✅ FluentValidation — Validate Input</summary>
+### 🔀 MediatR — Mediator pattern / CQRS
 
-**Là gì:** Thư viện validate dữ liệu đầu vào bằng rules viết bằng code, tự động chạy qua MediatR Pipeline trước khi vào Handler.
+**Là gì:** Controller không gọi thẳng service, mà gửi một "request object"; MediatR tìm đúng handler xử lý.
 
-**Ví dụ:**
+```
+POST /api/test-session/{id}/submit
+  → Controller.Submit()
+  → mediator.Send(new SubmitTestCommand(sessionId))
+  → SubmitTestCommandHandler.Handle()     ← MediatR tự tìm handler
+```
+
+**CQRS** = tách lệnh ghi (Command) khỏi lệnh đọc (Query), để hai bên tối ưu độc lập — thường đi kèm hai model dữ liệu, đôi khi hai database.
+
+**Vì sao dự án này KHÔNG dùng:**
+
+| Lý do | Cụ thể |
+|---|---|
+| Thêm tầng gián tiếp mà không giải quyết vấn đề gì | Hiện tại `Controller → IService → Repository`. Thêm MediatR thành `Controller → Command → Handler → Repository` — dài hơn một tầng, lợi ích bằng 0 ở quy mô này |
+| Lợi ích thật của MediatR là **pipeline behavior** | Logging, validation, transaction dùng chung cho mọi request. Dự án đang giải quyết bằng middleware (`GlobalExceptionHandler`, `UseSerilogRequestLogging`) — rẻ hơn |
+| CQRS đúng nghĩa cần tách model đọc/ghi | Dự án dùng chung entity cho cả hai. Cài MediatR mà vẫn một model thì đó **không phải CQRS**, chỉ là đổi cách gọi hàm |
+| Khó debug hơn | Bấm "Go to definition" trên `mediator.Send()` không ra handler — phải tìm bằng tay |
+
+**Khi nào thì nên dùng:** team nhiều người cần chuẩn hóa cách viết; hoặc cần pipeline behavior áp cho hàng chục use case; hoặc thật sự tách read/write model (read từ replica, ghi vào primary).
+
+**Cách trả lời phỏng vấn:**
+> *"Em có tìm hiểu MediatR và CQRS. Nhưng dự án em một người làm, mỗi use case chỉ có một luồng đọc-ghi trên cùng entity, nên thêm MediatR chỉ tăng một tầng gián tiếp mà không giải quyết vấn đề nào. Cross-cutting concern như log và exception em xử lý bằng middleware. Nếu sau này cần transaction hay validation áp cho nhiều use case thì MediatR pipeline behavior sẽ đáng giá."*
+
+---
+
+### ✅ FluentValidation — validate đầu vào
+
+**Là gì:** viết rule validate bằng code, tách khỏi DTO.
+
 ```csharp
-public class RegisterCommandValidator : AbstractValidator<RegisterCommand>
+public class RegisterValidator : AbstractValidator<RegisterRequest>
 {
-    public RegisterCommandValidator()
+    public RegisterValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Password).MinimumLength(8).Matches("[A-Z]").Matches("[0-9]");
         RuleFor(x => x.TargetScore).InclusiveBetween(10, 990);
     }
 }
-// Nếu sai → tự động trả 400 Bad Request, không vào Handler
 ```
 
-</details>
+**Dự án đang làm thay bằng gì — 3 lớp:**
+
+| Lớp | Ở đâu | Ví dụ |
+|---|---|---|
+| Frontend | Zod + React Hook Form | `LoginPage`, `RegisterPage` — chặn sớm, báo lỗi ngay khi user gõ |
+| Identity | `Program.cs` cấu hình `options.Password.*` | Độ dài, chữ hoa, ký tự đặc biệt |
+| Service | Kiểm tra thủ công, trả `Result<T>.Failure(...)` | `TestSessionService.SaveAnswersAsync` — kiểm tra session thuộc user, đúng trạng thái, câu hỏi trong phạm vi |
+
+**Điểm yếu của cách hiện tại (nên tự nhận trong phỏng vấn):** validate rải rác, không có chỗ tập trung; cùng một rule (điểm mục tiêu 10–990) có thể viết ở FE mà quên ở BE. FluentValidation sẽ gom về một chỗ. Đây là **điểm cải thiện có thật**, không phải điểm mạnh.
 
 ---
 
-<details>
-<summary>🗺️ Mapster — Object Mapping</summary>
+### 🗺️ Mapster — map Entity ↔ DTO
 
-**Là gì:** Thư viện tự động copy dữ liệu từ object này sang object khác (Entity → DTO).
-
-**Tại sao dùng thay AutoMapper:** Nhanh hơn 2-3x, ít cấu hình hơn, không có lỗ hổng bảo mật như AutoMapper 13.
+**Là gì:** tự copy field cùng tên giữa hai object.
 
 ```csharp
-// Không có Mapster — viết tay từng field
-var dto = new UserDto { Id = user.Id, Email = user.Email, Name = user.FullName };
-
-// Dùng Mapster — tự động map field cùng tên
-var dto = user.Adapt<UserDto>();
+var dto = user.Adapt<UserDto>();   // thay vì gán tay từng field
 ```
+
+**Dự án đang làm thay bằng gì:** khởi tạo DTO thủ công ngay trong Service. Ví dụ `TestSessionService.GetHistoryAsync` dựng `new TestSessionHistoryItem(...)` bằng tay.
+
+**Đánh đổi — hai chiều đều đúng:**
+
+| Map tay (đang dùng) | Mapster/AutoMapper |
+|---|---|
+| ✅ Nhìn là biết field nào từ đâu | ❌ Map ngầm, đổi tên field là im lặng thành `null` |
+| ✅ Không tốn reflection lúc chạy | ✅ Ít code lặp khi DTO nhiều field |
+| ❌ Dài dòng khi DTO có 15+ field | ✅ Một dòng |
+| ✅ Compiler bắt lỗi khi đổi DTO | ❌ Lỗi chỉ lộ lúc chạy |
+
+**Cách trả lời phỏng vấn:**
+> *"DTO của em phần lớn dưới 10 field và nhiều chỗ cần biến đổi chứ không phải copy thuần — ví dụ `PartsFilter` lưu chuỗi `'1,2,5'` trong DB nhưng trả ra mảng `int[]`. Map tay giữ được sự rõ ràng và để compiler bắt lỗi khi em đổi DTO. Nếu DTO phình to hoặc lặp nhiều thì em sẽ cân nhắc Mapster."*
 
 </details>
 
@@ -170,11 +212,14 @@ var dto = user.Adapt<UserDto>();
 ---
 
 <details>
-<summary>📡 SignalR — Real-time</summary>
+<summary>📡 SignalR — Real-time ⬜ CHƯA LÀM</summary>
+
+> ⚠️ **Chưa cài package, chưa có Hub nào trong code.** Đây là kế hoạch Day 43+.
+> Đừng nói "dự án em có real-time" khi phỏng vấn — câu hỏi tiếp theo sẽ là "Hub em đặt ở đâu, xử lý reconnect thế nào".
 
 **Là gì:** Thư viện .NET cho phép server chủ động đẩy dữ liệu xuống client (WebSocket).
 
-**Dùng cho:**
+**Dự kiến dùng cho:**
 - **1v1 Challenge** — Điểm số cập nhật ngay khi đối thủ trả lời
 - **AI Chatbot** — Stream từng chữ như ChatGPT
 - **Thông báo** — Nhắc nhở lịch thi, badge mới
@@ -272,7 +317,10 @@ User bấm chuông chỉ **đăng ký nhắc** (ghi DB). Không gửi mail ngay 
 ---
 
 <details>
-<summary>🤖 Claude API (Anthropic) — AI Engine</summary>
+<summary>🤖 Claude API (Anthropic) — AI Engine ⬜ CHƯA LÀM</summary>
+
+> ⚠️ **Chưa tích hợp.** Không có `AIService`, không có API key trong config. Đây là kế hoạch Day 37–48.
+> Đây là **điểm khác biệt** của sản phẩm nên rất đáng làm — nhưng chỉ nói ở thì tương lai.
 
 **Là gì:** API của Anthropic cho phép gọi model Claude để xử lý ngôn ngữ tự nhiên.
 

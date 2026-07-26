@@ -34,37 +34,51 @@ Dự án áp dụng **Clean Architecture** — tổ chức code thành các lớ
 
 **Là gì:** Trái tim của ứng dụng. Chứa business logic thuần túy, không import bất kỳ thư viện nào ngoài .NET base class.
 
-**Cấu trúc:**
+**Cấu trúc thật (đối chiếu code 2026-07-26):**
 ```
 Domain/
-├── Entities/           ← Các class đại diện bảng DB (User, Question, Test...)
-├── Enums/              ← Enum dùng trong business (QuestionPart, UserRole...)
-├── Interfaces/         ← Contract mà Infrastructure phải implement
+├── Entities/           ← 12 entity: ApplicationUser, Question, QuestionOption,
+│                          Test, TestQuestion, TestSession, TestSessionAnswer,
+│                          Vocabulary, UserVocabulary, ExamSchedule,
+│                          UserExamReminder, RefreshToken
+├── Enums/              ← QuestionPart, DifficultyLevel, TestSessionStatus...
 └── Common/
-    ├── BaseEntity.cs   ← Base class: Id, CreatedAt, UpdatedAt
+    ├── BaseEntity.cs   ← Id, CreatedAt, UpdatedAt + SetUpdatedAt()
     └── Result.cs       ← Wrapper thành công/thất bại, thay vì throw Exception
 ```
 
-**Ví dụ thực tế:**
+**Ví dụ thật — `Domain/Entities/Question.cs`:**
 ```csharp
-// Domain/Entities/Question.cs
 public class Question : BaseEntity
 {
-    public string Content { get; private set; }
-    public QuestionPart Part { get; private set; }       // Enum: Part1..Part7
-    public DifficultyLevel Difficulty { get; private set; }
-
-    // Business rule: chỉ tạo question hợp lệ qua factory method
-    public static Result<Question> Create(string content, QuestionPart part)
-    {
-        if (string.IsNullOrWhiteSpace(content))
-            return Result<Question>.Failure("Nội dung không được rỗng");
-        return Result<Question>.Success(new Question { Content = content, Part = part });
-    }
+    public string Content { get; set; } = string.Empty;
+    public QuestionPart Part { get; set; }
+    public DifficultyLevel Difficulty { get; set; }
+    public string? Explanation { get; set; }
+    // ... property thuần, không có logic
 }
 ```
 
-> ❌ KHÔNG import `Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore`, hay bất kỳ package nào trong layer này.
+> ⚠️ **Điểm cần biết trước khi phỏng vấn — Anemic Domain Model**
+>
+> Entity của dự án chỉ là **túi đựng dữ liệu**: property `public get; set;`, không có factory method,
+> không tự bảo vệ trạng thái hợp lệ. Toàn bộ nghiệp vụ (chấm điểm, kiểm tra quyền, chuyển trạng thái
+> phiên thi) nằm ở tầng Service trong Infrastructure.
+>
+> Kiểu này gọi là **Anemic Domain Model** — Martin Fowler coi là anti-pattern, nhưng nó là cách
+> **phổ biến nhất** trong thế giới .NET thực tế và hoàn toàn bảo vệ được.
+>
+> **Nếu bị hỏi "Domain của em có business logic không?":**
+> > *"Domain em hiện là anemic model — entity chỉ giữ dữ liệu, nghiệp vụ nằm ở Service. Em chọn vậy vì
+> > phần lớn nghiệp vụ của em là điều phối nhiều entity cùng lúc (chấm một phiên thi phải đọc
+> > TestSession + TestQuestion + Question + QuestionOption), đặt vào một entity đơn lẻ sẽ không tự nhiên.
+> > Đổi lại, entity không tự bảo vệ được trạng thái — ví dụ ai cũng gán `session.Status = Completed`
+> > mà không qua kiểm tra. Nếu làm lại, chỗ đáng chuyển sang rich model nhất là `TestSession`,
+> > cho nó method `Complete(score)` tự kiểm tra trạng thái trước khi đổi."*
+>
+> Trả lời được như trên = hiểu đánh đổi. Nói "dạ Domain em chứa business logic" = sai với code của chính mình.
+
+> ❌ Layer này KHÔNG import `Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore`, hay bất kỳ package ngoài nào — điều này thì code đang làm đúng.
 
 </details>
 
@@ -75,49 +89,47 @@ public class Question : BaseEntity
 
 **Là gì:** Lớp điều phối — định nghĩa *ứng dụng có thể làm gì* (use cases). Biết Domain, không biết Infrastructure hay API.
 
-**Cấu trúc:**
+**Cấu trúc thật (đối chiếu code 2026-07-26):**
 ```
 Application/
-├── Features/                         ← Mỗi feature là 1 folder (Vertical Slice)
-│   ├── Auth/
-│   │   ├── Commands/
-│   │   │   ├── RegisterCommand.cs          ← Request (dữ liệu đầu vào)
-│   │   │   ├── RegisterCommandHandler.cs   ← Xử lý logic
-│   │   │   └── RegisterCommandValidator.cs ← Validate với FluentValidation
-│   │   └── Queries/
-│   │       └── GetUserProfileQuery.cs
-│   ├── Tests/
-│   │   ├── Commands/SubmitTestCommand.cs
-│   │   └── Queries/GetTestByIdQuery.cs
-│   └── Vocabulary/...
-└── Common/
-    ├── Interfaces/         ← Contract cho Infrastructure implement
-    │   ├── IApplicationDbContext.cs
-    │   ├── ICacheService.cs
-    │   ├── ICurrentUserService.cs
-    │   └── IAiService.cs
-    ├── DTOs/               ← Data Transfer Objects trả về cho API
-    └── Behaviors/          ← MediatR pipeline (logging, validation)
+├── Common/
+│   ├── Interfaces/       ← 17 interface — contract cho Infrastructure implement
+│   │   ├── IRepository.cs, IUnitOfWork.cs
+│   │   ├── IAuthService.cs, ITokenService.cs, ICurrentUserService.cs
+│   │   ├── ITestSessionService.cs, ITestService.cs, IQuestionService.cs
+│   │   ├── ICacheService.cs, IEmailSender.cs
+│   │   └── ...
+│   ├── Options/          ← JwtSettings, GoogleAuthSettings, ToeicDirectionsOptions
+│   ├── ToeicScoreHelper.cs        ← Quy đổi điểm ETS (nghiệp vụ thuần, có unit test)
+│   ├── ToeicEtsConversionTable.cs ← Bảng tra WIE
+│   └── PartBreakdownBuilder.cs    ← Gom thống kê theo Part
+└── DTOs/                 ← Gom theo nhóm nghiệp vụ, KHÔNG theo Command/Query
+    ├── Auth/  ExamSchedules/  Practice/  Profile/
+    ├── Questions/  Srs/  Tests/  TestSessions/  Vocabularies/
 ```
 
-**Ví dụ — Submit bài thi:**
-```csharp
-public record SubmitTestCommand(Guid SessionId, List<AnswerDto> Answers)
-    : IRequest<Result<TestResultDto>>;
+> 🔴 **Doc cũ mô tả sai** — từng ghi có `Features/Auth/Commands/`, `Common/Behaviors/` (MediatR pipeline).
+> Những thư mục đó **tồn tại nhưng rỗng**, tạo từ ngày đầu theo tutorial rồi bỏ. Đã xóa ngày 2026-07-26.
+> Dự án **không dùng CQRS/MediatR** — xem mục lý do trong [02-cong-nghe.md](02-cong-nghe.md).
 
-public class SubmitTestCommandHandler : IRequestHandler<SubmitTestCommand, Result<TestResultDto>>
+**Điểm đáng chú ý:** Application chứa **interface + DTO + nghiệp vụ thuần**, không chứa implement service.
+Ví dụ nghiệp vụ thuần đáng kể nhất là `ToeicScoreHelper` — quy đổi số câu đúng sang thang điểm ETS.
+Nó không cần DB, không cần HTTP, nên **test được bằng unit test thuần** (`ToeicMasterPro.Tests`).
+Đây là ví dụ tốt nhất trong dự án về "tách nghiệp vụ khỏi hạ tầng" — rất đáng đem ra kể khi phỏng vấn.
+
+**Ví dụ thật — cách một use case được khai báo:**
+```csharp
+// Application/Common/Interfaces/ITestSessionService.cs
+public interface ITestSessionService
 {
-    public async Task<Result<TestResultDto>> Handle(SubmitTestCommand cmd, CancellationToken ct)
-    {
-        var session = await _db.TestSessions.FindAsync(cmd.SessionId);
-        var score = CalculateScore(session, cmd.Answers);  // business logic
-        session.Complete(score);
-        await _db.SaveChangesAsync(ct);
-        await _ai.GenerateWeakAreaAnalysisAsync(session.UserId, score);
-        return Result<TestResultDto>.Success(score.ToDto());
-    }
+    Task<Result<TestSessionStartedResponse>> StartAsync(Guid userId, StartTestSessionRequest req);
+    Task<Result<int>> SaveAnswersAsync(Guid userId, Guid sessionId, SaveSessionAnswersRequest req);
+    Task<Result<TestSessionSubmitResponse>> SubmitAsync(Guid userId, Guid sessionId);
+    // ...
 }
 ```
+Application chỉ nói **"làm được gì"**. Việc **"làm thế nào"** nằm ở Infrastructure.
+Đây chính là Dependency Inversion — tầng trong định nghĩa contract, tầng ngoài implement.
 
 </details>
 
@@ -128,22 +140,40 @@ public class SubmitTestCommandHandler : IRequestHandler<SubmitTestCommand, Resul
 
 **Là gì:** Lớp kỹ thuật — implement các interface mà Application định nghĩa. Biết tất cả về DB, cache, AI nhưng không biết business logic.
 
-**Cấu trúc:**
+**Cấu trúc thật (đối chiếu code 2026-07-26):**
 ```
 Infrastructure/
 ├── Persistence/
-│   ├── ApplicationDbContext.cs          ← EF Core DbContext
-│   ├── Configurations/                  ← Cấu hình bảng (Fluent API)
-│   │   ├── UserConfiguration.cs
-│   │   └── QuestionConfiguration.cs
-│   ├── Migrations/                      ← Auto-generated bởi EF Core CLI
+│   ├── ApplicationDbContext.cs      ← EF Core DbContext (kế thừa IdentityDbContext)
+│   ├── Configurations/              ← Cấu hình bảng bằng Fluent API
 │   └── Repositories/
-├── Services/
-│   ├── AI/ClaudeAiService.cs            ← Implement IAiService
-│   ├── Cache/RedisCacheService.cs       ← Implement ICacheService
-│   └── Email/SendGridEmailService.cs    ← Implement IEmailService
-└── DependencyInjection.cs               ← Đăng ký tất cả service vào DI
+│       ├── Repository.cs            ← Repository<T> generic
+│       └── UnitOfWork.cs
+├── Migrations/                      ← ⚠️ nằm ở đây, KHÔNG phải Persistence/Migrations
+├── Authentication/                  ← TokenService (tạo/verify JWT)
+├── Caching/                         ← RedisCacheService : ICacheService
+└── Services/                        ← Nơi chứa TOÀN BỘ nghiệp vụ
+    ├── TestSessionService.cs        ← lớn nhất: chấm điểm, lịch sử, dashboard
+    ├── AuthService.cs, ProfileService.cs
+    ├── TestService.cs, QuestionService.cs, PracticeService.cs
+    ├── ExamScheduleService.cs, ExamReminderService.cs
+    ├── SrsService.cs, VocabularyService.cs
+    └── ConsoleEmailSender.cs        ← Dev: in email ra console
 ```
+
+> 🔴 **Doc cũ mô tả sai** — từng ghi có `Services/AI/ClaudeAiService.cs` và
+> `Services/Email/SendGridEmailService.cs`. Cả hai **chưa tồn tại**; các thư mục `AI/`, `Cache/`, `Email/`
+> rỗng và đã xóa. Email hiện dùng `ConsoleEmailSender` (chỉ in ra console).
+>
+> Cũng **không có** `DependencyInjection.cs` — mọi service đăng ký thẳng trong `API/Program.cs`.
+
+> 💡 **Câu hỏi phỏng vấn hay gặp:** *"Business logic của em nằm ở tầng nào?"*
+> Trả lời trung thực: **Infrastructure**. Theo Clean Architecture "chuẩn sách vở" thì nghiệp vụ nên ở
+> Application/Domain, còn Infrastructure chỉ lo kỹ thuật. Dự án này đặt service ở Infrastructure vì
+> service cần truy cập `IUnitOfWork`/EF Core trực tiếp.
+> **Đánh đổi:** đổi ORM thì phải viết lại service. **Cách đúng hơn:** để implement service ở Application,
+> chỉ `Repository`/`DbContext` ở Infrastructure. Biết và nói ra được điểm này = hiểu kiến trúc thật sự,
+> không phải chỉ chép cấu trúc thư mục.
 
 **Ví dụ — Redis Cache:**
 ```csharp
@@ -170,37 +200,49 @@ public class RedisCacheService : ICacheService  // implement interface từ Appl
 <details>
 <summary>🔴 Layer 4 — API <code>ToeicMasterPro.API</code></summary>
 
-**Là gì:** Entry point. Nhận HTTP request, gọi Application qua MediatR, trả response. Không chứa business logic.
+**Là gì:** Entry point. Nhận HTTP request, gọi service qua interface, trả response. Không chứa business logic.
 
-**Cấu trúc:**
+**Cấu trúc thật (đối chiếu code 2026-07-26):**
 ```
 API/
-├── Controllers/
-│   ├── AuthController.cs        ← POST /api/auth/register, /login
-│   ├── TestsController.cs       ← GET /api/tests, POST /api/tests/{id}/submit
-│   ├── VocabularyController.cs
-│   └── ScheduleController.cs
+├── Controllers/                 ← 10 controller
+│   ├── AuthController.cs        ← register / login / google-login / refresh
+│   ├── TestSessionController.cs ← start / answers / submit / history / dashboard
+│   ├── TestController.cs, QuestionController.cs, MediaController.cs
+│   ├── PracticeController.cs, SrsController.cs, VocabularyController.cs
+│   ├── ProfileController.cs, ExamScheduleController.cs
 ├── Middleware/
-│   ├── ExceptionMiddleware.cs   ← Bắt exception → trả lỗi chuẩn RFC 7807
-│   └── CurrentUserMiddleware.cs ← Inject ICurrentUserService từ JWT claims
-├── Program.cs                   ← Cấu hình DI, middleware, CORS
+│   └── GlobalExceptionHandler.cs  ← IExceptionHandler → ProblemDetails (RFC 7807)
+├── Services/
+│   └── CurrentUserService.cs      ← Đọc userId/role từ JWT claims
+├── Jobs/
+│   └── ExamReminderJob.cs         ← Wrapper mỏng cho Hangfire
+├── wwwroot/uploads/               ← Audio + ảnh của đề thi (lưu trên đĩa)
+├── Program.cs                     ← DI, middleware pipeline, CORS, seed role
 └── appsettings.json
 ```
 
-**Controller cực gọn — không có logic:**
+**Controller thật — gọn, không có logic:**
 ```csharp
-[ApiController, Route("api/tests"), Authorize]
-public class TestsController(ISender mediator) : ControllerBase
+// API/Controllers/TestSessionController.cs
+[HttpPost("{id:Guid}/submit")]
+public async Task<IActionResult> Submit(Guid id)
 {
-    [HttpPost("{sessionId}/submit")]
-    public async Task<IActionResult> Submit(Guid sessionId, SubmitTestRequest req)
-    {
-        var result = await mediator.Send(new SubmitTestCommand(sessionId, req.Answers));
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    var userId = RequireUserId();               // lấy từ JWT qua ICurrentUserService
+    if (userId is null) return Unauthorized();
+
+    var result = await _service.SubmitAsync(userId.Value, id);
+    return result.IsSuccess
+        ? Ok(result.Value)
+        : BadRequest(new { error = result.Error });
 }
-// Chỉ 5 dòng — toàn bộ logic nằm trong Handler
 ```
+
+> 💡 **Vì sao trả `Result<T>` thay vì `throw Exception`:** lỗi nghiệp vụ (phiên thi đã nộp rồi, đề chưa
+> publish) là **kết quả bình thường** của luồng, không phải sự cố. Dùng exception cho việc này vừa chậm
+> (exception trong .NET tốn kém), vừa khiến signature hàm nói dối — nhìn `Task<TestResultDto>` tưởng
+> luôn thành công. `Result<T>` bắt người gọi phải xử lý nhánh thất bại. Exception để dành cho sự cố thật
+> (mất kết nối DB) và do `GlobalExceptionHandler` bắt.
 
 </details>
 
@@ -209,31 +251,76 @@ public class TestsController(ISender mediator) : ControllerBase
 <details>
 <summary>🔄 Luồng xử lý một request hoàn chỉnh</summary>
 
+> ⭐ **Đây là câu phỏng vấn gần như chắc chắn bị hỏi:** *"Kể anh nghe một request đi qua những đâu."*
+> Sơ đồ dưới lấy đúng theo thứ tự middleware trong `Program.cs` — học thuộc thứ tự này.
+
 ```
-HTTP POST /api/tests/{id}/submit
+HTTP POST /api/test-session/{id}/submit     Authorization: Bearer <JWT>
          │
          ▼
-  [ExceptionMiddleware]           ← bắt mọi exception chưa xử lý
+  UseExceptionHandler()            ← ngoài cùng, bọc tất cả. Có exception lọt ra
+         │                            → GlobalExceptionHandler → ProblemDetails (RFC 7807)
+         ▼
+  UseSerilogRequestLogging()       ← ghi log: method, path, status, thời gian
          │
          ▼
-  [AuthMiddleware - JWT]          ← xác thực token, inject user vào context
+  UseHttpsRedirection()            ← chỉ bật khi KHÔNG phải Development
          │
          ▼
-  TestsController.Submit()        ← parse request, gọi mediator.Send()
+  UseStaticFiles()                 ← nếu path là /uploads/... thì trả file luôn, DỪNG ở đây
          │
          ▼
-  [ValidationBehavior]            ← FluentValidation chạy trước handler
+  UseCors("Frontend")              ← kiểm tra Origin có trong whitelist không
          │
          ▼
-  SubmitTestCommandHandler        ← business logic
-         │
-         ├── ApplicationDbContext → SQL Server
-         ├── RedisCacheService   → Redis
-         └── ClaudeAiService     → Anthropic API
+  UseAuthentication()              ← đọc Bearer token, verify chữ ký + hạn
+         │                            → dựng HttpContext.User (chưa phân quyền)
+         ▼
+  UseRateLimiter()                 ← policy "auth": 5 request/phút/IP
          │
          ▼
-  200 OK { score: 745, listening: 390, reading: 355 }
+  UseAuthorization()               ← xét [Authorize] / [Authorize(Roles="...")]
+         │                            → sai role thì 403 tại đây, chưa vào controller
+         ▼
+  MapControllers() → TestSessionController.Submit(id)
+         │
+         ├─ ICurrentUserService.UserId       ← đọc claim từ HttpContext.User
+         ▼
+  ITestSessionService.SubmitAsync(userId, sessionId)      [Application: interface]
+         │
+         ▼
+  TestSessionService.SubmitAsync(...)                      [Infrastructure: implement]
+         │
+         ├── IUnitOfWork.Repository<TestSession>()  → EF Core → SQL Server
+         ├── IUnitOfWork.Repository<Question>()     → EF Core → SQL Server
+         ├── ToeicScoreHelper.ConvertSectionScore() → [Application: nghiệp vụ thuần, không I/O]
+         ├── PartBreakdownBuilder.Build()           → [Application: nghiệp vụ thuần]
+         └── IUnitOfWork.SaveChangesAsync()         → COMMIT
+         │
+         ▼
+  Result<TestSessionSubmitResponse>
+         │
+         ▼
+  200 OK { totalScore: 745, listeningScore: 390, readingScore: 355, partBreakdown: [...] }
 ```
+
+### Ba câu hỏi đào sâu hay đi kèm sơ đồ này
+
+**1. "Vì sao `UseCors` phải đứng trước `UseAuthentication`?"**
+> Trình duyệt gửi **preflight request** `OPTIONS` trước request thật, và preflight **không mang** header
+> `Authorization`. Nếu Authentication chạy trước, preflight bị trả 401 → trình duyệt kết luận CORS thất bại
+> → request thật không bao giờ được gửi. Đặt CORS trước để preflight được trả lời sớm.
+
+**2. "Khác nhau giữa `UseAuthentication` và `UseAuthorization`?"**
+> `Authentication` = **anh là ai** — đọc token, verify chữ ký, dựng `HttpContext.User`. Không quyết định
+> cho phép hay không.
+> `Authorization` = **anh được làm gì** — dựa vào `HttpContext.User` để xét `[Authorize(Roles="Admin")]`.
+> Vì thế thứ tự bắt buộc là Authentication trước. Sai thứ tự thì `User` luôn rỗng → mọi request 401.
+
+**3. "`UseExceptionHandler` sao lại đặt ngoài cùng?"**
+> Middleware là các lớp bọc nhau như củ hành. Đặt ngoài cùng thì mới bắt được exception ném ra từ **mọi**
+> lớp bên trong. Đặt sau `UseAuthorization` thì exception xảy ra trong Authentication sẽ lọt ra ngoài,
+> client nhận HTML lỗi mặc định của Kestrel thay vì JSON chuẩn.
 
 </details>
 

@@ -1,6 +1,7 @@
 // Luyện nhanh (PHỤ) — random từ kho Question / API Day 25.
 // Luồng chính thi thử từ đề import nằm ở /mock-test (Exam Engine Day 26+).
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PracticeService } from '@/services/practice.service'
 import type {
     DifficultyLevel,
@@ -30,9 +31,16 @@ const PARTS = [
     { value: 4, label: 'Part 4 — Talks' },
 ]
 
+/** Đọc ?part=N từ URL — Dashboard Day 32 deep-link thẳng vào Part yếu. */
+function initialPartFromUrl(raw: string | null): string {
+    const n = Number(raw)
+    return PARTS.some((p) => p.value === n) ? String(n) : '1'
+}
+
 export default function PracticePage() {
+    const [searchParams] = useSearchParams()
     const [phase, setPhase] = useState<Phase>('setup')
-    const [part, setPart] = useState('1')
+    const [part, setPart] = useState(() => initialPartFromUrl(searchParams.get('part')))
     const [difficulty, setDifficulty] = useState<'all' | DifficultyLevel>('all')
     const [limit, setLimit] = useState('10')
     const [timerOn, setTimerOn] = useState(false)

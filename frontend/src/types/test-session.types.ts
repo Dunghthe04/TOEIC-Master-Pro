@@ -151,6 +151,42 @@ export interface TestScoreStatsResponse {
     items: TestScoreByTestItem[]
 }
 
+// ── Day 32: Dashboard tổng hợp ────────────────────────────────────────────
+
+/** Một chấm trên biểu đồ đường xu hướng điểm */
+export interface DashboardScorePoint {
+    sessionId: string
+    testId: string
+    testTitle: string
+    completedAt: string
+    /** true = thi full đề; false = chỉ thi vài Part */
+    isFullTest: boolean
+    listeningScore: number | null
+    readingScore: number | null
+    totalScore: number | null
+}
+
+/** Response GET /api/test-session/dashboard */
+export interface DashboardSummaryResponse {
+    targetScore: number
+    totalSessions: number
+    fullTestSessions: number
+    bestTotalScore: number | null
+    latestTotalScore: number | null
+    averageTotalScore: number | null
+    /** Còn thiếu bao nhiêu điểm nữa là đạt mục tiêu; 0 = đã đạt */
+    pointsToTarget: number | null
+    overallAccuracyPercent: number
+    answeredQuestions: number
+    lastCompletedAt: string | null
+    /** Cũ → mới, vẽ LineChart theo đúng thứ tự mảng */
+    scoreTrend: DashboardScorePoint[]
+    /** Tái dùng PartBreakdownItem của Day 30 */
+    partAccuracy: PartBreakdownItem[]
+    /** Tối đa 3 Part yếu nhất */
+    weakParts: number[]
+}
+
 /** Chuyển detail → format màn kết quả (tái dùng ExamResultScreen). */
 export function sessionDetailToSubmitResult(
     detail: TestSessionDetailResponse

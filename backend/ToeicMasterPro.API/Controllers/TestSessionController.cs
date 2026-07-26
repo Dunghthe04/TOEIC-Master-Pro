@@ -120,6 +120,24 @@ public class TestSessionController : ControllerBase
     }
 
     /// <summary>
+    /// Tổng hợp Dashboard (Day 32) — xu hướng điểm, accuracy theo Part, Part yếu.
+    ///
+    /// Phải khai báo TRƯỚC route "{id:Guid}" cho dễ đọc; không xung đột vì
+    /// "dashboard" không phải Guid nên constraint :Guid tự loại route kia.
+    /// </summary>
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboard([FromQuery] int recentLimit = 10)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.GetDashboardAsync(userId.Value, recentLimit);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>
     /// Xem lại 1 lần thi đã nộp — điểm, phân tích Part, review từng câu (Day 31 Bước 2).
     /// Dùng khi user bấm 1 dòng trong lịch sử.
     /// </summary>
