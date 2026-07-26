@@ -39,8 +39,8 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 | **User** | 25 ✅ *(phụ)* | Practice API luyện nhanh |
 | **User** *(core)* | **26–30** ✅ | Exam Engine / thi thử (API play → UI → session → kết quả ETS + Part) |
 | **User** | **31** ✅ | Lịch sử thi, tiến độ (biểu đồ best score), xem lại kết quả |
-| **User** | **32** ✅ | Dashboard: xu hướng điểm, độ chính xác theo Part, gợi ý Part yếu |
-| **User** | **33** | Tracking chi tiết (câu sai theo chủ đề, thời gian) |
+| **User** | **32** ✅ | Dashboard tổng hợp: cards, timeline, Part yếu gom nhiều phiên |
+| **User** | **33** | Tracking chi tiết (câu sai theo chủ đề, thời gian làm câu) |
 | **User** | 34–36 | Gamification UI + API |
 | **User** | 37–48 | AI coach, chatbot, adaptive… |
 | **User** | 49–51 | 1v1 challenge |
@@ -51,9 +51,9 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ### Tóm nhanh theo persona
 
-| Persona | Đang có (đến Day 31) | Sắp làm tiếp |
+| Persona | Đang có (đến Day 32) | Sắp làm tiếp |
 |---------|----------------------|--------------|
-| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R**; **lịch sử thi**, **tiến độ/biểu đồ**, xem lại kết quả, **dashboard tổng hợp** | **Day 33** tracking chi tiết, rồi gamification / AI… |
+| **User** | Auth, profile, lịch thi, vocab SRS, luyện nhanh; **thi thử L+R**; **lịch sử thi**, **tiến độ/biểu đồ**, **dashboard** (`/dashboard`), xem lại kết quả | **Day 33** tracking chi tiết, rồi gamification / AI… |
 | **Content Manager** | Panel câu hỏi + đề + import; API lịch thi & vocab | Bổ sung panel quản lý lịch thi UI (nếu cần); nội dung đề cho Exam Engine |
 | **Admin** | Seed account + quyền trên API CM/Admin | UI Admin Day **55–57** |
 
@@ -63,16 +63,34 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 ## 📍 TRẠNG THÁI HIỆN TẠI
 
-**Đang ở:** Hết **Day 32** (dashboard tổng hợp) ✅  
-**Tiếp theo:** **Day 33** — API tracking chi tiết: câu sai theo chủ đề, thời gian làm bài.
+**Đang ở:** Hết **Day 32** (dashboard User — cards + biểu đồ + Part yếu) ✅  
+**Tiếp theo:** **Day 33** — Tracking chi tiết: câu sai theo chủ đề/tag, thời gian làm từng câu.
 
 **Day 32 đã giao:**
-- Backend: `GET /api/test-session/dashboard` — gộp mọi lần thi thành `scoreTrend` (10 lần gần nhất, cũ→mới), `partAccuracy` (gộp 20 phiên gần nhất), `weakParts` (tối đa 3 Part thấp nhất, lọc Part có ≥5 câu)
-- Frontend: `DashboardPage` viết lại — 4 thẻ số liệu, **LineChart xu hướng điểm** (Total/Listening/Reading + đường mục tiêu), **BarChart accuracy theo Part** + callout Part yếu có nút luyện, empty state khi chưa thi
-- Component mới: `ScoreTrendChart`, `PartAccuracyChart`, `StatTile` (dùng lại cho Day 34 XP/streak)
-- `lib/chartColors.ts` — bảng màu chart dùng chung, đã qua validator mù màu/tương phản. Lưu ý: `#1a4d7c` chỉ dùng cho header/chữ, KHÔNG dùng làm màu đường/cột
-- `PracticePage` đọc `?part=N` để dashboard deep-link vào Part yếu (Part 1–4; Part 5–7 dẫn sang `/mock-test`)
-- Sửa nợ có sẵn chặn build: bỏ `baseUrl` trong `tsconfig*.json` (TS 6 khai tử), 3 lỗi TS lặt vặt bị che từ trước
+- Backend: `GET /api/test-session/stats/overview`, `stats/timeline`, `stats/parts` (`fullOnly` đồng bộ Day 31)
+- Frontend: **`/dashboard`** — cards tổng quan, line chart điểm theo thời gian (Recharts), `ExamPartBreakdownPanel` gom Part yếu nhiều phiên, quick links, empty state
+- Docs: mục **Recharts** trong `02-cong-nghe.md`
+
+**Dọn dẹp kèm Day 32 (đợt "dọn sự thật" 2026-07-26):**
+- Gỡ 3 package cài mà không dùng: **MediatR, Mapster, FluentValidation**; sửa `DependencyInjection.Abstractions` 10.0.9 → 8.0.2 cho khớp net8.0
+- Xóa 8 thư mục rỗng kiểu CQRS (`Features/Auth/Commands`, `Common/Behaviors`, `Services/AI|Cache|Email`…) — vỏ tutorial chưa từng có code
+- Viết lại [02-cong-nghe.md](02-cong-nghe.md): bảng stack thêm cột trạng thái ✅/⚠️/⬜; sửa React 18→19; đánh dấu SignalR + Claude API là **chưa làm**; thêm mục "vì sao KHÔNG dùng MediatR/FluentValidation/Mapster"
+- Viết lại [03-clean-architecture.md](03-clean-architecture.md) cho khớp code thật: cấu trúc 4 tầng, ghi rõ **anemic domain model**, business logic nằm ở Infrastructure, sơ đồ pipeline theo đúng `Program.cs`
+- Sửa nợ chặn build: bỏ `baseUrl` trong `tsconfig*.json` (TypeScript 6 khai tử) + 3 lỗi TS bị che từ trước
+- `PracticePage` đọc `?part=N` để deep-link vào Part yếu
+
+> 📌 **Ghi nhớ về màu biểu đồ** (rút ra khi làm Day 32, chưa thành code):
+> `#1a4d7c` **không dùng được làm màu phân biệt nhiều series** — quá tối và quá xám nên trượt check
+> độ sáng + độ bão hòa, người mù màu khó tách khỏi màu bên cạnh. Với chart **một đường** như
+> `/dashboard` hiện tại thì vẫn ổn (chỉ cần tương phản ≥ 3:1 với nền).
+> Khi nào vẽ chart **từ 2 series trở lên** (vd Listening vs Reading) thì phải đổi sang bộ đã kiểm chứng:
+> `#2f7fc4` / `#7c3aed` / `#d97706` — bộ này pass toàn bộ 6 check màu.
+
+> ⚠️ **Nợ phát hiện khi rà `Program.cs`, phải sửa TRƯỚC khi deploy:**
+> 1. `UseHangfireDashboard("/hangfire")` nằm ngoài khối `IsDevelopment` và **không có authorization** → ai cũng vào xem và kích hoạt job được
+> 2. `ConnectionMultiplexer.Connect()` gọi **đồng bộ lúc khởi động** → Redis chưa sẵn sàng thì API sập lúc boot
+> 3. `appsettings.Development.json` **đang bị commit vào git** kèm secret (JWT SecretKey, Google ClientId, mật khẩu DB)
+> 4. Redis đã đăng ký DI nhưng **chưa chỗ nào dùng** — `ICacheService` không được inject vào service nào
 
 **Day 31 đã giao:**
 - Backend: `GET /api/test-session/history`, `GET /api/test-session/{id}`, `GET /api/test-session/stats/by-test` (best score / đề + `targetScore`)
@@ -181,7 +199,7 @@ lịch thi, gamification, community… — làm **sau khi** luồng thi thử d�
 
 **Tuần 6 — Day 31–36: Lịch sử + Gamification (phụ sau core)**
 - Ngày 31: ✅ API lịch sử thi (`history`, `detail`, `stats/by-test`); UI lịch sử + tiến độ (Recharts); xem lại kết quả; sửa GetDetail không ghi đè điểm
-- Ngày 32: ✅ User dashboard — API `/dashboard`; LineChart xu hướng điểm + BarChart accuracy theo Part; gợi ý Part yếu; `lib/chartColors.ts`
+- Ngày 32: ✅ API dashboard (`stats/overview`, `stats/timeline`, `stats/parts`); UI `/dashboard` (cards, Recharts timeline, Part yếu gom phiên, quick links) + đợt dọn dẹp package/doc/tsconfig
 - Ngày 33: API tracking chi tiết (câu sai theo chủ đề, Part, thời gian)
 - Ngày 34: XP system, daily streak logic (Hangfire check midnight)
 - Ngày 35: Badges engine, leaderboard API (Redis sorted set)

@@ -1,10 +1,12 @@
 /**
- * Types cho API TestSession (Day 28–31) — khớp DTO backend.
+ * Types cho API TestSession (Day 28–32) — khớp DTO backend.
  *
  * Luồng thi:
  *   start → sessionId → saveAnswers → submit
  * Lịch sử (Day 31):
  *   getHistory → getDetail / getScoreStatsByTest
+ * Dashboard (Day 32):
+ *   getStatsOverview / getStatsTimeline / getStatsParts
  */
 
 /** Trạng thái phiên thi — backend serialize enum dạng string. */
@@ -151,40 +153,50 @@ export interface TestScoreStatsResponse {
     items: TestScoreByTestItem[]
 }
 
-// ── Day 32: Dashboard tổng hợp ────────────────────────────────────────────
+// ── Day 32: Dashboard stats ─────────────────────────────────────────────────
 
-/** Một chấm trên biểu đồ đường xu hướng điểm */
-export interface DashboardScorePoint {
+/** Query chung cho các API stats — fullOnly mặc định true trên backend */
+export interface TestSessionStatsParams {
+    fullOnly?: boolean
+}
+
+/** Response GET /api/test-session/stats/overview — card tổng quan dashboard */
+export interface TestStatsOverviewResponse {
+    targetScore: number
+    totalAttempts: number
+    distinctTests: number
+    bestTotalScore: number | null
+    bestSessionId: string | null
+    latestTotalScore: number | null
+    latestSessionId: string | null
+    averageTotalScore: number | null
+    lastCompletedAt: string | null
+}
+
+/** Một điểm trên line chart — GET /stats/timeline */
+export interface TestStatsTimelineItem {
     sessionId: string
     testId: string
     testTitle: string
+    testSeries: string
     completedAt: string
-    /** true = thi full đề; false = chỉ thi vài Part */
-    isFullTest: boolean
+    partsFilter: number[] | null
     listeningScore: number | null
     readingScore: number | null
     totalScore: number | null
 }
 
-/** Response GET /api/test-session/dashboard */
-export interface DashboardSummaryResponse {
+/** Response GET /api/test-session/stats/timeline */
+export interface TestStatsTimelineResponse {
     targetScore: number
-    totalSessions: number
-    fullTestSessions: number
-    bestTotalScore: number | null
-    latestTotalScore: number | null
-    averageTotalScore: number | null
-    /** Còn thiếu bao nhiêu điểm nữa là đạt mục tiêu; 0 = đã đạt */
-    pointsToTarget: number | null
-    overallAccuracyPercent: number
-    answeredQuestions: number
-    lastCompletedAt: string | null
-    /** Cũ → mới, vẽ LineChart theo đúng thứ tự mảng */
-    scoreTrend: DashboardScorePoint[]
-    /** Tái dùng PartBreakdownItem của Day 30 */
-    partAccuracy: PartBreakdownItem[]
-    /** Tối đa 3 Part yếu nhất */
-    weakParts: number[]
+    items: TestStatsTimelineItem[]
+}
+
+/** Response GET /api/test-session/stats/parts — gom Part yếu nhiều phiên */
+export interface TestStatsPartsResponse {
+    sessionsAnalyzed: number
+    parts: PartBreakdownItem[]
+    weakestParts: number[]
 }
 
 /** Chuyển detail → format màn kết quả (tái dùng ExamResultScreen). */

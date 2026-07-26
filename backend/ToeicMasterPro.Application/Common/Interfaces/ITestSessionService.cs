@@ -55,8 +55,17 @@ public interface ITestSessionService
   Task<Result<TestScoreStatsResponse>> GetScoreStatsByTestAsync(Guid userId, bool fullOnly = true);
 
   /// <summary>
-  /// Dữ liệu tổng hợp cho Dashboard (Day 32) — xu hướng điểm + độ chính xác theo Part.
+  /// Tổng quan thống kê thi — card dashboard (Day 32 Bước 1).
   /// </summary>
-  /// <param name="recentLimit">Số lần thi gần nhất vẽ lên biểu đồ đường (kẹp trong 3–30).</param>
-  Task<Result<DashboardSummaryResponse>> GetDashboardAsync(Guid userId, int recentLimit = 10);
+  Task<Result<TestStatsOverviewResponse>> GetStatsOverviewAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Điểm theo thời gian — line chart dashboard (Day 32 Bước 2).
+  /// </summary>
+  Task<Result<TestStatsTimelineResponse>> GetStatsTimelineAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Gom % đúng theo Part từ nhiều phiên — phân tích Part yếu dashboard (Day 32 Bước 3).
+  /// </summary>
+  Task<Result<TestStatsPartsResponse>> GetStatsPartsAsync(Guid userId, bool fullOnly = true);
 }

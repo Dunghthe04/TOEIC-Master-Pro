@@ -40,7 +40,7 @@
 | Form | React Hook Form + Zod | ✅ |
 | Routing | React Router 7 | ✅ |
 | Audio | Howler.js | ✅ |
-| Charts | Recharts | ✅ |
+| Charts | Recharts (thư viện biểu đồ React, dựa trên D3) | ✅ |
 | Rich Text | TipTap (content manager) | ✅ |
 | Toast | Sonner | ✅ |
 | Google Sign-In | @react-oauth/google | ✅ |
@@ -846,6 +846,47 @@ const editor = useEditor({
 **Tại sao lưu HTML:** Nội dung câu hỏi TOEIC có thể có bold/italic/danh sách → cần lưu HTML để render đúng. Khi hiển thị dùng `dangerouslySetInnerHTML={{ __html: content }}`.
 
 **Trong project này dùng cho:** Form tạo/sửa câu hỏi — soạn nội dung câu hỏi, giải thích đáp án, passage (đoạn văn Part 6–7) có rich text thay vì plain text.
+
+</details>
+
+---
+
+<details>
+<summary>📈 Recharts — Biểu đồ (React Charts)</summary>
+
+**Là gì:** Thư viện vẽ biểu đồ **dành cho React** — component declarative (`LineChart`, `BarChart`…), render SVG, lõi dựa trên **D3**. Package npm: `recharts` (project: `^3.10`).
+
+**Không phải:** Thư viện vanilla JS hay chart server-side — **chỉ dùng trong frontend React** (cùng stack Vite + TypeScript).
+
+**Tại sao dùng:** API quen với React, responsive (`ResponsiveContainer`), tooltip/legend tích hợp, không cần tự bọc D3 thủ công.
+
+**Trong project này dùng cho:**
+
+| Trang | Biểu đồ | API / dữ liệu |
+|---|---|---|
+| `/mock-test/progress` (Day 31) | **Bar chart** — best score / đề | `GET /api/test-session/stats/by-test` |
+| `/dashboard` (Day 32) | **Line chart** — điểm theo thời gian | `GET /api/test-session/stats/timeline` |
+
+**Không dùng Recharts cho:** Phân tích Part (`ExamPartBreakdownPanel`) — thanh % bằng **CSS/Tailwind** (đủ cho 7 Part, nhẹ hơn).
+
+**Ví dụ tối thiểu (line chart):**
+```tsx
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
+
+<ResponsiveContainer width="100%" height={300}>
+  <LineChart data={[{ label: '01/07', score: 650 }, { label: '15/07', score: 720 }]}>
+    <CartesianGrid strokeDasharray="3 3" />
+    <XAxis dataKey="label" />
+    <YAxis domain={[0, 990]} />
+    <Tooltip />
+    <Line type="monotone" dataKey="score" stroke="#1a4d7c" />
+  </LineChart>
+</ResponsiveContainer>
+```
+
+**File tham chiếu:** `frontend/src/pages/TestProgressPage.tsx`, `frontend/src/pages/DashboardPage.tsx`.
 
 </details>
 
