@@ -53,4 +53,19 @@ public interface ITestSessionService
   /// Mặc định chỉ tính full test (PartsFilter null).
   /// </summary>
   Task<Result<TestScoreStatsResponse>> GetScoreStatsByTestAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Tổng quan thống kê thi — card dashboard (Day 32 Bước 1).
+  /// </summary>
+  Task<Result<TestStatsOverviewResponse>> GetStatsOverviewAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Điểm theo thời gian — line chart dashboard (Day 32 Bước 2).
+  /// </summary>
+  Task<Result<TestStatsTimelineResponse>> GetStatsTimelineAsync(Guid userId, bool fullOnly = true);
+
+  /// <summary>
+  /// Gom % đúng theo Part từ nhiều phiên — phân tích Part yếu dashboard (Day 32 Bước 3).
+  /// </summary>
+  Task<Result<TestStatsPartsResponse>> GetStatsPartsAsync(Guid userId, bool fullOnly = true);
 }

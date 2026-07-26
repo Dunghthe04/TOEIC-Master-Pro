@@ -740,4 +740,196 @@ public class TestSessionService : ITestSessionService
         return Result<TestScoreStatsResponse>.Success(
             new TestScoreStatsResponse(user.TargetScore, items));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATS — Tổng quan dashboard (Day 32 Bước 1)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc />
+    public async Task<Result<TestStatsOverviewResponse>> GetStatsOverviewAsync(
+        Guid userId,
+        bool fullOnly = true)
+    {
+        var user = await _uow.Repository<ApplicationUser>().GetByIdAsync(userId);
+        if (user is null)
+            return Result<TestStatsOverviewResponse>.Failure("Không tìm thấy tài khoản.");
+
+        var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
+                s.UserId == userId && s.Status == TestSessionStatus.Completed))
+            .Where(s => !fullOnly || string.IsNullOrWhiteSpace(s.PartsFilter))
+            .ToList();
+
+        if (sessions.Count == 0)
+        {
+            return Result<TestStatsOverviewResponse>.Success(
+                new TestStatsOverviewResponse(
+                    user.TargetScore,
+                    0,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null));
+        }
+
+        var withTotal = sessions.Where(s => s.TotalScore.HasValue).ToList();
+        var distinctTests = sessions.Select(s => s.TestId).Distinct().Count();
+
+        TestSession? best = null;
+        if (withTotal.Count > 0)
+        {
+            best = withTotal
+                .OrderByDescending(s => s.TotalScore)
+                .ThenByDescending(s => s.CompletedAt ?? s.StartedAt)
+                .First();
+        }
+
+        var latest = sessions
+            .OrderByDescending(s => s.CompletedAt ?? s.StartedAt)
+            .First();
+
+        double? average = withTotal.Count > 0
+            ? Math.Round(withTotal.Average(s => s.TotalScore!.Value), 1)
+            : null;
+
+        return Result<TestStatsOverviewResponse>.Success(
+            new TestStatsOverviewResponse(
+                user.TargetScore,
+                sessions.Count,
+                distinctTests,
+                best?.TotalScore,
+                best?.Id,
+                latest.TotalScore,
+                latest.Id,
+                average,
+                latest.CompletedAt ?? latest.StartedAt));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATS — Timeline điểm theo thời gian (Day 32 Bước 2)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc />
+    public async Task<Result<TestStatsTimelineResponse>> GetStatsTimelineAsync(
+        Guid userId,
+        bool fullOnly = true)
+    {
+        var user = await _uow.Repository<ApplicationUser>().GetByIdAsync(userId);
+        if (user is null)
+            return Result<TestStatsTimelineResponse>.Failure("Không tìm thấy tài khoản.");
+
+        var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
+                s.UserId == userId && s.Status == TestSessionStatus.Completed))
+            .Where(s => !fullOnly || string.IsNullOrWhiteSpace(s.PartsFilter))
+            .OrderBy(s => s.CompletedAt ?? s.StartedAt)
+            .ToList();
+
+        if (sessions.Count == 0)
+            return Result<TestStatsTimelineResponse>.Success(
+                new TestStatsTimelineResponse(user.TargetScore, Array.Empty<TestStatsTimelineItem>()));
+
+        var testIds = sessions.Select(s => s.TestId).Distinct().ToList();
+        var tests = await _uow.Repository<Test>().FindAsync(t => testIds.Contains(t.Id));
+        var testDict = tests.ToDictionary(t => t.Id);
+
+        var items = sessions.Select(s =>
+        {
+            testDict.TryGetValue(s.TestId, out var test);
+            return new TestStatsTimelineItem(
+                s.Id,
+                s.TestId,
+                test?.Title ?? string.Empty,
+                test?.Series ?? string.Empty,
+                s.CompletedAt ?? s.StartedAt,
+                ParsePartsFilter(s.PartsFilter),
+                s.ListeningScore,
+                s.ReadingScore,
+                s.TotalScore);
+        }).ToList();
+
+        return Result<TestStatsTimelineResponse>.Success(
+            new TestStatsTimelineResponse(user.TargetScore, items));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATS — Gom Part yếu từ nhiều phiên (Day 32 Bước 3)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc />
+    public async Task<Result<TestStatsPartsResponse>> GetStatsPartsAsync(
+        Guid userId,
+        bool fullOnly = true)
+    {
+        var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
+                s.UserId == userId && s.Status == TestSessionStatus.Completed))
+            .Where(s => !fullOnly || string.IsNullOrWhiteSpace(s.PartsFilter))
+            .ToList();
+
+        if (sessions.Count == 0)
+        {
+            return Result<TestStatsPartsResponse>.Success(
+                new TestStatsPartsResponse(0, Array.Empty<PartBreakdownItem>(), Array.Empty<int>()));
+        }
+
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        var answerRows = (await _uow.Repository<TestSessionAnswer>()
+            .FindAsync(a => sessionIds.Contains(a.SessionId))).ToList();
+
+        if (answerRows.Count == 0)
+        {
+            return Result<TestStatsPartsResponse>.Success(
+                new TestStatsPartsResponse(sessions.Count, Array.Empty<PartBreakdownItem>(), Array.Empty<int>()));
+        }
+
+        var qIds = answerRows.Select(a => a.QuestionId).Distinct().ToList();
+        var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
+        var qDict = questions.ToDictionary(q => q.Id);
+
+        var options = await _uow.Repository<QuestionOption>().FindAsync(o => qIds.Contains(o.QuestionId));
+        var correctOptByQ = options
+            .Where(o => o.IsCorrect)
+            .GroupBy(o => o.QuestionId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
+        var partStats = new Dictionary<int, (int Correct, int Total, int Skipped)>();
+
+        foreach (var ans in answerRows)
+        {
+            if (!qDict.TryGetValue(ans.QuestionId, out var q)) continue;
+            if (!correctOptByQ.TryGetValue(q.Id, out var correctOptId)) continue;
+
+            var selectedId = ans.SelectedOptionId;
+            var isSkipped = selectedId is null;
+            var isCorrect = !isSkipped && selectedId == correctOptId;
+
+            var partNum = (int)q.Part;
+            if (!partStats.TryGetValue(partNum, out var ps))
+                ps = (0, 0, 0);
+            partStats[partNum] = (
+                ps.Correct + (isCorrect ? 1 : 0),
+                ps.Total + 1,
+                ps.Skipped + (isSkipped ? 1 : 0));
+        }
+
+        var parts = PartBreakdownBuilder.Build(partStats);
+        var weakestParts = ResolveWeakestParts(parts);
+
+        return Result<TestStatsPartsResponse>.Success(
+            new TestStatsPartsResponse(sessions.Count, parts, weakestParts));
+    }
+
+    /// <summary>Part accuracy thấp nhất — trả về tất cả Part hòa điểm.</summary>
+    private static IReadOnlyList<int> ResolveWeakestParts(IReadOnlyList<PartBreakdownItem> parts)
+    {
+        if (parts.Count == 0) return Array.Empty<int>();
+
+        var minAccuracy = parts.Min(p => p.AccuracyPercent);
+        return parts
+            .Where(p => p.AccuracyPercent == minAccuracy)
+            .Select(p => p.Part)
+            .OrderBy(p => p)
+            .ToList();
+    }
 }

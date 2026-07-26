@@ -48,7 +48,7 @@
 - Header: PART X | đã làm/tổng | Timer Reading 75′ (khi vào Reading) | NỘP BÀI ✅ *(Day 29)*
 - Kết quả: điểm quy đổi ETS ✅ *(Day 30)*, phân tích theo Part ✅ *(Day 30)*, review đáp án ✅ *(Day 28)*
 - Chứng chỉ SAMPLE sau nộp bài + tải PNG ✅ *(Day 28)*
-- Lịch sử thi, so sánh tiến độ (Day 31+)
+- Lịch sử thi, so sánh tiến độ ✅ *(Day 31)*; dashboard tổng hợp ✅ *(Day 32)*
 
 </details>
 
@@ -132,10 +132,11 @@
 <details>
 <summary>📊 Module 9 — Analytics (Người dùng)</summary>
 
-- Dashboard cá nhân: điểm trung bình, số bài đã làm, từ đã học
-- Biểu đồ tiến độ theo tuần/tháng
-- Phân tích điểm yếu theo Part, chủ đề, loại câu hỏi
-- So sánh với trung bình người dùng cùng mục tiêu
+- **Dashboard** `/dashboard` ✅ *(Day 32)*: cards (lần thi, best/latest/avg, mục tiêu), line chart điểm theo thời gian (Recharts), Part yếu gom nhiều phiên, quick links
+- **Tiến độ theo đề** `/mock-test/progress` ✅ *(Day 31)*: bar chart best score / đề
+- Phân tích điểm yếu theo Part ✅ *(Day 30 — 1 phiên; Day 32 — gom nhiều phiên)*
+- Tracking chi tiết theo chủ đề/tag, thời gian làm câu *(Day 33+)*
+- Từ đã học (vocab SRS), so sánh với trung bình người dùng *(sau)*
 
 </details>
 

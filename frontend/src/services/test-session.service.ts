@@ -1,5 +1,5 @@
 /**
- * Gọi API /api/test-session — phiên thi Day 28–31.
+ * Gọi API /api/test-session — phiên thi Day 28–32.
  *
  * Cần JWT (axios interceptor tự gắn Bearer token).
  */
@@ -14,6 +14,10 @@ import type {
     TestSessionHistoryResponse,
     TestSessionDetailResponse,
     TestScoreStatsResponse,
+    TestSessionStatsParams,
+    TestStatsOverviewResponse,
+    TestStatsTimelineResponse,
+    TestStatsPartsResponse,
 } from '@/types/test-session.types'
 
 export const TestSessionService = {
@@ -62,6 +66,30 @@ export const TestSessionService = {
         api
             .get<TestScoreStatsResponse>('/test-session/stats/by-test', {
                 params: { fullOnly },
+            })
+            .then((r) => r.data),
+
+    /** Tổng quan dashboard — Day 32 Bước 1 */
+    getStatsOverview: (params?: TestSessionStatsParams) =>
+        api
+            .get<TestStatsOverviewResponse>('/test-session/stats/overview', {
+                params: { fullOnly: params?.fullOnly ?? true },
+            })
+            .then((r) => r.data),
+
+    /** Điểm theo thời gian — line chart dashboard — Day 32 Bước 2 */
+    getStatsTimeline: (params?: TestSessionStatsParams) =>
+        api
+            .get<TestStatsTimelineResponse>('/test-session/stats/timeline', {
+                params: { fullOnly: params?.fullOnly ?? true },
+            })
+            .then((r) => r.data),
+
+    /** Gom Part yếu từ nhiều phiên — Day 32 Bước 3 */
+    getStatsParts: (params?: TestSessionStatsParams) =>
+        api
+            .get<TestStatsPartsResponse>('/test-session/stats/parts', {
+                params: { fullOnly: params?.fullOnly ?? true },
             })
             .then((r) => r.data),
 }
