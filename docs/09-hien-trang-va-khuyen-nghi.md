@@ -12,6 +12,9 @@
 > là bản đã đính chính.
 >
 > **Ký hiệu tin cậy:** 🔬 đã phản biện độc lập · 📋 phát hiện một lần, chưa phản biện chéo
+>
+> **Tiến độ vá:** đã xong **3/8** vấn đề chặn deploy — 1.1 authorization · 1.2 cấu hình Production ·
+> 1.3 secrets (tất cả 2026-08-04). Còn lại 1.4 → 1.8.
 
 ---
 
@@ -20,7 +23,7 @@
 | Phần | Nội dung |
 |---|---|
 | [0](#0-bảng-điểm-hiện-trạng) | Bảng điểm hiện trạng từng mảng |
-| [1](#1-tám-vấn-đề-chặn-deploy) | **8 vấn đề CHẶN DEPLOY** — không sửa thì không được lên |
+| [1](#1-tám-vấn-đề-chặn-deploy) | **8 vấn đề CHẶN DEPLOY** — không sửa thì không được lên *(đã vá 3)* |
 | [2](#2-vấn-đề-ảnh-hưởng-trực-tiếp-người-dùng) | Vấn đề ảnh hưởng trực tiếp người dùng |
 | [3](#3-nợ-kỹ-thuật-còn-lại) | Nợ kỹ thuật còn lại |
 | [4](#4-lộ-trình-sửa) | Lộ trình sửa — 4 giai đoạn |
@@ -39,15 +42,16 @@
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
 | **Hiệu năng** | 🟠 Yếu | Repository materialize-everything là gốc rễ: phân trang trong RAM, không `AsNoTracking`, query không trần |
-| **Bảo mật** | 🔴 Nhiều lỗ hổng | Secrets trong git, XSS chưa sanitize, Hangfire dashboard mở, static files public |
-| **Cấu hình** | 🔴 Không chạy được prod | `appsettings.json` thiếu `Jwt`/`Redis`/`Cors` + dùng `!` → **crash lúc khởi động** ở mọi môi trường ≠ Development |
+| **Bảo mật** | 🟠 Còn lỗ hổng | XSS chưa sanitize, Hangfire dashboard mở, static files public. Đã vá: secrets trong git (2026-08-04) |
+| **Cấu hình** | 🟢 Đã vá (2026-08-04) | Khung khóa đầy đủ ở `appsettings.json`, giá trị thật ở User Secrets (dev) / biến môi trường (prod). Thiếu cấu hình → `InvalidOperationException` **nêu đúng tên biến cần đặt**. Đã kiểm chứng chạy được với `ASPNETCORE_ENVIRONMENT=Production` |
 | **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. Thiếu auto-refresh token — hỏng UX nặng |
 | **Testing** | 🟠 Yếu | 30 test nhưng chỉ phủ 2 hàm thuần. **0 test cho exam engine** — phần phức tạp nhất |
 | **CI/CD** | 🔴 Chưa có | `.github/workflows/` rỗng. 30 test không bao giờ chạy tự động |
 | **Deploy** | ⬜ Chưa làm | Chưa có Dockerfile, chưa có Nginx, chưa deploy lần nào |
 
-**Tóm tắt một câu:** phần *xây dựng tính năng* làm tốt; phần *đưa sản phẩm ra đời thật* (cấu hình
-production, bảo mật, vận hành) gần như chưa động tới.
+**Tóm tắt một câu:** phần *xây dựng tính năng* làm tốt; phần *đưa sản phẩm ra đời thật* đã bắt đầu —
+authorization và cấu hình production đã xử lý xong, còn **5/8** vấn đề chặn deploy và toàn bộ phần
+vận hành (Docker, Nginx, CI, backup) chưa động tới.
 
 ---
 
@@ -124,10 +128,38 @@ hỏng nguy hiểm**. Đây cũng là câu trả lời rất mạnh khi phỏng 
 > **Lưu ý cùng loại 📋:** `GET /api/test` và `GET /api/test/{id}` cũng ẩn danh — lộ đề nháp chưa publish
 > và cấu trúc đề. Fallback policy xử lý luôn cả hai.
 
-## 1.2 · 🔴 📋 Ứng dụng KHÔNG THỂ khởi động ở Production
+## 1.2 · ✅ ĐÃ VÁ 2026-08-04 — Ứng dụng KHÔNG THỂ khởi động ở Production
+
+> **Trạng thái:** đã sửa (commit `9d6e2a6`). `appsettings.json` giờ chứa **khung đầy đủ** mọi khóa
+> (`ConnectionStrings`/`Redis`/`Cors`/`Jwt`, giá trị rỗng); toàn bộ `!` đã bỏ, thay bằng kiểm tra tường
+> minh ở [Program.cs:35-44](../backend/ToeicMasterPro.API/Program.cs#L35),
+> [:117-131](../backend/ToeicMasterPro.API/Program.cs#L117),
+> [:175-178](../backend/ToeicMasterPro.API/Program.cs#L175).
+>
+> **Kiểm chứng bằng cách chạy thật** `ASPNETCORE_ENVIRONMENT=Production dotnet run --no-launch-profile`:
+> báo lỗi cụ thể lần lượt `ConnectionStrings:DefaultConnection` → `Redis:ConnectionStrings` →
+> `Jwt:SecretKey` → `Jwt:Issuer/Audience` → `Cors:AllowedOrigins`; nạp đủ 6 biến môi trường thì app
+> khởi động thành công (Hangfire lên, dispatchers chạy).
+>
+> **Bài học quan trọng nhất — cái bẫy mà việc sửa tự tạo ra:** khi đưa khung khóa vào `appsettings.json`,
+> section `Jwt` **bắt đầu tồn tại**, nên `.Get<JwtSettings>() ?? throw` **không còn bắt được gì** — nó
+> trả về object hợp lệ với `SecretKey = ""`. Nếu chỉ làm `?? throw`, app sẽ khởi động **thành công** ở
+> Production rồi chết ở request login đầu tiên với `IDX10653` — tức là biến lỗi lúc-khởi-động thành lỗi
+> lúc-chạy, **tệ hơn trước khi sửa**. Vì vậy phải kiểm **giá trị** (`Encoding.UTF8.GetByteCount(...) < 32`),
+> không chỉ kiểm sự tồn tại. Lúc test, phép kiểm này bắt được ngay một placeholder 30 byte chưa thay.
+>
+> **Hai lỗi phụ cùng gốc rễ, phát hiện thêm khi sửa:**
+> 1. `Serilog` và `ToeicDirections` **chỉ tồn tại trong `appsettings.Development.json`** → ở Production
+>    `ReadFrom.Configuration` không tìm thấy `Serilog` nên **mất hẳn ghi log ra file**, và directions của
+>    đề thi biến mất. Đã chuyển sang file base.
+> 2. `Cors:AllowedOrigins` rỗng ở prod thì `WithOrigins()` **chặn hết** mà server **không có một dòng log
+>    nào** — chỉ frontend thấy lỗi CORS. Đã thêm fail fast cho non-Development.
+>
+> **Giữ lại toàn bộ phân tích dưới đây** để trả lời phỏng vấn về tư duy fail-fast.
 
 **Vị trí:** [Program.cs:64](../backend/ToeicMasterPro.API/Program.cs#L64),
 [Program.cs:101](../backend/ToeicMasterPro.API/Program.cs#L101), `appsettings.json`
+*(số dòng theo bản trước khi vá)*
 
 **Sự việc:** các section `Jwt`, `Redis`, `Cors` **chỉ tồn tại trong `appsettings.Development.json`**.
 File base `appsettings.json` không có. Trong khi code dùng **null-forgiving operator `!`**:
@@ -152,7 +184,34 @@ var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSetti
 ```
 Crash kèm thông báo rõ ràng tốt hơn `NullReferenceException` gấp nhiều lần.
 
-## 1.3 · 🔴 🔬 Secrets nằm trong git từ commit đầu tiên
+## 1.3 · ✅ ĐÃ VÁ 2026-08-04 — Secrets nằm trong git từ commit đầu tiên
+
+> **Trạng thái:** đã sửa (commit `9d6e2a6`).
+>
+> | Việc | Đã làm |
+> |---|---|
+> | `Jwt:SecretKey` | **Sinh khóa mới 48 byte ngẫu nhiên** bằng `RandomNumberGenerator` |
+> | Connection string, mật khẩu Redis, mật khẩu seed | Dời sang **User Secrets** (`%APPDATA%\Microsoft\UserSecrets\...`) |
+> | `appsettings.json` | Xóa connection string `sa` — file base nạp ở **mọi** môi trường |
+> | `appsettings.Development.json` | Chỉ còn giá trị dev **không phải secret** (Cors, Jwt Issuer/Audience, email seed) — vẫn ở trong git, cố ý |
+> | Production | Nạp qua **biến môi trường** `Jwt__SecretKey`, `ConnectionStrings__DefaultConnection`, … |
+>
+> **Điểm cần phân biệt rõ khi trình bày:** dời file đi **không phải** phần vá. Khóa cũ vẫn nằm trong git
+> history vĩnh viễn (`git log -p` là ra). Thứ thật sự vá lỗ hổng là **đổi khóa** — khóa đã lộ trở thành
+> vô hại vì không còn được dùng để verify token. Việc dời secret ra ngoài repo là **phòng ngừa tái phát**,
+> không phải vá.
+>
+> **Vì sao chọn User Secrets thay vì gitignore file:** User Secrets nằm **ngoài thư mục project** nên
+> không thể `git add` nhầm. Gitignore vẫn có thể bị `git add -f` hoặc bị copy sang file khác.
+>
+> **Còn nợ — mật khẩu DB/Redis chưa đổi.** Lý do có chủ đích: chúng **vẫn nằm trong
+> `docker-compose.yml:25, 33, 57, 65`** dưới dạng fallback `${DB_PASSWORD:-ToeicMaster@2026}`. Đổi mật
+> khẩu mà không bỏ fallback thì **gần như không đạt được gì** — compose vẫn im lặng dùng giá trị cũ khi
+> thiếu `.env`. Sẽ đổi cùng lúc khi làm **mục 1.7** (docker-compose).
+>
+> **Còn nợ — mật khẩu tài khoản admin trong DB.** Đổi `AdminSeed:Password` trong config **không** đổi
+> mật khẩu của user đã tồn tại, vì `SeedUserIfMissingAsync` chỉ tạo khi chưa có email đó. Tài khoản
+> `admin@toeicmaster.com` vẫn dùng mật khẩu cũ.
 
 **Vị trí:** `appsettings.Development.json` (bị git track từ commit `e5172e7`, 2026-06-18) và
 `appsettings.json`
@@ -179,7 +238,11 @@ Mức đúng là **HIGH — lỗi chặn deploy bắt buộc xử lý**, không 
 
 Hai chi tiết phụ đáng biết:
 - `"Cm@2026"` chỉ **7 ký tự** → không thỏa `RequiredLength = 8` → `Program.cs:274` **nuốt lỗi im lặng**
-  → tài khoản ContentManager **thực tế chưa bao giờ được tạo**
+  → tài khoản ContentManager **thực tế chưa bao giờ được tạo**.
+  ✅ **Đã sửa 2026-08-04:** mật khẩu mới 10 ký tự, và
+  [Program.cs:326-332](../backend/ToeicMasterPro.API/Program.cs#L326) giờ `Log.Error` liệt kê
+  `result.Errors` khi seed thất bại thay vì bỏ qua. Log lúc khởi động đã xác nhận tài khoản
+  ContentManager **được tạo thành công lần đầu tiên**.
 - SQL/Redis chỉ bind localhost trên máy dev nên hai mật khẩu đó không khai thác từ xa được
 
 **Cách sửa — theo đúng thứ tự:**
@@ -559,14 +622,20 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 
 ```
 ✅ 1. Fallback authorization policy + [AllowAnonymous] cho endpoint công khai   — XONG 2026-08-04
-□ 2. Đổi TOÀN BỘ secret; gỡ appsettings.Development.json khỏi git; User Secrets
-□ 3. Đưa cấu trúc Jwt/Redis/Cors vào appsettings.json; bỏ `!`, fail fast có thông báo
-□ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage
+✅ 2. Đổi Jwt:SecretKey; secret sang User Secrets / biến môi trường            — XONG 2026-08-04
+✅ 3. Đưa khung Jwt/Redis/Cors vào appsettings.json; bỏ `!`, fail fast rõ ràng  — XONG 2026-08-04
+□ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage   ← LÀM TIẾP
 □ 5. Bảo vệ Hangfire Dashboard bằng IDashboardAuthorizationFilter
 □ 6. Redis connect qua factory lambda + abortConnect=false
 □ 7. docker-compose.prod.yml: MSSQL_PID=Express, bỏ ports, bỏ hardcode password
+     ⚠️ gộp luôn việc đổi mật khẩu DB/Redis — xem phần "còn nợ" ở mục 1.3
 □ 8. Tách file media cần bảo vệ ra khỏi wwwroot (hoặc chấp nhận và ghi rõ là public)
 ```
+
+> **Sáu biến môi trường Production** đã xác định được từ đợt sửa mục 1.2 — dùng luôn cho
+> `docker-compose.prod.yml` ở Giai đoạn 3, không phải đoán:
+> `ConnectionStrings__DefaultConnection` · `Redis__ConnectionStrings` · `Jwt__SecretKey` ·
+> `Jwt__Issuer` · `Jwt__Audience` · `Cors__AllowedOrigins__0`
 
 ## Giai đoạn 2 — Trải nghiệm người dùng (~2–3 ngày)
 
@@ -864,7 +933,7 @@ jobs:
 □ 1.  VPS 4GB Ubuntu 22.04, đã bảo mật SSH + ufw
 □ 2.  Docker + Docker Compose
 □ 3.  Tên miền, bản ghi A trỏ về IP
-□ 4.  ✅ ĐÃ SỬA XONG toàn bộ Giai đoạn 1 (8 vấn đề chặn deploy)
+□ 4.  ĐÃ SỬA XONG toàn bộ Giai đoạn 1 — hiện 3/8 (1.1, 1.2, 1.3 xong; còn 1.4 → 1.8)
 □ 5.  Dockerfile API + frontend
 □ 6.  docker-compose.prod.yml + file .env trên VPS
 □ 7.  Nginx + Certbot, SSL chạy được
