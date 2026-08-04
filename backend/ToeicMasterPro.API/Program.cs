@@ -29,13 +29,28 @@ using Microsoft.AspNetCore.Authorization;
 
 
 var builder = WebApplication.CreateBuilder(args);
+// ── Kiểm tra cấu hình bắt buộc — FAIL FAST ────────────────
+// Thiếu cấu hình thì chết NGAY ở đây kèm tên khóa và cách đặt,
+// thay vì NullReferenceException ở một dòng không liên quan phía dưới.
+static string RequireConfig(IConfiguration config, string key)
+    => config[key] is { Length: > 0 } value
+        ? value
+        : throw new InvalidOperationException(
+            $"Thiếu cấu hình '{key}'. " +
+            $"Development: dotnet user-secrets set \"{key}\" \"<giá-trị>\" " +
+            $"— Production: đặt biến môi trường {key.Replace(":", "__")}");
+
+var connectionString = RequireConfig(builder.Configuration, "ConnectionStrings:DefaultConnection");
+var redisConn        = RequireConfig(builder.Configuration, "Redis:ConnectionStrings");
+
 //-Serilog=====================
 builder.Host.UseSerilog((context, config) =>
  config.ReadFrom.Configuration(context.Configuration));
 
 // ── Database ──────────────────────────────────────────────
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString));   // trước: builder.Configuration.GetConnectionString("DefaultConnection")
+
 
 // ── Identity ──────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
@@ -63,7 +78,6 @@ builder.Services.Configure<GoogleAuthSettings>(
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-var redisConn = builder.Configuration["Redis:ConnectionStrings"]!;
 //Chỗ nào gọi IConnectionMultiplexer thì dùng chung cái này, trả về 1 instant 
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConn));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -84,7 +98,7 @@ builder.Services.AddHangfire(config => config
     .UseRecommendedSerializerSettings()
     //Cất job ở sqlver dùng chung ==> tạo bảng Hangfire.jo, Hangfire.State,...
     .UseSqlServerStorage(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
+        connectionString,
         new SqlServerStorageOptions
         {
             PrepareSchemaIfNecessary = true // tự tạo schema Hangfire lần đầu
@@ -100,7 +114,21 @@ builder.Services.AddScoped<ISrsService, SrsService>();
 builder.Services.AddScoped<IPracticeService, PracticeService>();
 builder.Services.AddScoped<ITestSessionService, TestSessionService>();
 
-var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()!;
+var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+    ?? throw new InvalidOperationException(
+        "Thiếu section 'Jwt' trong cấu hình. Xem khung khóa ở appsettings.json.");
+
+// SecretKey: HMAC-SHA256 cần khóa ≥ 256 bit (32 byte). Ngắn hơn → IDX10653 lúc TẠO token,
+// nghĩa là app khởi động bình thường rồi mới chết ở request login đầu tiên. Chặn ngay tại đây.
+if (Encoding.UTF8.GetByteCount(jwt.SecretKey) < 32)
+    throw new InvalidOperationException(
+        $"'Jwt:SecretKey' phải dài ít nhất 32 byte (hiện tại: {Encoding.UTF8.GetByteCount(jwt.SecretKey)}). " +
+        "Sinh khóa mới: [Convert]::ToBase64String((New-Object byte[] 48)) sau khi fill bằng RandomNumberGenerator. " +
+        "Đặt qua user-secrets \"Jwt:SecretKey\" hoặc biến môi trường Jwt__SecretKey.");
+
+if (string.IsNullOrWhiteSpace(jwt.Issuer) || string.IsNullOrWhiteSpace(jwt.Audience))
+    throw new InvalidOperationException(
+        "Thiếu 'Jwt:Issuer' hoặc 'Jwt:Audience'. Đặt Jwt__Issuer / Jwt__Audience.");
 
 //Đăng ký JwtBear Authentication
 builder.Services.AddAuthentication(options =>
@@ -141,6 +169,14 @@ builder.Services.AddAuthorizationBuilder()
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
+
+// Prod mà rỗng thì WithOrigins() chặn HẾT — frontend chỉ thấy lỗi CORS mờ mịt
+// trên console trình duyệt, không có dòng log nào ở server. Chết sớm còn hơn.
+if (allowedOrigins.Length == 0 && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException(
+        "'Cors:AllowedOrigins' rỗng ở môi trường non-Development. " +
+        "Đặt Cors__AllowedOrigins__0=https://ten-mien-cua-ban.com");
+
 
 builder.Services.AddCors(options =>
 {
@@ -281,7 +317,18 @@ static async Task SeedUserIfMissingAsync(
         FullName = fullName ?? role,
         EmailConfirmed = true
     };
-    var result = await userManager.CreateAsync(user, password);
+        var result = await userManager.CreateAsync(user, password);
     if (result.Succeeded)
+    {
         await userManager.AddToRoleAsync(user, role);
+        Log.Information("Đã seed tài khoản {Role}: {Email}", role, email);
+    }
+    else
+    {
+        // KHÔNG throw: seed thất bại không nên chặn app khởi động.
+        // Nhưng phải LOG — bug cũ là mật khẩu 7 ký tự không thỏa RequiredLength=8
+        // và lỗi bị nuốt im lặng, nên tài khoản ContentManager chưa bao giờ được tạo.
+        Log.Error("Seed tài khoản {Role} ({Email}) THẤT BẠI: {Errors}",
+            role, email, string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
 }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\ToeicMasterPro.Application\ToeicMasterPro.Application.csproj" />
@@ -24,6 +24,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>0141a41e-1297-4311-a748-dd280f3f17b2</UserSecretsId>
   </PropertyGroup>
 
 </Project>
