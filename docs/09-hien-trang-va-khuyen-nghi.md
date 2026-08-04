@@ -35,7 +35,7 @@
 | **Kiến trúc** | 🟢 Tốt | Clean Architecture 4 tầng rõ ràng, `Result<T>` dùng nhất quán, DI đúng. Lệch chuẩn ở chỗ service nằm ở Infrastructure — chấp nhận được và giải thích được |
 | **Nghiệp vụ cốt lõi** | 🟢 Tốt | Exam engine chạy đủ luồng. `ToeicScoreHelper` tách thuần, có 30 unit test. Đây là **điểm mạnh nhất** của dự án |
 | **Authentication** | 🟡 Khá | JWT + refresh rotation + Google OAuth làm đúng. Thiếu: lockout, reuse detection, hash refresh token |
-| **Authorization (API)** | 🔴 Có lỗ hổng | Ownership check tốt ở phiên thi, **nhưng không có fallback policy** → một endpoint quên `[Authorize]` đang lộ toàn bộ đáp án |
+| **Authorization (API)** | 🟢 Đã vá (2026-08-04) | Có **fallback policy** `RequireAuthenticatedUser` → mặc định ĐÓNG. Ngân hàng câu hỏi khóa theo role, ownership check tốt ở phiên thi. Bảng phân quyền: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md). Còn nợ: `PracticeController` thiếu ownership check (Day 47) |
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
 | **Hiệu năng** | 🟠 Yếu | Repository materialize-everything là gốc rễ: phân trang trong RAM, không `AsNoTracking`, query không trần |
@@ -55,7 +55,21 @@ production, bảo mật, vận hành) gần như chưa động tới.
 
 > Đây là danh sách **phải sửa trước khi đưa lên Internet**. Xếp theo thứ tự nên sửa.
 
-## 1.1 · 🔴 🔬 Lộ toàn bộ đáp án cho người không đăng nhập
+## 1.1 · ✅ ĐÃ VÁ 2026-08-04 — Lộ toàn bộ đáp án cho người không đăng nhập
+
+> **Trạng thái:** đã sửa. Fallback policy ở `Program.cs:134-137`, `QuestionController` khóa
+> `[Authorize(Roles="Admin,ContentManager")]` cấp class, `TestController` siết `GetList`/`GetDetail`.
+> Kiểm chứng bằng curl: ẩn danh 401 · token User 403 (`Content-Length: 0`) · token Admin 200.
+> Bảng phân quyền đầy đủ: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md).
+>
+> **Giữ lại toàn bộ phân tích dưới đây** — đây là chuỗi khai thác thật đã tự tìm ra và tự vá, dùng để
+> trả lời *"bạn từng tìm thấy lỗ hổng bảo mật nào chưa?"*.
+>
+> **Hai điều học được mà lúc đầu không biết:**
+> 1. `[Authorize]` **trần** là vô nghĩa khi fallback policy đã là `RequireAuthenticatedUser` — đã mắc
+>    đúng lỗi này, phải thêm `Roles` mới siết được.
+> 2. Đọc response phân biệt được chặn ở đâu: `403` + `Content-Length: 0` = chặn ở middleware;
+>    `400` + body nghiệp vụ = **đã đi qua** authorization vào tới service.
 
 **Vị trí:** [QuestionController.cs:20-37](../backend/ToeicMasterPro.API/Controllers/QuestionController.cs#L20)
 kết hợp [QuestionService.cs:140-145](../backend/ToeicMasterPro.Infrastructure/Services/QuestionService.cs#L140)
@@ -512,7 +526,7 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 | Refresh token lưu **plaintext** trong DB | `TokenService.cs:60-65` |
 | Không có **reuse detection** cho refresh token | `AuthService.cs:73-86` |
 | Access token không thể vô hiệu hóa — `jti` sinh ra nhưng không lưu, không blacklist | `TokenService.cs:28` |
-| `/api/auth/logout` ẩn danh, không kiểm quyền sở hữu token | `AuthController.cs:44-49` |
+| `/api/auth/logout` — ✅ đã thêm `[Authorize]` (2026-08-04); **vẫn chưa** kiểm quyền sở hữu token → user A gửi refresh token của user B vẫn thu hồi được | `AuthController.cs:46-52` |
 | Login không kiểm `EmailConfirmed` + Google login gộp tài khoản chỉ bằng email → **pre-hijack account takeover** 🔬 | `AuthService.cs:59-71, 178` |
 | Lỗi verify Google trả nguyên `ex.Message` ra client | `AuthService.cs:172-176` |
 | Token xác thực email và reset mật khẩu **in ra stdout** | `AuthService.cs:53-54, 124-125` |
@@ -544,7 +558,7 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 ## Giai đoạn 1 — Chặn deploy (~1–2 ngày)
 
 ```
-□ 1. Fallback authorization policy + [AllowAnonymous] cho endpoint công khai   ← quan trọng nhất
+✅ 1. Fallback authorization policy + [AllowAnonymous] cho endpoint công khai   — XONG 2026-08-04
 □ 2. Đổi TOÀN BỘ secret; gỡ appsettings.Development.json khỏi git; User Secrets
 □ 3. Đưa cấu trúc Jwt/Redis/Cors vào appsettings.json; bỏ `!`, fail fast có thông báo
 □ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage

@@ -389,14 +389,34 @@ if (session.UserId != userId)
 đoán được id của người khác là xem được dữ liệu của họ. Đây là lỗ hổng API phổ biến nhất
 (OWASP API1:2023). Dự án chặn đúng ở luồng phiên thi.
 
-## 4.3 · 🔴 Lỗ hổng nghiêm trọng nhất hiện tại
+## 4.3 · ✅ Lỗ hổng nghiêm trọng nhất — ĐÃ VÁ 2026-08-04
 
-**Không có fallback authorization policy.** Grep toàn backend: 0 kết quả cho
-`FallbackPolicy` / `RequireAuthenticatedUser` / `AuthorizeFilter`.
+**Trước:** không có fallback authorization policy → endpoint nào quên `[Authorize]` là public hoàn
+toàn. Và đã có endpoint quên thật: `GET /api/Question` trả về đáp án đúng cho người ẩn danh.
 
-→ **Endpoint nào quên `[Authorize]` là public hoàn toàn.** Và đã có endpoint quên thật:
-`GET /api/Question` trả về đáp án đúng cho người ẩn danh. Chi tiết đầy đủ ở
-[09 — Phần 1](09-hien-trang-va-khuyen-nghi.md).
+**Sau:** `Program.cs:134-137` đặt fallback policy `RequireAuthenticatedUser`. Chi tiết chuỗi khai thác
+ở [09 — mục 1.1](09-hien-trang-va-khuyen-nghi.md) · bảng phân quyền ở
+[10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md).
+
+> ### 🎯 Ba thứ phải nói được khi kể chuyện này
+>
+> **1. `FallbackPolicy` khác `DefaultPolicy`** — nhầm là đặt sai chỗ, không có tác dụng:
+>
+> | | Áp dụng khi |
+> |---|---|
+> | `DefaultPolicy` | Endpoint **CÓ** `[Authorize]` nhưng không ghi rõ policy/role |
+> | `FallbackPolicy` | Endpoint **KHÔNG CÓ** metadata authorization nào. Mặc định `null` = cho qua hết |
+>
+> **Suy ra:** khi fallback đã là `RequireAuthenticatedUser`, viết `[Authorize]` **trần** là **vô
+> nghĩa** — trùng đúng policy đó. Muốn siết phải ghi `Roles`. (Đã mắc đúng lỗi này lúc sửa.)
+>
+> **2. Authorization không áp dụng cho middleware terminal.** `UseStaticFiles` và
+> `UseHangfireDashboard` tự trả response rồi dừng, không chạm `UseAuthorization`. Fallback policy
+> **không** bảo vệ được hai chỗ đó — vẫn phải xử lý riêng (Day 41).
+>
+> **3. Đọc response biết bị chặn ở đâu:** `403` + `Content-Length: 0` = chặn ở middleware ·
+> `400` + body nghiệp vụ = **đã đi qua** authorization vào tới service. Đây là cách phát hiện ra
+> `[Authorize]` trần không có tác dụng.
 
 **Keyword: Secure by default.** Cấu hình đúng là **mặc định chặn**, chỗ nào muốn mở thì đánh dấu
 `[AllowAnonymous]` tường minh:

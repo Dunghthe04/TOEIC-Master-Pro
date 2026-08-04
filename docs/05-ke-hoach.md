@@ -2,9 +2,15 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** hết **Day 32** · **TIẾP THEO: Day 33**
-> 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ** · Còn **42 ngày** (Day 33 → 74)
-> 📋 Chi tiết lỗi: [09-hien-trang-va-khuyen-nghi.md](09-hien-trang-va-khuyen-nghi.md) · Giải thích công nghệ: [08-cam-nang-cong-nghe.md](08-cam-nang-cong-nghe.md)
+> 📍 **ĐANG Ở:** xong **Day 34** (2026-08-04) · **TIẾP THEO: Day 39** — cấu hình fail-fast
+> 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
+> 📋 Chi tiết lỗi: [09-hien-trang-va-khuyen-nghi.md](09-hien-trang-va-khuyen-nghi.md) · Giải thích công nghệ: [08-cam-nang-cong-nghe.md](08-cam-nang-cong-nghe.md) · Phân quyền: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md)
+>
+> ⚠️ **Đang làm KHÔNG theo thứ tự Day** — ưu tiên 8 lỗi chặn deploy trước, mỗi lỗi tự đọc code xác
+> nhận rồi tự sửa. Day 33 (đọc JD, quyết bản quyền) và Day 35–38 (tách DTO, giao diện 3 role) **chưa
+> làm**, quay lại sau khi hết lỗi chặn deploy.
+>
+> **Đã xong:** Day 34 ✅ (fallback policy + khóa ngân hàng câu hỏi)
 
 ---
 
@@ -95,53 +101,60 @@ và rất nhiều interviewer mở tab Commits.*
 `[AllowAnonymous]` đều trả 401 khi gọi trần · và **đăng nhập bằng 3 tài khoản khác nhau ra 3 giao
 diện khác nhau**.
 
-> ### 📌 Hiện trạng phân quyền — đọc trước khi bắt đầu
-> **Quyền GHI đã an toàn rồi.** Mọi `POST/PUT/DELETE` của Question, Test, Vocabulary, ExamSchedule,
-> Media đều đã có `[Authorize(Roles="Admin,ContentManager")]`. User thường bấm "Xóa đề" bị **403** —
-> không xóa được gì.
+> ### 📌 Hiện trạng phân quyền — cập nhật 2026-08-04
+> **Quyền GHI an toàn từ đầu.** Mọi `POST/PUT/DELETE` đều có `[Authorize(Roles="Admin,ContentManager")]`.
 >
-> **Quyền ĐỌC thì không có gì cả** — và đây mới là lỗ hổng:
+> **Quyền ĐỌC — lỗ hổng chính, đã vá ở Day 34:**
 >
-> | Endpoint | Ai gọi được hiện tại |
-> |---|---|
-> | `GET /api/Question`, `/{id}` | **Bất kỳ ai, không cần đăng nhập** — kèm `IsCorrect` + `Explanation` |
-> | `GET /api/Test`, `/{id}`, `/published`, `/{id}/structure` | Ẩn danh — lộ cả đề nháp chưa publish |
-> | `GET /api/Vocabulary`, `/api/examschedule` | Ẩn danh |
+> | Endpoint | Trước Day 34 | Sau Day 34 |
+> |---|---|---|
+> | `GET /api/Question`, `/{id}` | **Bất kỳ ai, không cần đăng nhập** — kèm `IsCorrect` + `Explanation` | Chỉ CM/Admin (401/403) |
+> | `GET /api/Test`, `/{id}` | Ẩn danh — lộ đề nháp chưa publish | Chỉ CM/Admin |
+> | `GET /api/Test/published`, `/{id}/structure` | Ẩn danh | Cần đăng nhập (học viên gọi được) |
+> | `GET /api/Vocabulary` | Ẩn danh | Cần đăng nhập |
+> | `GET /api/examschedule` | Ẩn danh | **Vẫn ẩn danh có chủ ý** — lịch thi công khai cho landing page |
 >
-> Vấn đề không phải "User xem được hết" mà là **người chưa đăng nhập cũng xem được hết**.
+> Bảng đầy đủ 10 controller: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md).
 >
-> **Năm ngày 34–38 là một cụm, làm liền nhau:** Day 34 khóa API với người lạ · Day 35 giấu đáp án khỏi
-> User thường · Day 36 tách menu & trang chủ theo role · Day 37–38 dựng giao diện Admin (hiện chưa có gì).
+> **Còn lại của cụm 34–38:** Day 35 giấu đáp án khỏi User thường trong DTO · Day 36 tách menu & trang
+> chủ theo role · Day 37–38 dựng giao diện Admin.
+>
+> ⚠️ **UX đang tệ hơn trước cho tới khi làm Day 36:** User thường bấm menu "Quản lý đề" giờ nhận **403
+> trang lỗi** thay vì xem được. Đây là hệ quả biết trước, không phải lỗi mới.
 
-## Day 34 — Fallback authorization policy 🔴
+## ✅ Day 34 — Fallback authorization policy — XONG 2026-08-04
 
 ```
-□ Program.cs: thêm fallback policy — mặc định ĐÓNG
-    builder.Services.AddAuthorizationBuilder()
-        .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-            .RequireAuthenticatedUser().Build());
-
-□ Đi qua 10 controller, gắn [AllowAnonymous] đúng chỗ cần public:
-  □ AuthController: register, login, refresh-token, confirm-email,
-    forgot-password, reset-password, google-login
-  □ ExamScheduleController: danh sách lịch thi công khai (nếu muốn)
-
-□ ⚠️ ĐỪNG QUÊN [AllowAnonymous] cho endpoint hạ tầng — nếu không sẽ gãy sau:
-  □ /health/*              (thêm ở Day 56, uptime monitor sẽ báo động giả)
-  □ Swagger JSON + UI
-  □ Callback Google OAuth
-  □ /.well-known/acme-challenge   (Certbot dùng webroot, Day 53)
-
-□ Gắn [Authorize(Roles="Admin,ContentManager")] cấp class:
-  □ QuestionController — hiện KHÔNG có dòng [Authorize] nào
-  □ TestController — GET /api/test, /api/test/{id} đang lộ đề nháp
-
-□ Lập bảng endpoint × role được phép → lưu vào docs
-□ Tự test bằng curl không kèm token cho từng route
+✅ Program.cs:134-137 — fallback policy, mặc định ĐÓNG
+✅ AuthController — [AllowAnonymous] cấp class + [Authorize] cho logout
+✅ ExamScheduleController — [Authorize] cấp class + [AllowAnonymous] cho 3 GET công khai
+✅ QuestionController — [Authorize(Roles="Admin,ContentManager")] cấp class,
+   xóa 5 attribute cấp action đã trùng
+✅ TestController — [Authorize] cấp class + siết Roles ở GetList/GetDetail
+✅ VocabularyController — [Authorize] cấp class
+✅ Bảng endpoint × role → docs/10-phan-quyen-endpoint.md
+✅ Test curl: ẩn danh 401 · User 403 (Content-Length: 0) · Admin 200
 ```
 
-**Lỗi vá được:** `GET /api/Question` ẩn danh trả `IsCorrect` + `Explanation` · `GET /api/test` lộ đề nháp
-**Câu phỏng vấn mở khóa:** *"Authorization trong ASP.NET Core hoạt động thế nào?"* · *"Bạn từng tìm thấy lỗ hổng bảo mật nào chưa?"*
+**Ba việc trong kế hoạch gốc KHÔNG cần làm — đã tự kiểm chứng:**
+- `/health/*` và `/.well-known/acme-challenge` **chưa tồn tại** → để Day 54/56
+- Swagger nằm trong `if (IsDevelopment())` (`Program.cs:196-205`) và `UseSwagger` là **middleware**,
+  không phải endpoint → fallback policy không chạm tới
+- Callback Google OAuth: `POST /api/auth/google-login` đã được `[AllowAnonymous]` cấp class phủ
+
+**Phát hiện mới trong lúc làm — quan trọng hơn cả checklist:**
+> **Authorization KHÔNG áp dụng cho middleware terminal.** `app.UseStaticFiles()` (`:215`) và
+> `app.UseHangfireDashboard()` (`:221`) tự xử lý request rồi trả về, **không bao giờ** chạm tới
+> `UseAuthorization`. Bật fallback policy **không** làm hai chỗ này an toàn — vẫn public. Sửa ở Day 41.
+
+**Hai cái bẫy đã va phải (giá trị phỏng vấn cao):**
+1. `[Authorize]` **trần** vô nghĩa khi fallback policy đã là `RequireAuthenticatedUser` — cả hai đều
+   là `RequireAuthenticatedUser`, không siết thêm gì. Phải ghi `Roles`.
+2. **Xóa attribute cũ trước khi thêm cái mới** đã tạo ra cửa sổ User thường xóa được câu hỏi. Thứ tự
+   an toàn: **thêm rồi mới xóa**.
+
+**Lỗi vá được:** `GET /api/Question` ẩn danh trả `IsCorrect` + `Explanation` · `GET /api/test` lộ đề nháp · `/api/auth/logout` ẩn danh
+**Câu phỏng vấn mở khóa:** *"Authorization trong ASP.NET Core hoạt động thế nào?"* · *"`FallbackPolicy` khác `DefaultPolicy` chỗ nào?"* · *"401 vs 403?"* · *"Bạn từng tìm thấy lỗ hổng bảo mật nào chưa?"*
 
 ## Day 35 — Tách DTO theo người xem
 
