@@ -10,6 +10,7 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class TestController : ControllerBase
 {
     private readonly ITestService _service;
@@ -25,6 +26,7 @@ public class TestController : ControllerBase
 
     // GET /api/test?isPublished=true
     [HttpGet]
+    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> GetList([FromQuery] bool? isPublished)
     {
         var result = await _service.GetListAsync(isPublished);
@@ -33,6 +35,7 @@ public class TestController : ControllerBase
 
     // GET /api/test/{id}
     [HttpGet("{id:Guid}")]
+    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);

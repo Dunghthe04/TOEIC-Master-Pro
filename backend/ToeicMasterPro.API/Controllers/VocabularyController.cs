@@ -8,6 +8,7 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")] // → /api/vocabulary
+[Authorize]
 public class VocabularyController : ControllerBase
 {
     private readonly IVocabularyService _service;

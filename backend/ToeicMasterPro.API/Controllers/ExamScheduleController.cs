@@ -6,7 +6,8 @@ using ToeicMasterPro.Application.DTOs.ExamSchedules;
 namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")] 
+[Route("api/[controller]")]
+[Authorize]
 public class ExamScheduleController : ControllerBase
 {
     private readonly IExamScheduleService _service;
@@ -48,6 +49,7 @@ public class ExamScheduleController : ControllerBase
     }
     // Day 21: tải file .ics — public được (ai cũng export)
     [HttpGet("{id:Guid}/ical")]
+    [AllowAnonymous]
     public async Task<IActionResult> ExportIcal(Guid id)
     {
         var result = await _service.GetIcalAsync(id);
@@ -59,6 +61,7 @@ public class ExamScheduleController : ControllerBase
     }
     // Ai cũng xem được — Day 20 User UI lọc theo tỉnh/tháng
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetList(
         [FromQuery] string? city,
         [FromQuery] int? month,
@@ -70,6 +73,7 @@ public class ExamScheduleController : ControllerBase
     }
 
     [HttpGet("{id:Guid}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);

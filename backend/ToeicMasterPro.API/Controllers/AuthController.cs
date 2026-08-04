@@ -1,7 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Auth;
-using Microsoft.AspNetCore.RateLimiting;
 
 
 namespace ToeicMasterPro.API.Controllers;
@@ -9,6 +10,7 @@ namespace ToeicMasterPro.API.Controllers;
 [ApiController]
 [Route("api/auth")]
 [EnableRateLimiting("auth")]
+[AllowAnonymous]
 public class AuthController : ControllerBase{
     private IAuthService _auth;
     public AuthController(IAuthService auth){

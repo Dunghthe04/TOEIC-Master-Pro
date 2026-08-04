@@ -8,6 +8,7 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin,ContentManager")]
 public class QuestionController : ControllerBase
 {
     private readonly IQuestionService _service;
@@ -38,7 +39,6 @@ public class QuestionController : ControllerBase
 
     //Tạo câu hỏi -> chỉ CM
     [HttpPost]
-    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> Create(CreateQuestionRequest req)
     {
         var result = await _service.CreateAsync(req);
@@ -48,7 +48,6 @@ public class QuestionController : ControllerBase
     }
 
     [HttpPut("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> Update(Guid id, UpdateQuestionRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
@@ -56,7 +55,6 @@ public class QuestionController : ControllerBase
     }
 
     [HttpDelete("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
@@ -65,7 +63,6 @@ public class QuestionController : ControllerBase
 
     // POST /api/question/import
     [HttpPost("import")]
-    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> Import(IFormFile file)
     {
         if (file is null || file.Length == 0)
@@ -82,7 +79,6 @@ public class QuestionController : ControllerBase
 
     /// <summary>Tải file Excel mẫu import câu hỏi (có cột AudioFile, ImageFile).</summary>
     [HttpGet("import-template")]
-    [Authorize(Roles = "Admin,ContentManager")]
     public async Task<IActionResult> DownloadImportTemplate()
     {
         var bytes = await _service.GetImportTemplateAsync();

@@ -24,6 +24,8 @@ using Hangfire;
 //Lưu job vào sqlServer
 using Hangfire.SqlServer;
 using ToeicMasterPro.API.Jobs;
+using Microsoft.AspNetCore.Authorization;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -125,6 +127,15 @@ builder.Services.AddAuthentication(options =>
         NameClaimType = ClaimTypes.Name,
     };
 });
+// ── Authorization: mặc định ĐÓNG ──────────────────────────
+// Endpoint không có metadata authorization nào sẽ bị áp policy này.
+// mặc định tất cả api đêu phải author, nếu api nào k muốn thì thêm [AllowAnonymous] vào controller hoặc action. Nếu quên [AllowAnonymous] thì 401, nếu quên [Authorize] thì lộ dữ liệu.
+// Đổi mô hình từ "quên [Authorize] = lộ dữ liệu" thành "quên [AllowAnonymous] = 401".
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
+
 
 // ── CORS ──────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration
