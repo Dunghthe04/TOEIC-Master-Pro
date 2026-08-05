@@ -5,6 +5,7 @@ using System.IO.Compression;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Questions;
 using ToeicMasterPro.Application.DTOs.Tests;
+using ToeicMasterPro.API.Services;
 
 namespace ToeicMasterPro.API.Controllers;
 
@@ -16,12 +17,18 @@ public class TestController : ControllerBase
     private readonly ITestService _service;
     private readonly IQuestionService _questionService;
     private readonly IWebHostEnvironment _env;
+    private readonly MediaPathProvider _paths;
 
-    public TestController(ITestService service, IQuestionService questionService, IWebHostEnvironment env)
+    public TestController(
+        ITestService service,
+        IQuestionService questionService,
+        IWebHostEnvironment env,
+        MediaPathProvider paths)
     {
         _service = service;
         _questionService = questionService;
         _env = env;
+        _paths = paths;
     }
 
     // GET /api/test?isPublished=true
@@ -158,11 +165,13 @@ public class TestController : ControllerBase
         // ── Nhánh 1: file ZIP (Excel + media trong cùng gói) ──────────────────
         if (ext == ".zip")
         {
-            // Thư mục lưu media của đề này — khớp URL mà QuestionService sẽ ghi vào DB
-            // Ví dụ: /uploads/tests/{id}/audio/ETS26-T01-7.mp3
-            var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
-            var audioFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "audio");
-            var imagesFolder = Path.Combine(webRoot, "uploads", "tests", id.ToString(), "images");
+            // Thư mục lưu media của đề này — khớp URL mà QuestionService sẽ ghi vào DB.
+            // Ví dụ: /api/media/tests/{id}/audio/ETS26-T01-7.mp3
+            //
+            // Trước đây giải nén vào wwwroot → file thành public NGAY khi upload,
+            // vì UseStaticFiles serve toàn bộ wwwroot không phân biệt thư mục con.
+            var audioFolder = _paths.TestAudioFolder(id);
+            var imagesFolder = _paths.TestImageFolder(id);
             Directory.CreateDirectory(audioFolder);
             Directory.CreateDirectory(imagesFolder);
 

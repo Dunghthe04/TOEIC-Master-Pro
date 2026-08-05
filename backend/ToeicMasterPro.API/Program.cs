@@ -31,6 +31,7 @@ using ToeicMasterPro.API.Authorization;      // HangfireDashboardAuthFilter (fil
 
 
 
+
 var builder = WebApplication.CreateBuilder(args);
 // ── Kiểm tra cấu hình bắt buộc — FAIL FAST ────────────────
 // Thiếu cấu hình thì chết NGAY ở đây kèm tên khóa và cách đặt,
@@ -114,6 +115,7 @@ builder.Services.AddHangfire(config => config
 //Bật background Job server trong process API
 builder.Services.AddHangfireServer();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<MediaPathProvider>();
 builder.Services.AddScoped<IVocabularyService, VocabularyService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repositories<>));
@@ -271,7 +273,10 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
-app.UseStaticFiles();        // ← THÊM: phục vụ wwwroot (ảnh avatar tại /uploads/avatars/...)
+// Chỉ phục vụ wwwroot = avatar (thật sự công khai).
+// Audio/ảnh đề thi nằm ở protected-media/ NGOÀI wwwroot, serve qua MediaFileController
+// có [Authorize] — vì static file middleware là terminal, không tham gia authorization.
+app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseRateLimiter();

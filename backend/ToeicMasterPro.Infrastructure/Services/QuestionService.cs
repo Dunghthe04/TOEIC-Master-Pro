@@ -349,9 +349,14 @@ public class QuestionService : IQuestionService
             }
 
             var name = ToeicMediaNaming.NormalizeMediaFileName(fileName.Trim());
+
+            // Trước: /uploads/tests/... → đi qua UseStaticFiles nên KHÔNG có authorization.
+            // Nay:   /api/media/tests/... → đi qua MediaFileController có [Authorize].
+            // Viết chuỗi trực tiếp (không dùng MediaPathProvider) vì Infrastructure không
+            // tham chiếu được API — tầng trong không biết tầng ngoài.
             return testId.HasValue
-                ? $"/uploads/tests/{testId}/{subFolder}/{name}"
-                : $"/uploads/listening/{subFolder}/{name}";
+                ? $"/api/media/tests/{testId}/{subFolder}/{name}"
+                : $"/api/media/listening/{subFolder}/{name}";
         }
         return string.IsNullOrWhiteSpace(url) ? null : url.Trim();
     }

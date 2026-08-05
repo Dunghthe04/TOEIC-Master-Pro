@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Services;
 
 namespace ToeicMasterPro.API.Controllers;
 
@@ -17,7 +18,13 @@ public class MediaController : ControllerBase
     private static readonly string[] AudioExtensions = [".mp3", ".wav", ".m4a"];
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
-    public MediaController(IWebHostEnvironment env) => _env = env;
+     private readonly MediaPathProvider _paths;      // ← THÊM
+
+    public MediaController(IWebHostEnvironment env, MediaPathProvider paths)
+    {
+        _env = env;
+        _paths = paths;
+    }
 
     /// <summary>
     /// Upload audio. testId có → uploads/tests/{id}/audio/ ; không → uploads/listening/audio/
@@ -55,18 +62,22 @@ public class MediaController : ControllerBase
             safeName = $"{Guid.NewGuid()}{ext}";
 
         var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
-        string relativeUrl;
+           string relativeUrl;
         string folder;
 
         if (testId is { } tid)
         {
-            folder = Path.Combine(webRoot, "uploads", "tests", tid.ToString(), subFolder);
-            relativeUrl = $"/uploads/tests/{tid}/{subFolder}/{safeName}";
+            // Media đề thi → protected-media/ (ngoài wwwroot) + URL đi qua controller có [Authorize]
+            folder = subFolder == "audio"
+                ? _paths.TestAudioFolder(tid)
+                : _paths.TestImageFolder(tid);
+            relativeUrl = MediaPathProvider.TestMediaUrl(tid, subFolder, safeName);
         }
         else
         {
-            folder = Path.Combine(webRoot, "uploads", "listening", subFolder);
-            relativeUrl = $"/uploads/listening/{subFolder}/{safeName}";
+            // Kho câu chung chưa gán đề — vẫn thuộc nội dung có bản quyền nên cũng bảo vệ
+            folder = Path.Combine(_paths.ProtectedRoot, "listening", subFolder);
+            relativeUrl = $"/api/media/listening/{subFolder}/{safeName}";
         }
 
         Directory.CreateDirectory(folder);

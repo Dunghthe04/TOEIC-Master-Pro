@@ -495,3 +495,9 @@ logs/
 **/wwwroot/uploads/**
 !**/wwwroot/uploads/**/
 !**/wwwroot/uploads/**/.gitkeep
+
+# Audio/ảnh đề thi — NGOÀI wwwroot để static file middleware không serve được (lỗi #8).
+# Đây là nội dung có bản quyền ETS, tuyệt đối không đưa vào git.
+**/protected-media/**
+!**/protected-media/**/
+!**/protected-media/**/.gitkeep
