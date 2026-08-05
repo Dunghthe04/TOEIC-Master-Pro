@@ -9,6 +9,10 @@
 # Password mặc định lấy từ file .env (copy từ .env.example)
 # Nếu không có .env, dùng giá trị fallback sau dấu :-
 # ============================================================
+# ⚠️ FILE NÀY CHỈ DÙNG CHO MÁY DEV.
+#    Production dùng docker-compose.prod.yml — không expose port, không fallback password.
+#    Fallback ${VAR:-default} ở đây là CỐ Ý cho tiện dev, nhưng nghĩa là mật khẩu dev
+#    nằm trong git. Chấp nhận được vì SQL/Redis chỉ bind 127.0.0.1 trên máy dev.
 
 services:
 
@@ -25,7 +29,9 @@ services:
       - SA_PASSWORD=${DB_PASSWORD:-ToeicMaster@2026}       # Mật khẩu tài khoản sa (min 8 ký tự, có chữ hoa + số + ký tự đặc biệt)
       - MSSQL_PID=Developer                                # Bản Developer — miễn phí, đầy đủ tính năng Enterprise
     ports:
-      - "1434:1433"                                        # host:container — chỉ expose local, không public
+      # 127.0.0.1 tường minh: cú pháp "1434:1433" bind ra 0.0.0.0 (MỌI card mạng),
+      # không phải "chỉ local" như comment cũ ghi sai.
+      - "127.0.0.1:1434:1433"                                     # host:container — chỉ expose local, không public
     volumes:
       - sqlserver_data:/var/opt/mssql                      # Persist data kể cả khi container restart
     healthcheck:
@@ -48,7 +54,7 @@ services:
     image: redis:7.4-alpine                                # Alpine = image nhỏ gọn (~30MB vs ~100MB full)
     container_name: toeic_redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data                                   # Persist data với AOF (Append Only File)
     command:

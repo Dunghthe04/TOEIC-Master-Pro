@@ -1,0 +1,163 @@
+# ============================================================
+# TOEIC Master Pro — Docker Compose PRODUCTION
+# ============================================================
+# Chạy:   docker compose -f docker-compose.prod.yml up -d
+# Logs:   docker compose -f docker-compose.prod.yml logs -f api
+# Dừng:   docker compose -f docker-compose.prod.yml down
+#
+# BẮT BUỘC có file .env cùng thư mục (KHÔNG commit) chứa:
+#   DB_PASSWORD=...
+#   REDIS_PASSWORD=...
+#   JWT_SECRET=...
+#   HANGFIRE_USER=...
+#   HANGFIRE_PASSWORD=...
+#   ADMIN_PASSWORD=...
+#   CM_PASSWORD=...
+#   DOMAIN=tenmien.com
+#
+# KHÁC BIỆT SO VỚI BẢN DEV — ba điểm, mỗi điểm một lý do:
+#  1. KHÔNG có mục `ports` cho sqlserver/redis → chỉ nói chuyện trong mạng nội bộ Docker.
+#     Bind ra host là SQL Server hở Internet với tài khoản sa → bot tấn công trong vài giờ.
+#     Docker tự thêm rule iptables ĐI VÒNG QUA ufw, nên `ufw deny 1434` KHÔNG cứu được.
+#  2. KHÔNG có fallback ${VAR:-default} → thiếu biến thì compose BÁO LỖI, không âm thầm
+#     dùng mật khẩu nằm trong git.
+#  3. MSSQL_PID=Express → Developer edition bị license CẤM dùng production.
+#Nginx là container giao tiếp duy nhất ra Internet, reverse proxy /api → api gọi sqlserver/redis bằng tên service.
+# Brower gọi api/login -> đi qua nginx-> nginx gửi tới api container -> api container gọi sqlserver/redis bằng tên service. Nginx là container duy nhất mở ra Internet, reverse proxy /api → api gọi sqlserver/redis bằng tên service.
+# các container giao tiếp với nhau bằng tên service, không phải localhost. Nginx là container duy nhất mở ra Internet, reverse proxy /api → api gọi sqlserver/redis bằng tên service. 
+#============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # SQL Server 2022 Express
+  # Express miễn phí CHO CẢ PRODUCTION. Giới hạn: 10GB/database,
+  # ~1.4GB buffer pool, 4 core. Thừa cho dự án này.
+  # ----------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: toeic_sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${DB_PASSWORD:?DB_PASSWORD chua duoc dat trong .env}
+      - MSSQL_PID=Express
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    # KHÔNG có `ports` — api gọi qua tên service `sqlserver` trong mạng nội bộ Docker
+    healthcheck:
+      # Dùng :? ở đây nữa (không phải ${DB_PASSWORD} trần) để thông báo lỗi nhất quán —
+      # biến trần chỉ ra warning "Defaulting to a blank string", dễ tưởng là chạy được.
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa",
+             "-P", "${DB_PASSWORD:?DB_PASSWORD chua duoc dat trong .env}", "-C", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Redis 7.4
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    container_name: toeic_redis
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD chua duoc dat trong .env}
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis_data:/data
+    # KHÔNG có `ports`
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD chua duoc dat trong .env}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # API ASP.NET Core
+  # Toàn bộ cấu hình qua BIẾN MÔI TRƯỜNG — appsettings.json chỉ là khung rỗng.
+  # Dấu __ (hai gạch dưới) thay cho : vì Linux không cho : trong tên biến.
+  # ----------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile      # ← tạo ở Day 50
+    container_name: toeic_api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+
+      # Container gọi nhau bằng TÊN SERVICE, không phải localhost
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=ToeicMasterPro;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True
+
+      # abortConnect=false: Redis chưa lên thì không throw lúc kết nối đầu.
+      # Cùng với factory lambda ở Program.cs (lỗi #6) → Redis là dependency tùy chọn thật sự.
+      - Redis__ConnectionStrings=redis:6379,password=${REDIS_PASSWORD},abortConnect=false
+
+      - Jwt__SecretKey=${JWT_SECRET:?JWT_SECRET chua duoc dat trong .env}
+      - Jwt__Issuer=https://${DOMAIN:?DOMAIN chua duoc dat trong .env}
+      - Jwt__Audience=https://${DOMAIN}
+      - Jwt__AccessTokenExpiryMinutes=60
+      - Jwt__RefreshTokenExpiryDays=30
+
+      - Cors__AllowedOrigins__0=https://${DOMAIN}
+      - Cors__AllowedOrigins__1=https://www.${DOMAIN}
+
+      # Thiếu 2 biến này thì dashboard KHÔNG được mount (fail closed, lỗi #5)
+      - Hangfire__DashboardUser=${HANGFIRE_USER}
+      - Hangfire__DashboardPassword=${HANGFIRE_PASSWORD}
+
+      - AdminSeed__Email=admin@${DOMAIN}
+      - AdminSeed__Password=${ADMIN_PASSWORD:?ADMIN_PASSWORD chua duoc dat trong .env}
+      - AdminSeed__FullName=System Admin
+      - ContentManagerSeed__Email=cm@${DOMAIN}
+      - ContentManagerSeed__Password=${CM_PASSWORD:?CM_PASSWORD chua duoc dat trong .env}
+      - ContentManagerSeed__FullName=Content Manager
+
+    volumes:
+      # BẮT BUỘC: không có volume này thì mọi audio/ảnh đã upload MẤT SẠCH mỗi lần deploy lại
+      - media:/app/wwwroot/uploads
+      - api_logs:/app/logs
+
+    depends_on:
+      sqlserver:
+        condition: service_healthy    # đợi SQL Server SẴN SÀNG, không chỉ đợi container start
+      redis:
+        condition: service_started
+    # KHÔNG expose port ra host — nginx gọi qua mạng nội bộ Docker
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Nginx — serve SPA + reverse proxy /api. Container DUY NHẤT mở ra Internet.
+  # ----------------------------------------------------------
+  nginx:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile     # ← tạo ở Day 50
+    container_name: toeic_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro          # ← tạo ở Day 53
+      - certbot_certs:/etc/letsencrypt:ro            # ← Certbot, Day 54
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+  redis_data:
+  media:            # audio/ảnh đề thi + avatar — MẤT LÀ KHÔNG LẤY LẠI ĐƯỢC
+  api_logs:
+  certbot_certs:
+  certbot_www:
