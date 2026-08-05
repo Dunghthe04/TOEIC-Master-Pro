@@ -42,12 +42,22 @@ Endpoint **không có** metadata authorization nào sẽ bị áp policy này �
 
 Fallback policy chỉ chạy trong `UseAuthorization` với **endpoint**. Hai chỗ sau là **middleware terminal** — tự xử lý request rồi trả về, không bao giờ chạm tới authorization:
 
-| Chỗ | Vị trí | Trạng thái | Xử lý ở |
-|---|---|---|---|
-| `app.UseStaticFiles()` | `Program.cs:215` | 🔴 **vẫn public** — audio/ảnh đề thi tải được không cần token | Day 41 |
-| `app.UseHangfireDashboard()` | `Program.cs:221` | 🔴 **vẫn public** — ai cũng xem job và bấm "Trigger now" | Day 41 |
+| Chỗ | Trạng thái |
+|---|---|
+| `app.UseStaticFiles()` | 🟢 Chỉ còn serve `wwwroot/uploads/avatars` — thật sự công khai. Audio/ảnh đề thi đã chuyển sang `protected-media/` (ngoài wwwroot), serve qua `MediaFileController` |
+| `app.MapHangfireDashboard()` | 🟢 Basic Auth + `IsReadOnlyFunc` ở Production. Thiếu credential → **không mount** |
 
-**Đừng tưởng bật fallback policy là hai chỗ này tự an toàn.** Đây là hiểu biết cốt lõi về pipeline.
+**Đừng tưởng bật fallback policy là mọi thứ tự an toàn.** Hai bài học từ đợt vá 2026-08-05:
+
+**1. `UseStaticFiles` là middleware TERMINAL** — khớp đường dẫn là trả file rồi dừng pipeline,
+**không bao giờ** chạm `UseAuthorization`. Đổi thứ tự middleware **không** cứu được; cách duy nhất
+là để file cần bảo vệ **ngoài** `wwwroot`.
+
+**2. Ngược lại, `MapScalarApiReference` là ENDPOINT** nên fallback policy áp lên nó → `/scalar` trả
+401 dù chỉ là trang tài liệu. Phải `.AllowAnonymous()`. Còn `UseSwagger`/`UseSwaggerUI` là
+middleware nên vẫn mở bình thường.
+
+→ Cùng một trang tài liệu, hai kết cục khác nhau chỉ vì **middleware vs endpoint**.
 
 ---
 
@@ -164,7 +174,25 @@ Toàn bộ endpoint: ❌ ẩn danh · ✅ User/CM/Admin. Lấy `userId` từ JWT
 | `ProfileController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
 | `SrsController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
 | `PracticeController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
-| `MediaController` | `[Authorize(Roles = "Admin,ContentManager")]` | ❌ 401 | ❌ 403 | ✅ | ✅ |
+| `MediaController` (upload) | `[Authorize(Roles = "Admin,ContentManager")]` | ❌ 401 | ❌ 403 | ✅ | ✅ |
+
+### MediaFileController — serve media đề thi (thêm 2026-08-05)
+
+| Endpoint | Ẩn danh | User | CM/Admin | Ghi chú |
+|---|---|---|---|---|
+| `GET /api/media/token/{testId}` | ❌ 401 | ✅ nếu đề **published**, ❌ 403 nếu nháp | ✅ kể cả đề nháp | Cấp token 10 phút, gọi qua axios |
+| `GET /api/media/tests/{testId}/{audio\|images}/{file}?t=` | ❌ 401 | ✅ với token đúng đề | ✅ | `[AllowAnonymous]` + verify `?t=` |
+
+> **⚠️ `[AllowAnonymous]` ở đây KHÔNG phải mở cửa.** Thẻ `<audio>`/`<img>` do **trình duyệt** tải
+> nên không gắn được `Authorization` header → fallback policy sẽ chặn cả người dùng hợp lệ.
+> Bảo vệ chuyển sang verify token trong query string. Ba tầng:
+>
+> 1. Token ký HMAC-SHA256, sống 10 phút
+> 2. Kiểm `IsPublished` **lúc cấp** token (cấp 1 lần/10 phút vs tải 100+ lần — không thể query DB
+>    mỗi thẻ `<img>`)
+> 3. Ký `testId` **vào** chữ ký → token đề 1 **không** tải được media đề 2
+>
+> Vẫn chấp nhận Bearer nếu có (curl/Postman/axios). Chi tiết: [09 — mục 1.8](09-hien-trang-va-khuyen-nghi.md).
 
 > ⚠️ **`PracticeController` — nợ đã biết:** `POST /api/practice/submit` chấm **bất kỳ `questionId`
 > nào** gửi lên, không kiểm câu đó có thuộc phiên luyện của user không → **máy tra đáp án hợp lệ, có
@@ -207,8 +235,8 @@ Chạy bằng `curl` với token thật, không phải suy luận từ code:
 
 | Việc | Vị trí | Day |
 |---|---|---|
-| Static files public — audio/ảnh đề thi tải được không token | `Program.cs:215` | 41 |
-| Hangfire Dashboard không có authorization | `Program.cs:221` | 41 |
+| ~~Static files public — audio/ảnh đề thi~~ | ✅ **vá 2026-08-05** — chuyển sang `protected-media/` + signed URL | — |
+| ~~Hangfire Dashboard không có authorization~~ | ✅ **vá 2026-08-05** — Basic Auth + `IsReadOnlyFunc` | — |
 | Tách DTO theo người xem — `MapToResponse` vẫn trả `IsCorrect` cho mọi caller | `QuestionService.cs:140` | 35 |
 | Backend chưa trả `roles` cho frontend → UI không biết user là ai | DTO profile | 35 |
 | Frontend chưa lọc menu theo role — User thấy menu quản trị | `Sidebar.tsx` | 36 |

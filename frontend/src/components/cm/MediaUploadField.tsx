@@ -1,12 +1,12 @@
 /**
  * Ô upload audio/ảnh cho CM — chọn file → API lưu → tự điền URL (không gõ tay).
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { uploadAudio, uploadImage } from '@/services/media.service'
-import { getMediaUrl } from '@/lib/media'
+import { getMediaUrl, prefetchMediaToken } from '@/lib/media'
 import { toast } from 'sonner'
 import { Upload } from 'lucide-react'
 
@@ -58,6 +58,19 @@ export default function MediaUploadField({
         }
     }
 
+    /**
+     * Xin token media để preview được file vừa upload.
+     * Thẻ <audio>/<img> do trình duyệt tải nên không gắn Authorization header —
+     * token phải nằm trong query string. mediaTick buộc tính lại mediaSrc sau khi
+     * token về, vì getMediaUrl() đọc cache đồng bộ và không tự re-render.
+     */
+    const [mediaTick, setMediaTick] = useState(0)
+    useEffect(() => {
+        if (!testId || !value.startsWith('/api/media/')) return
+        prefetchMediaToken(testId).finally(() => setMediaTick((n) => n + 1))
+    }, [testId, value])
+
+    void mediaTick   // dùng làm dependency cho lần tính lại bên dưới
     const mediaSrc = getMediaUrl(value)
 
     return (

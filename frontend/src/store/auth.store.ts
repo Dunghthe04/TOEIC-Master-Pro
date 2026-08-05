@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { saveTokens, clearTokens } from '../lib/token'
+import { clearMediaTokens } from '@/lib/media'
 import type { User } from '@/types/auth.types'
 
 //Định nghĩa ra trạng thái auth
@@ -34,6 +35,9 @@ export const useAuthStore = create<AuthState>()(
             // Xóa token + reset store về trạng thái chưa login
             logout: () => {
                 clearTokens()
+                // Token media nằm trong memory (lib/media.ts) — xóa để tài khoản
+                // đăng nhập sau không dùng lại token của tài khoản trước.
+                clearMediaTokens()
                 set({ user: null, isAuthenticated: false })
             },
         }),

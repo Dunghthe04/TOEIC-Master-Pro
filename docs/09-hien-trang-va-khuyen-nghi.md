@@ -42,7 +42,8 @@
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
 | **Hiệu năng** | 🟠 Yếu | Repository materialize-everything là gốc rễ: phân trang trong RAM, không `AsNoTracking`, query không trần |
-| **Bảo mật** | 🟠 Còn lỗ hổng | XSS chưa sanitize, Hangfire dashboard mở, static files public. Đã vá: secrets trong git (2026-08-04) |
+| **Bảo mật** | 🟠 Còn 1 lỗ hổng | **Còn: XSS chưa sanitize** (15 chỗ `dangerouslySetInnerHTML`). Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot`, serve qua signed URL |
+| **Deploy config** | 🟢 Đã vá (2026-08-05) | `docker-compose.prod.yml` tách riêng: `MSSQL_PID=Express`, **không** expose port DB/Redis, `${VAR:?}` fail-fast thay vì fallback password. Dev bind `127.0.0.1` thay vì `0.0.0.0` |
 | **Cấu hình** | 🟢 Đã vá (2026-08-04) | Khung khóa đầy đủ ở `appsettings.json`, giá trị thật ở User Secrets (dev) / biến môi trường (prod). Thiếu cấu hình → `InvalidOperationException` **nêu đúng tên biến cần đặt**. Đã kiểm chứng chạy được với `ASPNETCORE_ENVIRONMENT=Production` |
 | **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. Thiếu auto-refresh token — hỏng UX nặng |
 | **Testing** | 🟠 Yếu | 30 test nhưng chỉ phủ 2 hàm thuần. **0 test cho exam engine** — phần phức tạp nhất |
@@ -302,7 +303,28 @@ q.Passage = _sanitizer.Sanitize(req.Passage);
 **Giảm thiệt hại kèm theo:** chuyển access token khỏi `localStorage` (giữ trong memory, refresh token
 trong httpOnly cookie) → XSS không lấy được token nữa.
 
-## 1.5 · 🔴 📋 Hangfire Dashboard mở cho tất cả mọi người
+## 1.5 · ✅ ĐÃ VÁ 2026-08-05 — Hangfire Dashboard mở cho tất cả mọi người
+
+> **Cách vá:** `MapHangfireDashboard` (không phải `Use`) + `.AllowAnonymous()` +
+> `HangfireDashboardAuthFilter` kiểm Basic Auth + `IsReadOnlyFunc` ở Production.
+> Thiếu `Hangfire__DashboardUser/Password` → **không mount** dashboard (fail closed).
+>
+> **Hai điều học được ngoài dự kiến:**
+> 1. **Hangfire 1.8 dùng endpoint routing**, nên fallback policy (lỗi 1.1) **đã** chặn `/hangfire`
+>    — nhưng chặn cả chính mình. Phải `.AllowAnonymous()` để gỡ tầng JWT rồi thay bằng Basic Auth,
+>    vì trang HTML mở bằng trình duyệt không gắn được `Authorization` header.
+> 2. `LocalRequestsOnlyAuthorizationFilter` **sai ở cả hai đầu**: chặn chính mình khi dev
+>    (`localhost` → `::1` IPv6, không phải `127.0.0.1`), và cho qua hết khi deploy sau Nginx
+>    (mọi request đến từ mạng nội bộ Docker). **Xác thực theo IP không dùng được.**
+>
+> **Lỗi phát sinh đã sửa:** `RecurringJob.AddOrUpdate` là static API đọc `JobStorage.Current` —
+> biến toàn cục chỉ được set như **side effect** của `UseHangfireDashboard`. Đổi sang `Map` thì
+> app **không boot được ở Production**. Sửa bằng `IRecurringJobManager` từ DI. Bài học: việc đăng
+> ký job không được phụ thuộc vào việc dashboard có mount hay không.
+>
+> **Nghiệm thu:** header `WWW-Authenticate: Basic realm="Hangfire Dashboard"` (nếu là `Bearer`
+> thì filter chưa chạy). Test: 401 không credential · 401 sai mật khẩu · 200 đúng · 404 khi
+> Production thiếu credential.
 
 **Vị trí:** [Program.cs:221](../backend/ToeicMasterPro.API/Program.cs#L221)
 ```csharp
@@ -332,7 +354,23 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions {
 });
 ```
 
-## 1.6 · 🟠 📋 Redis kết nối đồng bộ lúc khởi động
+## 1.6 · ✅ ĐÃ VÁ 2026-08-05 — Redis kết nối đồng bộ lúc khởi động
+
+> **Cách vá:** đổi `AddSingleton<T>(instance)` → `AddSingleton<T>(_ => ...)` và thêm
+> `abortConnect=false` vào connection string.
+>
+> **Khác biệt giữa hai overload — đây là điểm cốt lõi:**
+>
+> | | `AddSingleton<T>(instance)` | `AddSingleton<T>(factory)` |
+> |---|---|---|
+> | `Connect()` chạy khi nào | **Ngay lúc đăng ký DI** | Lần đầu có ai resolve |
+> | Không ai dùng | Vẫn kết nối | **Không bao giờ kết nối** |
+> | Redis chết lúc boot | App chết | App chạy bình thường |
+>
+> Vì `ICacheService` chưa được inject ở đâu, thực tế `Connect()` **không bao giờ chạy** — Redis
+> thành dependency tùy chọn thật sự.
+>
+> **Đã kiểm chứng:** `docker stop toeic_redis` → app vẫn khởi động, login vẫn 200.
 
 **Vị trí:** [Program.cs:66](../backend/ToeicMasterPro.API/Program.cs#L66)
 ```csharp
@@ -354,7 +392,29 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 ```
 Thêm `abortConnect=false` vào connection string để Redis tạm chết không làm sập app.
 
-## 1.7 · 🔴 📋 docker-compose: 3 vấn đề phải sửa trước khi lên prod
+## 1.7 · ✅ ĐÃ VÁ 2026-08-05 — docker-compose: 3 vấn đề phải sửa trước khi lên prod
+
+> **Cách vá:** tách `docker-compose.prod.yml` riêng (dev cần mở port cho SSMS, prod thì không —
+> một file không phục vụ được cả hai). Thêm `.env.example` làm tài liệu (commit, giá trị **rỗng**).
+>
+> | Vấn đề | Cách sửa |
+> |---|---|
+> | `MSSQL_PID=Developer` | → `Express` (miễn phí **cho cả production**, giới hạn 10GB/DB) |
+> | Bind `0.0.0.0` | Prod: **bỏ hẳn `ports`** · Dev: `127.0.0.1:1434:1433` tường minh |
+> | `${DB_PASSWORD:-hardcode}` | → `${DB_PASSWORD:?thông báo}` — thiếu biến thì compose **báo lỗi** |
+>
+> **Hai điều học được:**
+> 1. Cú pháp `"1434:1433"` bind ra `0.0.0.0` (**mọi** card mạng) — comment cũ ghi "chỉ expose
+>    local" là **sai**. Muốn local phải ghi `127.0.0.1:1434:1433`.
+> 2. `docker compose up -d` **không** recreate container nếu image không đổi → sửa file mà không
+>    thấy tác dụng. Phải `--force-recreate`.
+>
+> **Tác dụng phụ đã xử lý:** siết binding sang IPv4 làm app mất kết nối DB, vì `localhost` trên
+> Windows phân giải ra **`::1` (IPv6) trước** và `SqlClient` **không fallback**. Connection string
+> phải dùng `127.0.0.1` tường minh.
+>
+> **Đã kiểm chứng:** `config` không có `.env` → báo lỗi nêu đúng tên biến · có `.env` → chỉ
+> `nginx` có `published:`, `MSSQL_PID: Express`.
 
 | Vấn đề | Vị trí | Sửa |
 |---|---|---|
@@ -365,7 +425,40 @@ Thêm `abortConnect=false` vào connection string để Redis tạm chết khôn
 > **Vì sao bind `0.0.0.0` nguy hiểm:** SQL Server hở ra Internet với tài khoản `sa` sẽ bị bot quét và
 > tấn công **trong vòng vài giờ**. Đây là một trong những cách bị hack nhanh nhất.
 
-## 1.8 · 🟠 📋 File media hoàn toàn public
+## 1.8 · ✅ ĐÃ VÁ 2026-08-05 — File media hoàn toàn public
+
+> **Cách vá — 2 phần:**
+>
+> **a) Backend:** chuyển 286 file (158 MB) từ `wwwroot/uploads/tests/` sang
+> `protected-media/tests/` (**ngoài** wwwroot), serve qua `MediaFileController`. Avatar giữ ở
+> `wwwroot` (thật sự công khai). `MediaPathProvider` gom logic đường dẫn + chống path traversal.
+> SQL UPDATE 304 dòng URL trong DB (200 audio + 104 image, có ca 2 URL cách nhau bằng `;`).
+>
+> **b) Frontend — signed URL:** thẻ `<audio>`/`<img>` do **trình duyệt** tải nên không gắn được
+> `Authorization` header. `MediaTokenService` cấp token HMAC-SHA256 sống **10 phút**, FE gắn vào
+> `?t=`. `getMediaUrl()` tự trích `testId` từ đường dẫn bằng regex → **11 chỗ gọi không phải sửa**.
+>
+> **Ba tầng bảo vệ** (tầng 2-3 thêm sau khi tự phát hiện lỗ hổng):
+>
+> | Tầng | Trả lời | Cách |
+> |---|---|---|
+> | 1 | Có đăng nhập? | Token ký HMAC, 10 phút |
+> | 2 | Đề này được xem? | Kiểm `IsPublished` **lúc cấp** token (cấp 1 lần/10 phút vs tải 100+ lần) |
+> | 3 | Đúng đề đã cấp? | Ký `testId` **vào** chữ ký → token đề 1 không tải được đề 2 |
+>
+> **Vì sao chọn signed URL, không dùng Blob URL:** Blob phải tải hết file mới phát → mất streaming
+> và không tua được. Audio ~400KB/câu × 100 câu, Day 55 (thi trên 4G) sẽ lộ ngay.
+>
+> **Giới hạn phải biết:** không chống được học viên hợp lệ tải hết audio của **chính đề mình đang
+> thi** rồi chia sẻ. Đó là chống *sao chép nội dung*, khác *truy cập trái phép* — cần rate limit
+> + audit log, không đáng làm cho dự án này.
+>
+> **Đã kiểm chứng 10/10:** 401 không token · **200 với `?t=`** · 401 token sai · 200 Bearer ·
+> **206 Range** · **401 token đề 1 → đề 2** · 401 `/token` ẩn danh · **403 học viên xin token đề
+> nháp** · 200 Admin xin token đề nháp · 404 đề không tồn tại.
+>
+> ⚠️ **Chưa test trên trình duyệt thật** — cần xác nhận `/media/token` chỉ gọi 1 lần (không phải
+> 100 lần) và audio tua được.
 
 **Vị trí:** [Program.cs:215-217](../backend/ToeicMasterPro.API/Program.cs#L215)
 ```csharp
@@ -584,7 +677,7 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 
 | Vấn đề | Vị trí |
 |---|---|
-| Import ZIP giải nén file **bất kỳ đuôi nào** vào `wwwroot` → ghi được HTML/JS lên chính origin của API; không giới hạn số entry (**zip bomb**) | `TestController.cs:177-198` |
+| Import ZIP giải nén file **bất kỳ đuôi nào**; không giới hạn số entry (**zip bomb**). 🟡 *Giảm nhẹ 2026-08-05:* giờ giải nén vào `protected-media/` (ngoài wwwroot) nên **không** ghi được HTML/JS lên origin của API nữa — nhưng vẫn cần whitelist đuôi + giới hạn entry | `TestController.cs:177-198` |
 | `MediaController` chỉ tin phần mở rộng, không kiểm nội dung file, ghi đè im lặng | `MediaController.cs:44-77` |
 | Refresh token lưu **plaintext** trong DB | `TokenService.cs:60-65` |
 | Không có **reuse detection** cho refresh token | `AuthService.cs:73-86` |
@@ -624,13 +717,16 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 ✅ 1. Fallback authorization policy + [AllowAnonymous] cho endpoint công khai   — XONG 2026-08-04
 ✅ 2. Đổi Jwt:SecretKey; secret sang User Secrets / biến môi trường            — XONG 2026-08-04
 ✅ 3. Đưa khung Jwt/Redis/Cors vào appsettings.json; bỏ `!`, fail fast rõ ràng  — XONG 2026-08-04
-□ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage   ← LÀM TIẾP
-□ 5. Bảo vệ Hangfire Dashboard bằng IDashboardAuthorizationFilter
-□ 6. Redis connect qua factory lambda + abortConnect=false
-□ 7. docker-compose.prod.yml: MSSQL_PID=Express, bỏ ports, bỏ hardcode password
+□ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage   ← CÒN LẠI DUY NHẤT
+✅ 5. Bảo vệ Hangfire Dashboard — Basic Auth + IsReadOnlyFunc                   — XONG 2026-08-05
+✅ 6. Redis connect qua factory lambda + abortConnect=false                     — XONG 2026-08-05
+✅ 7. docker-compose.prod.yml: MSSQL_PID=Express, bỏ ports, bỏ fallback pass    — XONG 2026-08-05
      ⚠️ gộp luôn việc đổi mật khẩu DB/Redis — xem phần "còn nợ" ở mục 1.3
-□ 8. Tách file media cần bảo vệ ra khỏi wwwroot (hoặc chấp nhận và ghi rõ là public)
+✅ 8. Tách media ra khỏi wwwroot + signed URL cho <audio>/<img>                  — XONG 2026-08-05
 ```
+
+> **7/8 xong.** Còn lại duy nhất mục 4 (XSS). Việc phải làm khi đổi máy:
+> [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md).
 
 > **Sáu biến môi trường Production** đã xác định được từ đợt sửa mục 1.2 — dùng luôn cho
 > `docker-compose.prod.yml` ở Giai đoạn 3, không phải đoán:
@@ -933,7 +1029,7 @@ jobs:
 □ 1.  VPS 4GB Ubuntu 22.04, đã bảo mật SSH + ufw
 □ 2.  Docker + Docker Compose
 □ 3.  Tên miền, bản ghi A trỏ về IP
-□ 4.  ĐÃ SỬA XONG toàn bộ Giai đoạn 1 — hiện 3/8 (1.1, 1.2, 1.3 xong; còn 1.4 → 1.8)
+□ 4.  ĐÃ SỬA XONG toàn bộ Giai đoạn 1 — hiện 7/8 (còn duy nhất 1.4 XSS)
 □ 5.  Dockerfile API + frontend
 □ 6.  docker-compose.prod.yml + file .env trên VPS
 □ 7.  Nginx + Certbot, SSL chạy được

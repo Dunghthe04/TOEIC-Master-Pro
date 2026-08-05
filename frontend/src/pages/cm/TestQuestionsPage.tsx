@@ -30,7 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Link2, Trash2, Upload, FileSpreadsheet, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { uploadAudio, uploadImage } from '@/services/media.service'
-import { getMediaUrl } from '@/lib/media'
+import { getMediaUrl, prefetchMediaToken } from '@/lib/media'
 import { buildAudioFileName, toExamCode, toTestCode } from '@/lib/toeicMediaNaming'
 
 /** Bỏ HTML TipTap để xem nhanh trong bảng. */
@@ -69,6 +69,12 @@ export default function TestQuestionsPage() {
         if (!id) return
         setLoading(true)
         try {
+            // Xin token media TRƯỚC khi setDetail() gây render <audio>/<img>.
+            // Thẻ media do trình duyệt tải nên không gắn Authorization header được —
+            // token phải nằm trong query string và có sẵn lúc getMediaUrl() build URL.
+            // CM/Admin xin được token cả đề nháp (backend kiểm role).
+            await prefetchMediaToken(id)
+
             const [d, qs] = await Promise.all([
                 TestService.getById(id),
                 QuestionService.getList(),

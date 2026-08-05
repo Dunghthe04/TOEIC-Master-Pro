@@ -52,7 +52,7 @@ import {
     SkipForward,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getMediaUrl } from '@/lib/media'
+import { getMediaUrl, prefetchMediaToken } from '@/lib/media'
 import {
     formatListeningAudioError,
     type AudioErrorContext,
@@ -114,6 +114,12 @@ export default function MockTestPlayPage() {
     const answersRef = useRef<Record<string, string>>({})
     /** Tránh gọi auto-submit Reading nhiều lần khi timer về 0 */
     const readingAutoSubmitTriggeredRef = useRef(false)
+    /**
+     * Đã xin được token media chưa. Thẻ <audio>/<img> do TRÌNH DUYỆT tải nên không gắn
+     * Authorization header được — token phải nằm trong query string, và phải có SẴN
+     * lúc getMediaUrl() build URL. Render trước khi token về = 401 im lặng, không ảnh/tiếng.
+     */
+    const [mediaReady, setMediaReady] = useState(false)
     sessionIdRef.current = sessionId
     answersRef.current = answers
 
@@ -138,8 +144,15 @@ export default function MockTestPlayPage() {
             setSubmitResult(null)
             setIsSubmitting(false)
             setReadingSecondsLeft(null)
+            setMediaReady(false)
             readingAutoSubmitTriggeredRef.current = false
             try {
+                // Bước A0: xin token media TRƯỚC khi setPlay() gây render <audio>/<img>.
+                // getMediaUrl() đọc token từ cache đồng bộ — chưa có là trả URL trần → 401.
+                await prefetchMediaToken(id)
+                if (cancelled) return
+                setMediaReady(true)
+
                 // Bước A: tạo TestSession trên server (thay localStorage Day 27)
                 const session = await TestSessionService.start({
                     testId: id,
@@ -723,7 +736,9 @@ export default function MockTestPlayPage() {
         )
     }
 
-    if (phase === 'loading' || !play) {
+    // !mediaReady: chặn render tới khi có token media, nếu không mọi <audio>/<img>
+    // sẽ build URL thiếu ?t= → 401 im lặng (không ảnh, không tiếng, không báo lỗi).
+    if (phase === 'loading' || !play || !mediaReady) {
         return (
             <ExamShell
                 title="…"

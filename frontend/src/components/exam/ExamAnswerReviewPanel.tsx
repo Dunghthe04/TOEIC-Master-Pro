@@ -1,12 +1,12 @@
 /**
  * Chi tiết từng câu sau nộp bài — đáp án user chọn vs đáp án đúng.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, Circle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { isListeningPart, partToNumber } from '@/lib/examListening'
 import { isReadingPart, parseQuestionImageUrls } from '@/lib/examReading'
-import { getMediaUrl } from '@/lib/media'
+import { getMediaUrl, prefetchMediaToken } from '@/lib/media'
 import type { PlayQuestion } from '@/types/test.types'
 import type { SessionAnswerReview } from '@/types/test-session.types'
 
@@ -24,6 +24,20 @@ export default function ExamAnswerReviewPanel({
     onBack,
 }: ExamAnswerReviewPanelProps) {
     const [filter, setFilter] = useState<Filter>('all')
+
+    /**
+     * Xin token media trước khi render <audio>/<img>.
+     * Component này không nhận testId qua props, nhưng URL media đã chứa nó
+     * (/api/media/tests/{testId}/...) nên trích ra được — khỏi phải sửa component cha.
+     */
+    const [mediaReady, setMediaReady] = useState(false)
+    useEffect(() => {
+        const withMedia = questions.find(q => q.audioUrl || q.imageUrl)
+        const testId = /\/api\/media\/tests\/([0-9a-fA-F-]{36})\//
+            .exec(withMedia?.audioUrl ?? withMedia?.imageUrl ?? '')?.[1]
+        if (!testId) { setMediaReady(true); return }   // đề không có media → render luôn
+        prefetchMediaToken(testId).finally(() => setMediaReady(true))
+    }, [questions])
 
     const questionMap = useMemo(() => {
         const m = new Map<string, PlayQuestion>()
@@ -85,6 +99,11 @@ export default function ExamAnswerReviewPanel({
     const wrongCount = sorted.filter((r) => !r.isCorrect && r.selectedOptionId).length
     const skippedCount = sorted.filter((r) => !r.selectedOptionId).length
     const correctCount = sorted.filter((r) => r.isCorrect).length
+
+    // Chặn render tới khi có token media — thiếu ?t= là 401 im lặng, không ảnh/tiếng.
+    if (!mediaReady) {
+        return <p className="text-sm text-muted-foreground py-12 text-center">Đang tải…</p>
+    }
 
     return (
         <div className="space-y-4 pb-6">

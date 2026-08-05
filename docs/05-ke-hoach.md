@@ -2,15 +2,31 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** xong **Day 34** (2026-08-04) · **TIẾP THEO: Day 39** — cấu hình fail-fast
+> 📍 **ĐANG Ở:** **7/8 lỗi chặn deploy đã vá** (2026-08-05) · **TIẾP THEO: lỗi #4 — Stored XSS** (Day 42)
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
-> 📋 Chi tiết lỗi: [09-hien-trang-va-khuyen-nghi.md](09-hien-trang-va-khuyen-nghi.md) · Giải thích công nghệ: [08-cam-nang-cong-nghe.md](08-cam-nang-cong-nghe.md) · Phân quyền: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md)
+> 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
 > ⚠️ **Đang làm KHÔNG theo thứ tự Day** — ưu tiên 8 lỗi chặn deploy trước, mỗi lỗi tự đọc code xác
 > nhận rồi tự sửa. Day 33 (đọc JD, quyết bản quyền) và Day 35–38 (tách DTO, giao diện 3 role) **chưa
 > làm**, quay lại sau khi hết lỗi chặn deploy.
 >
-> **Đã xong:** Day 34 ✅ (fallback policy + khóa ngân hàng câu hỏi)
+> ### Tiến độ 8 lỗi chặn deploy
+>
+> | # | Lỗi | Day | Trạng thái |
+> |---|---|---|---|
+> | 1 | Lộ đáp án cho người chưa đăng nhập | 34 | ✅ 2026-08-04 |
+> | 2 | App không khởi động được ở Production | 39 | ✅ 2026-08-05 |
+> | 3 | Secrets nằm trong git | 40 | ✅ 2026-08-05 |
+> | 5 | Hangfire Dashboard mở cho tất cả | 41 | ✅ 2026-08-05 |
+> | 6 | Redis kết nối đồng bộ lúc boot | 43 | ✅ 2026-08-05 |
+> | 7 | docker-compose: PID/ports/password | 43 | ✅ 2026-08-05 |
+> | 8 | File media hoàn toàn public | 41 | ✅ 2026-08-05 |
+> | **4** | **Stored XSS — 15 chỗ render HTML thô** | **42** | ⬜ **← tiếp theo** |
+>
+> ### 🔴 Việc PHẢI làm khi đổi máy — xem [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md)
+> Bảy User Secrets (dùng `127.0.0.1`, **không** `localhost`) · `docker compose up -d
+> --force-recreate` · di chuyển media sang `protected-media/` · SQL UPDATE 2 cột URL.
+> Bỏ qua là app không boot, hoặc audio 404 hết.
 
 ---
 
