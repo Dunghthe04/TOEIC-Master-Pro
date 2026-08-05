@@ -78,8 +78,13 @@ builder.Services.Configure<GoogleAuthSettings>(
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-//Chỗ nào gọi IConnectionMultiplexer thì dùng chung cái này, trả về 1 instant 
-builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConn));
+// Singleton nhưng đăng ký qua FACTORY (_ =>), không phải instance.
+// Khác biệt: instance thì Connect() chạy NGAY lúc dựng DI container — Redis chưa lên
+// là app chết lúc boot. Factory thì hoãn tới lần đầu có ai resolve IConnectionMultiplexer.
+// Vì ICacheService hiện chưa được inject ở đâu, thực tế Connect() không bao giờ chạy.
+// Vẫn là 1 instance duy nhất cho cả app (bản chất Singleton).
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(redisConn));
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IQuestionService, QuestionService>();
