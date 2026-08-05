@@ -25,6 +25,9 @@ using Hangfire;
 using Hangfire.SqlServer;
 using ToeicMasterPro.API.Jobs;
 using Microsoft.AspNetCore.Authorization;
+using Hangfire.Dashboard;                    // LocalRequestsOnlyAuthorizationFilter, DashboardOptions
+using ToeicMasterPro.API.Authorization;      // HangfireDashboardAuthFilter (file mình vừa tạo)
+
 
 
 
@@ -249,11 +252,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    // .AllowAnonymous() BẮT BUỘC: MapScalarApiReference tạo ENDPOINT nên fallback policy
+    // áp lên nó → /scalar trả 401. Còn UseSwagger/UseSwaggerUI ở trên là MIDDLEWARE, không
+    // có endpoint metadata nên fallback policy không với tới → vẫn mở bình thường.
+    // Cùng một trang tài liệu, hai kết cục khác nhau chỉ vì middleware vs endpoint.
     app.MapScalarApiReference(options =>
-{
-    options.OpenApiRoutePattern = "/swagger/v1/swagger.json";
-    options.Title = "ToeicMasterPro API";
-});
+    {
+        options.OpenApiRoutePattern = "/swagger/v1/swagger.json";
+        options.Title = "ToeicMasterPro API";
+    }).AllowAnonymous();
 }
 //ExceptionHandler phải nằm trước Authentication, Authorization và Routing
 app.UseExceptionHandler();
@@ -270,12 +277,79 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
-app.UseHangfireDashboard("/hangfire"); // Dev xem job: http://localhost:5191/hangfire
-//Đăng ký or cập nhập, job chạy theo lịch
-RecurringJob.AddOrUpdate<ExamReminderJob>(
-    "exam-reminder-email",//id
-    job => job.RunAsync(),// cứ đúng hẹn nó chạy hàm này
-    "30 0 * * *"); // cron 5 phần: phút giờ ngày tháng thứ — 00:30 mỗi ngày, * ngày, *tháng, * thứ
+// ── Hangfire Dashboard ────────────────────────────────────
+// Dùng MapHangfireDashboard (KHÔNG dùng UseHangfireDashboard): bản Map đăng ký dashboard
+// như một ENDPOINT nên gọi được .AllowAnonymous(); bản Use trả IApplicationBuilder,
+// không có method đó (CS0311).
+//
+// HAI TẦNG AUTHORIZATION ĐỘC LẬP — hiểu sai chỗ này là hoặc 401 vĩnh viễn, hoặc mở toang:
+//   Tầng 1 — fallback policy ASP.NET Core: đòi JWT trong header Authorization: Bearer.
+//            .AllowAnonymous() GỠ tầng này. Bắt buộc phải gỡ, vì dashboard là trang HTML
+//            mở bằng trình duyệt, mà access token nằm trong localStorage của app React
+//            nên trình duyệt KHÔNG tự gắn header → không gỡ thì chính mình cũng 401.
+//   Tầng 2 — DashboardOptions.Authorization: filter riêng của Hangfire. ĐÂY là chỗ chặn thật.
+//
+// Đọc header response để biết bị chặn ở tầng nào:
+//   WWW-Authenticate: Bearer  → tầng 1 chặn, filter chưa hề chạy
+//   WWW-Authenticate: Basic   → tầng 2 chặn, đúng như thiết kế
+//
+// PHẢI đặt sau UseAuthentication để HttpContext.User đã được điền từ JWT (nhánh a của filter).
+var hangfireUser = builder.Configuration["Hangfire:DashboardUser"];
+var hangfirePass = builder.Configuration["Hangfire:DashboardPassword"];
+
+if (app.Environment.IsDevelopment())
+{
+    // Dev: mở tự do. Kestrel chỉ bind localhost nên máy ngoài không tới được.
+    //
+    // KHÔNG dùng LocalRequestsOnlyAuthorizationFilter: nó so sánh RemoteIpAddress với
+    // 127.0.0.1, mà trình duyệt gọi "localhost" ra ::1 (IPv6) → từ chối ngay trên máy
+    // mình. Và khi deploy sau Nginx thì MỌI request đến từ mạng nội bộ Docker nên nó
+    // trông như cho qua hết. Xác thực theo IP sai ở cả hai đầu — đó là lý do Production
+    // dùng filter theo DANH TÍNH ở khối dưới.
+    //
+    // Mảng rỗng = tường minh KHÔNG filter. Khác với việc không truyền DashboardOptions
+    // (Hangfire sẽ tự áp LocalRequestsOnlyAuthorizationFilter).
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = []
+    }).AllowAnonymous();
+}
+else if (!string.IsNullOrWhiteSpace(hangfireUser) && !string.IsNullOrWhiteSpace(hangfirePass))
+{
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireDashboardAuthFilter(hangfireUser, hangfirePass)],
+        // Chặn Trigger now / Delete / Requeue trên production.
+        // Xem thì được, tác động vào job thật thì không — một cú bấm nhầm
+        // trên ExamReminderJob là gửi email hàng loạt tới user thật.
+        IsReadOnlyFunc = _ => true
+    }).AllowAnonymous();
+}
+// Không cấu hình credential ở Production → KHÔNG mount dashboard.
+// Fail closed: thà không có dashboard hơn là có một dashboard mở.
+
+// ── Đăng ký job chạy theo lịch ────────────────────────────
+// Dùng IRecurringJobManager lấy từ DI, KHÔNG dùng static RecurringJob.AddOrUpdate.
+//
+// Vì sao: API static đọc JobStorage.Current — một biến static toàn cục chỉ được set
+// như SIDE EFFECT của UseHangfireDashboard. Sau khi chuyển sang MapHangfireDashboard,
+// side effect đó mất, và ở Production khối else-if còn có thể KHÔNG chạy (thiếu credential)
+// → JobStorage.Current chưa set → "Current JobStorage instance has not been initialized yet".
+//
+// Tức là việc đăng ký job đang phụ thuộc vào việc dashboard có được mount hay không.
+// Đó là coupling sai: job nhắc lịch thi phải chạy độc lập với trang quản trị.
+using (var jobScope = app.Services.CreateScope())
+{
+    jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>()
+        .AddOrUpdate<ExamReminderJob>(
+            "exam-reminder-email",
+            job => job.RunAsync(),
+            "30 0 * * *",   // cron 5 phần: phút giờ ngày tháng thứ
+            new RecurringJobOptions());
+}
+// ⚠️ Cron trên hiểu theo UTC → thực tế chạy 07:30 giờ VN, không phải 00:30.
+//    Sửa bằng RecurringJobOptions.TimeZone ở Day 49.
+
 app.Run();
 
 // ── Seed Method ───────────────────────────────────────────
