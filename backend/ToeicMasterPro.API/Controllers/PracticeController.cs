@@ -8,7 +8,7 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")] // → /api/practice
-[Authorize] // mọi user đã login đều luyện được
+[Authorize(Roles = "User")] // chỉ học viên luyện — CM soạn nội dung, Admin quản account
 public class PracticeController : ControllerBase
 {
     private readonly IPracticeService _service;

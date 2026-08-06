@@ -12,7 +12,13 @@ không dính kiểu dữ liệu của ASP.NET.
 */
 [ApiController]
 [Route("api/profile")]
-[Authorize]// mọi endpoint bắt buộc phải có accesstoken
+// [Authorize] TRẦN ở đây là CỐ Ý, không phải bỏ sót Roles:
+// profile là của chính mình → CẢ BA vai (User/CM/Admin) đều xem và sửa được.
+//
+// Về mặt kỹ thuật nó TRÙNG fallback policy (Program.cs) nên có thể xóa. Giữ lại vì
+// giá trị tài liệu: đọc file là biết ngay ý định, không phải mở Program.cs kiểm.
+// Đây là controller DUY NHẤT còn [Authorize] trần — các controller khác đều siết Roles.
+[Authorize]
 public class ProfileController : ControllerBase
 {
     private readonly IProfileService _profile;

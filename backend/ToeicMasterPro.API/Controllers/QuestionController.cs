@@ -8,7 +8,14 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin,ContentManager")]
+// ⚠️ [Authorize] cấp class và cấp action CỘNG DỒN (AND), KHÔNG ghi đè nhau.
+// Đặt Roles="ContentManager" ở cấp class rồi mở rộng "ContentManager,Admin" ở action
+// là KHÔNG được — Admin phải thỏa CẢ HAI nên vẫn 403. Đã kiểm chứng bằng curl.
+//
+// Nên: không đặt gì ở cấp class, siết Roles ở từng action.
+// Endpoint không có metadata thì fallback policy (Program.cs) đã đòi đăng nhập.
+//   ĐỌC  → ContentManager + Admin (Admin là read-only auditor)
+//   GHI  → chỉ ContentManager
 public class QuestionController : ControllerBase
 {
     private readonly IQuestionService _service;
@@ -17,8 +24,9 @@ public class QuestionController : ControllerBase
         _service = service;
     }
 
-    //GET danh sách + lọc tùy chọn
+    //GET danh sách + lọc tùy chọn — Admin xem được để kiểm khi học viên báo lỗi đề
     [HttpGet]
+    [Authorize(Roles = "ContentManager,Admin")]
     public async Task<IActionResult> GetList(
         [FromQuery] QuestionPart? part,
         [FromQuery] DifficultyLevel? difficulty,
@@ -31,14 +39,16 @@ public class QuestionController : ControllerBase
 
     //GET DETAIL
     [HttpGet("{id:Guid}")]
+    [Authorize(Roles = "ContentManager,Admin")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
         return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
     }
 
-    //Tạo câu hỏi -> chỉ CM
+    //Tạo câu hỏi -> chỉ CM (Admin không soạn nội dung)
     [HttpPost]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Create(CreateQuestionRequest req)
     {
         var result = await _service.CreateAsync(req);
@@ -48,6 +58,7 @@ public class QuestionController : ControllerBase
     }
 
     [HttpPut("{id:Guid}")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Update(Guid id, UpdateQuestionRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
@@ -55,6 +66,7 @@ public class QuestionController : ControllerBase
     }
 
     [HttpDelete("{id:Guid}")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
@@ -63,6 +75,7 @@ public class QuestionController : ControllerBase
 
     // POST /api/question/import
     [HttpPost("import")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Import(IFormFile file)
     {
         if (file is null || file.Length == 0)
@@ -79,6 +92,7 @@ public class QuestionController : ControllerBase
 
     /// <summary>Tải file Excel mẫu import câu hỏi (có cột AudioFile, ImageFile).</summary>
     [HttpGet("import-template")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> DownloadImportTemplate()
     {
         var bytes = await _service.GetImportTemplateAsync();

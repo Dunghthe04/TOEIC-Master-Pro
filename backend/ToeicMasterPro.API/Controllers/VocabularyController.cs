@@ -8,7 +8,9 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")] // → /api/vocabulary
-[Authorize]
+// ĐỌC: cả 3 vai — User học flashcard, CM kiểm nội dung vừa soạn, Admin xem.
+// GHI: chỉ ContentManager (xem [Authorize] cấp action bên dưới).
+[Authorize(Roles = "User,ContentManager,Admin")]
 public class VocabularyController : ControllerBase
 {
     private readonly IVocabularyService _service;
@@ -33,7 +35,7 @@ public class VocabularyController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Create(CreateVocabularyRequest req)
     {
         var result = await _service.CreateAsync(req);
@@ -43,7 +45,7 @@ public class VocabularyController : ControllerBase
     }
 
     [HttpPut("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Update(Guid id, UpdateVocabularyRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
@@ -53,7 +55,7 @@ public class VocabularyController : ControllerBase
     }
 
     [HttpDelete("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);

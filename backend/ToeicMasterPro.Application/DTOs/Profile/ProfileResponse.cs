@@ -10,5 +10,8 @@ public record ProfileResponse(
   string Plan,
   int XpPoints,
   int StreakDays,
-  DateTime CreatedAt
+  DateTime CreatedAt,
+  // Frontend cần biết role để lọc menu + điều hướng trang chủ theo vai.
+  // Đọc từ DB (không parse JWT) vì Admin gán role mới thì token cũ chưa biết.
+  IReadOnlyList<string> Roles
 );

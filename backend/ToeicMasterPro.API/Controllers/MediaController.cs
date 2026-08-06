@@ -10,7 +10,8 @@ namespace ToeicMasterPro.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/media")]
-[Authorize(Roles = "Admin,ContentManager")]
+// Upload media là việc soạn nội dung → chỉ ContentManager. Admin không tự up file.
+[Authorize(Roles = "ContentManager")]
 public class MediaController : ControllerBase
 {
     private readonly IWebHostEnvironment _env;

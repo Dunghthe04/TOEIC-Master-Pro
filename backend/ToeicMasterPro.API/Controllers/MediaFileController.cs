@@ -43,7 +43,8 @@ public class MediaFileController : ControllerBase
     /// còn tải file thì 100+ lần — không thể query DB mỗi thẻ &lt;img&gt;.
     /// </summary>
     [HttpGet("token/{testId:Guid}")]
-    [Authorize]
+    // User: tải audio khi thi · CM: kiểm đề vừa soạn · Admin: kiểm khi học viên báo lỗi
+    [Authorize(Roles = "User,ContentManager,Admin")]
     public async Task<IActionResult> GetToken(Guid testId)
     {
         var result = await _tests.GetByIdAsync(testId);

@@ -15,7 +15,9 @@ namespace ToeicMasterPro.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/test-session")]
-[Authorize] // chỉ User đã đăng nhập — lấy userId từ JWT
+// CHỈ User thi. CM soạn nội dung, Admin quản account — không vai nào cần thi.
+// Chặn ở SERVER, không chỉ ẩn menu: gõ /mock-test vào URL cũng phải 403.
+[Authorize(Roles = "User")] // lấy userId từ JWT
 public class TestSessionController : ControllerBase
 {
     private readonly ITestSessionService _service;

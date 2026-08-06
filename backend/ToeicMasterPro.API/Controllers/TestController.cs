@@ -11,7 +11,11 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+// KHÔNG có [Authorize] cấp class — mọi action bên dưới đã ghi rõ Roles, và endpoint
+// nào không có metadata thì fallback policy (Program.cs) đã đòi đăng nhập.
+//
+// ⚠️ [Authorize] cấp class + cấp action CỘNG DỒN (AND), không ghi đè. Đặt Roles ở cấp
+// class rồi mở rộng ở action là KHÔNG được — action phải thỏa cả hai. Nên siết ở action.
 public class TestController : ControllerBase
 {
     private readonly ITestService _service;
@@ -32,8 +36,10 @@ public class TestController : ControllerBase
     }
 
     // GET /api/test?isPublished=true
+    // Admin ĐỌC được (read-only auditor): học viên báo "đề X sai" thì Admin kiểm được.
+    // Nhưng KHÔNG sửa — Admin bị chiếm tài khoản thì kẻ tấn công không đổi được nội dung đề.
     [HttpGet]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager,Admin")]
     public async Task<IActionResult> GetList([FromQuery] bool? isPublished)
     {
         var result = await _service.GetListAsync(isPublished);
@@ -42,7 +48,7 @@ public class TestController : ControllerBase
 
     // GET /api/test/{id}
     [HttpGet("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager,Admin")]
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
@@ -51,7 +57,7 @@ public class TestController : ControllerBase
 
     // POST /api/test
     [HttpPost]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Create(CreateTestRequest req)
     {
         var result = await _service.CreateAsync(req);
@@ -61,7 +67,7 @@ public class TestController : ControllerBase
     }
     // PUT /api/test/{id}
     [HttpPut("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Update(Guid id, UpdateTestRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
@@ -70,7 +76,7 @@ public class TestController : ControllerBase
 
     // DELETE /api/test/{id}
     [HttpDelete("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
@@ -79,7 +85,7 @@ public class TestController : ControllerBase
 
     // POST /api/test/{id}/questions
     [HttpPost("{id:Guid}/questions")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> AddQuestions(Guid id, AddQuestionsRequest req)
     {
         var result = await _service.AddQuestionsAsync(id, req);
@@ -88,14 +94,17 @@ public class TestController : ControllerBase
 
     // DELETE /api/test/{id}/questions/{questionId}
     [HttpDelete("{id:Guid}/questions/{questionId:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> RemoveQuestion(Guid id, Guid questionId)
     {
         var result = await _service.RemoveQuestionAsync(id, questionId);
         return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
     }
     // Day 26: User — chỉ đề published; ?series=ETS%202026
+    // Ba endpoint dưới đây là luồng THI của học viên → chỉ role User.
+    // CM soạn nội dung, Admin quản account — không vai nào cần thi.
     [HttpGet("published")]
+    [Authorize(Roles = "User")]
     public async Task<IActionResult> GetPublished([FromQuery] string? series)
     {
         var result = await _service.GetPublishedListAsync(series);
@@ -104,6 +113,7 @@ public class TestController : ControllerBase
 
     // Màn cấu trúc Part (full / chọn từng part)
     [HttpGet("{id:Guid}/structure")]
+    [Authorize(Roles = "User")]
     public async Task<IActionResult> GetStructure(Guid id)
     {
         var result = await _service.GetStructureAsync(id);
@@ -112,7 +122,7 @@ public class TestController : ControllerBase
 
     // Gói câu thi — ?parts=1,2,5 (bỏ trống = full)
     [HttpGet("{id:Guid}/play")]
-    [Authorize] // cần login để thi
+    [Authorize(Roles = "User")] // chỉ học viên thi
     public async Task<IActionResult> GetPlay(
         Guid id,
         [FromQuery] string? parts)
@@ -150,7 +160,7 @@ public class TestController : ControllerBase
     /// hoặc CM upload riêng qua POST /api/media/audio|image trước đó.
     /// </summary>
     [HttpPost("{id:Guid}/import-listening")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     [RequestSizeLimit(100 * 1024 * 1024)] // giới hạn 100MB cho gói ZIP
     public async Task<IActionResult> ImportListening(Guid id, IFormFile file)
     {
@@ -257,7 +267,7 @@ public class TestController : ControllerBase
 
     /// <summary>Gán nhanh mọi câu Listening published chưa có trong đề.</summary>
     [HttpPost("{id:Guid}/assign-listening")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> AssignListening(Guid id)
     {
         var result = await _service.AssignListeningQuestionsAsync(id);

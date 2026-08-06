@@ -7,7 +7,7 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/srs")]
-[Authorize] // mọi endpoint cần login — SRS gắn với user
+[Authorize(Roles = "User")] // SRS là lịch học của học viên — CM/Admin không học
 public class SrsController : ControllerBase
 {
     private readonly ISrsService _srs;

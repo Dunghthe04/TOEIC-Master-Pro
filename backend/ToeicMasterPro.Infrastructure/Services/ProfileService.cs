@@ -20,7 +20,8 @@ public class ProfileService : IProfileService
     public async Task<Result<ProfileResponse>> GetMyProfileAsync()
     {
         var user = await GetCurrentUserAsync();
-        return user is null ? Result<ProfileResponse>.Failure("Không tìm thấy người dùng") : Result<ProfileResponse>.Success(MaptoResponse(user));
+        return user is null ? Result<ProfileResponse>.Failure("Không tìm thấy người dùng") 
+        : Result<ProfileResponse>.Success(await MaptoResponse(user));
     }
 
     public async Task<Result<ProfileResponse>> UpdateMyProfileAsync(UpdateProfileRequest req)
@@ -35,7 +36,7 @@ public class ProfileService : IProfileService
         //Lưu vào db
         var result = await _userManager.UpdateAsync(user);
         return result.Succeeded ?
-            Result<ProfileResponse>.Success(MaptoResponse(user)) :
+            Result<ProfileResponse>.Success(await MaptoResponse(user)) :
             Result<ProfileResponse>.Failure(string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 
@@ -59,8 +60,14 @@ public class ProfileService : IProfileService
     }
 
     //hàm chuyển đổi ApplicationUser => ProfileResponse
-    private static ProfileResponse MaptoResponse(ApplicationUser u) => new(
-        u.Id, u.Email!, u.FullName, u.AvatarUrl, u.TargetScore,
-        u.ExamDate, u.Plan.ToString(), u.XpPoints, u.StreakDays, u.CreatedAt);
+    // Không còn static: cần GetRolesAsync để trả Roles cho frontend lọc menu.
+    private async Task<ProfileResponse> MaptoResponse(ApplicationUser u)
+    {
+        var roles = await _userManager.GetRolesAsync(u);
+        return new(
+            u.Id, u.Email!, u.FullName, u.AvatarUrl, u.TargetScore,
+            u.ExamDate, u.Plan.ToString(), u.XpPoints, u.StreakDays, u.CreatedAt,
+            roles.ToList());
+    }
 
 }

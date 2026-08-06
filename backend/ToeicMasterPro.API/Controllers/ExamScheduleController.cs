@@ -7,7 +7,8 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+// KHÔNG có [Authorize] cấp class — mọi action đã ghi rõ Roles hoặc [AllowAnonymous].
+// Đặt [Authorize] trần ở đây là DƯ: nó trùng đúng fallback policy ở Program.cs.
 public class ExamScheduleController : ControllerBase
 {
     private readonly IExamScheduleService _service;
@@ -19,9 +20,10 @@ public class ExamScheduleController : ControllerBase
         _reminders = reminders;
     }
 
-    // Day 21: id các kỳ thi user đã đặt nhắc — để FE tô chuông đỏ
+    // Day 21: id các kỳ thi user đã đặt nhắc — để FE tô chuông đỏ.
+    // Ba endpoint reminder chỉ dành cho học viên: CM/Admin không đi thi TOEIC thật.
     [HttpGet("my-reminders")]
-    [Authorize]
+    [Authorize(Roles = "User")]
     public async Task<IActionResult> GetMyReminders()
     {
         var ids = await _reminders.GetMyReminderExamIdsAsync();
@@ -30,7 +32,7 @@ public class ExamScheduleController : ControllerBase
 
     // Day 21: đặt nhắc email — cần đăng nhập
     [HttpPost("{id:Guid}/reminder")]
-    [Authorize]
+    [Authorize(Roles = "User")]
     public async Task<IActionResult> SubscribeReminder(Guid id)
     {
         var result = await _reminders.SubscribeAsync(id);
@@ -39,7 +41,7 @@ public class ExamScheduleController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
     [HttpDelete("{id:Guid}/reminder")]
-    [Authorize]
+    [Authorize(Roles = "User")]
     public async Task<IActionResult> UnsubscribeReminder(Guid id)
     {
         var result = await _reminders.UnsubscribeAsync(id);
@@ -82,7 +84,7 @@ public class ExamScheduleController : ControllerBase
 
     // Chỉ Admin / ContentManager nhập lịch thủ công từ IIG/BC
     [HttpPost]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Create(CreateExamScheduleRequest req)
     {
         var result = await _service.CreateAsync(req);
@@ -92,7 +94,7 @@ public class ExamScheduleController : ControllerBase
     }
 
     [HttpPut("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Update(Guid id, UpdateExamScheduleRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
@@ -102,7 +104,7 @@ public class ExamScheduleController : ControllerBase
     }
 
     [HttpDelete("{id:Guid}")]
-    [Authorize(Roles = "Admin,ContentManager")]
+    [Authorize(Roles = "ContentManager")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
