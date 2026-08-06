@@ -13,8 +13,23 @@
 >
 > **Ký hiệu tin cậy:** 🔬 đã phản biện độc lập · 📋 phát hiện một lần, chưa phản biện chéo
 >
-> **Tiến độ vá:** đã xong **3/8** vấn đề chặn deploy — 1.1 authorization · 1.2 cấu hình Production ·
-> 1.3 secrets (tất cả 2026-08-04). Còn lại 1.4 → 1.8.
+> ## 🎯 Tiến độ vá: **8/8 vấn đề chặn deploy — XONG** (2026-08-04 → 08-06)
+>
+> | # | Vấn đề | Ngày |
+> |---|---|---|
+> | 1.1 | Lộ đáp án cho người chưa đăng nhập | 08-04 |
+> | 1.2 | App không khởi động được ở Production | 08-05 |
+> | 1.3 | Secrets nằm trong git | 08-05 |
+> | 1.4 | Stored XSS — 15 chỗ render HTML thô | **08-06** |
+> | 1.5 | Hangfire Dashboard mở cho tất cả | 08-05 |
+> | 1.6 | Redis kết nối đồng bộ lúc boot | 08-05 |
+> | 1.7 | docker-compose: PID / ports / password | 08-05 |
+> | 1.8 | File media hoàn toàn public | 08-05 |
+>
+> Mỗi mục ở Phần 1 giữ nguyên **phân tích gốc** (tài sản phỏng vấn) và thêm khối ✅ ghi cách vá +
+> **những gì học được ngoài dự kiến**. Việc tiếp theo: **Day 50 — Dockerfile**.
+>
+> ⚠️ **Đổi máy phải đọc:** [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md)
 
 ---
 
@@ -23,7 +38,7 @@
 | Phần | Nội dung |
 |---|---|
 | [0](#0-bảng-điểm-hiện-trạng) | Bảng điểm hiện trạng từng mảng |
-| [1](#1-tám-vấn-đề-chặn-deploy) | **8 vấn đề CHẶN DEPLOY** — không sửa thì không được lên *(đã vá 3)* |
+| [1](#1-tám-vấn-đề-chặn-deploy) | **8 vấn đề CHẶN DEPLOY** — ✅ **đã vá hết 8/8** |
 | [2](#2-vấn-đề-ảnh-hưởng-trực-tiếp-người-dùng) | Vấn đề ảnh hưởng trực tiếp người dùng |
 | [3](#3-nợ-kỹ-thuật-còn-lại) | Nợ kỹ thuật còn lại |
 | [4](#4-lộ-trình-sửa) | Lộ trình sửa — 4 giai đoạn |
@@ -42,7 +57,7 @@
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
 | **Hiệu năng** | 🟠 Yếu | Repository materialize-everything là gốc rễ: phân trang trong RAM, không `AsNoTracking`, query không trần |
-| **Bảo mật** | 🟠 Còn 1 lỗ hổng | **Còn: XSS chưa sanitize** (15 chỗ `dangerouslySetInnerHTML`). Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot`, serve qua signed URL |
+| **Bảo mật** | 🟢 Hết lỗ hổng chặn deploy | Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot` + signed URL · **XSS sanitize lúc ghi ở 3 luồng**. Còn nợ (không chặn deploy): token ở `localStorage`, magic bytes cho upload, zip bomb — mục 3.3 |
 | **Deploy config** | 🟢 Đã vá (2026-08-05) | `docker-compose.prod.yml` tách riêng: `MSSQL_PID=Express`, **không** expose port DB/Redis, `${VAR:?}` fail-fast thay vì fallback password. Dev bind `127.0.0.1` thay vì `0.0.0.0` |
 | **Cấu hình** | 🟢 Đã vá (2026-08-04) | Khung khóa đầy đủ ở `appsettings.json`, giá trị thật ở User Secrets (dev) / biến môi trường (prod). Thiếu cấu hình → `InvalidOperationException` **nêu đúng tên biến cần đặt**. Đã kiểm chứng chạy được với `ASPNETCORE_ENVIRONMENT=Production` |
 | **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. Thiếu auto-refresh token — hỏng UX nặng |
@@ -270,7 +285,58 @@ dotnet user-secrets set "Jwt:SecretKey" "<gia-tri-moi>" --project backend/ToeicM
 > phải viết lại lịch sử bằng `git filter-repo` (rồi force-push, và mọi người phải clone lại).
 > **Với repo cá nhân chưa public, cách rẻ hơn và đủ an toàn là: đổi hết secret rồi ngừng commit chúng.**
 
-## 1.4 · 🔴 📋 Stored XSS — 15 chỗ render HTML thô
+## 1.4 · ✅ ĐÃ VÁ 2026-08-06 — Stored XSS, 15 chỗ render HTML thô
+
+> **Cách vá:** `HtmlContentSanitizer` (package `HtmlSanitizer` 9.1.982) sanitize **lúc GHI** ở
+> `QuestionService` — **11 chỗ, 3 luồng**: Create (36, 37, 40, 47) · Update (105, 106, 109, 122) ·
+> **Import Excel (241, 272, 273, 276)**. Whitelist tag/attribute/scheme, `AllowedSchemes` chỉ
+> `http`/`https` để chặn `javascript:` và `data:text/html`.
+>
+> ### 🎯 Phát hiện quan trọng nhất — tự tìm ra khi thử tấn công
+>
+> Thử XSS trên UI thì **chỉ luồng import Excel bị**, gõ vào rich text editor thì không.
+> Tưởng editor an toàn. **Sai.**
+>
+> TipTap dùng **ProseMirror schema** (`StarterKit` khai báo node/mark được phép) → payload dán
+> vào editor bị schema bỏ trước khi `getHTML()` trả về. Nhưng đó là **bảo vệ phía CLIENT**.
+>
+> **Đã kiểm chứng bằng curl:** `POST /api/Question` với
+> `<img src=x onerror="alert(1)">` → payload vào DB **NGUYÊN VẸN**. Excel hở vì không qua
+> ProseMirror; curl cũng không qua ProseMirror nên hở y như vậy.
+>
+> → **Editor lọc là tiện nghi phía client, không phải kiểm soát bảo mật.** Cùng bài học với lỗi
+> 1.1 (ẩn menu là GIẤU, `[Authorize]` mới là KHÓA) và 1.8 (`<audio>` phải verify ở server).
+>
+> ### Vì sao whitelist, không blacklist
+>
+> Test 10 kỹ thuật XSS khác nhau, **tất cả bị chặn** mà không cần biết trước từng cái:
+>
+> | Payload | Sau sanitize |
+> |---|---|
+> | `<img src=x onerror="alert(1)">` | `<img src="x">` — ảnh giữ, handler mất |
+> | `<script>alert(2)</script>` | `alert(2)` (chữ, `KeepChildNodes = true`) |
+> | `<a href="javascript:alert(3)">click</a>` | `click` |
+> | `<p onclick="alert(4)">para</p>` | `<p>para</p>` |
+> | `<iframe src="http://evil.com">` · `<iframe srcdoc="...">` | mất sạch |
+> | `<svg onload="alert(9)">` · `<body onpageshow="alert(8)">` | mất sạch |
+> | `<img src="data:text/html,<script>...">` | `<img>` — scheme `data:` bị chặn |
+> | `<td onmouseenter="alert(6)">cell</td>` | `<td>cell</td>` — bảng giữ |
+>
+> Blacklist sẽ thiếu `srcdoc`, `onpageshow`, `data:text/html`. Whitelist mặc định **từ chối**.
+>
+> **Định dạng vẫn dùng được:** `<b>`, `<em>`, `<strong>`, `<table>` còn nguyên — CM soạn đậm/
+> nghiêng/bảng không bị hỏng. Đây là điểm phân biệt **sanitize** với **escape**.
+>
+> ### Đã kiểm chứng 3/3 luồng
+> Create qua API · Update qua API · **Import file `.xlsx` thật** (`totalRows: 1,
+> successCount: 1` → nội dung sạch). Dữ liệu cũ trong DB: **0 dòng bẩn**, không cần script dọn.
+>
+> ### ⚠️ Còn nợ — lớp 4
+> Access token vẫn ở `localStorage` nên nếu XSS lọt lưới thì token vẫn mất. Chuyển sang memory +
+> refresh token trong cookie `httpOnly` là **việc riêng, lớn hơn** — Day 42 phần 2.
+>
+> Còn nợ khác: `MediaController` chỉ tin phần mở rộng file (chưa kiểm magic bytes), import ZIP
+> chưa whitelist đuôi + chưa giới hạn số entry (zip bomb) — xem mục 3.3.
 
 **Vị trí:** `MockTestPlayPage.tsx:1087, 1117, 1200, 1234, 1262, 1362, 1434, 1454`;
 `ExamAnswerReviewPanel.tsx:266`; `PracticePage.tsx:311`…
@@ -717,7 +783,8 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 ✅ 1. Fallback authorization policy + [AllowAnonymous] cho endpoint công khai   — XONG 2026-08-04
 ✅ 2. Đổi Jwt:SecretKey; secret sang User Secrets / biến môi trường            — XONG 2026-08-04
 ✅ 3. Đưa khung Jwt/Redis/Cors vào appsettings.json; bỏ `!`, fail fast rõ ràng  — XONG 2026-08-04
-□ 4. Sanitize HTML ở backend (HtmlSanitizer) cho Content/Explanation/Passage   ← CÒN LẠI DUY NHẤT
+✅ 4. Sanitize HTML ở backend cho Content/Explanation/Passage/Option.Content    — XONG 2026-08-06
+     ⚠️ Phải vá CẢ 3 luồng: Create, Update, và Import Excel (audit chỉ nêu 2)
 ✅ 5. Bảo vệ Hangfire Dashboard — Basic Auth + IsReadOnlyFunc                   — XONG 2026-08-05
 ✅ 6. Redis connect qua factory lambda + abortConnect=false                     — XONG 2026-08-05
 ✅ 7. docker-compose.prod.yml: MSSQL_PID=Express, bỏ ports, bỏ fallback pass    — XONG 2026-08-05
@@ -725,8 +792,31 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 ✅ 8. Tách media ra khỏi wwwroot + signed URL cho <audio>/<img>                  — XONG 2026-08-05
 ```
 
-> **7/8 xong.** Còn lại duy nhất mục 4 (XSS). Việc phải làm khi đổi máy:
-> [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md).
+> ## 🎯 8/8 XONG — 2026-08-06
+>
+> Giai đoạn 1 hoàn tất. Kế hoạch ghi *"giai đoạn 1 là điều kiện để có thể deploy"* — điều kiện đó
+> giờ đã đủ. Việc tiếp theo là **Day 50: Dockerfile**.
+>
+> ⚠️ **Việc phải làm khi đổi máy:** [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md) — 7 User
+> Secrets (dùng `127.0.0.1`, **không** `localhost`) · `docker compose up -d --force-recreate` ·
+> di chuyển media sang `protected-media/` · SQL UPDATE 2 cột URL.
+>
+> ### Bốn bài học xuyên suốt cả 8 lỗi
+>
+> **1. Middleware vs Endpoint.** Fallback policy chỉ áp lên **endpoint**. `UseStaticFiles` là
+> middleware terminal → phải chuyển file ra ngoài `wwwroot` (1.8). Ngược lại
+> `MapScalarApiReference` là endpoint → bị chặn 401 dù chỉ là trang docs.
+>
+> **2. Frontend không bao giờ là bảo mật.** Ẩn menu là GIẤU, `[Authorize]` mới là KHÓA (1.1).
+> TipTap lọc XSS ở client, curl qua mặt hết (1.4). `<audio>` không gắn được header nên phải verify
+> ở server (1.8).
+>
+> **3. Fail fast, fail closed.** Thiếu cấu hình → `InvalidOperationException` **nêu tên biến**
+> (1.2). Thiếu credential Hangfire → **không mount** dashboard (1.5). Thiếu biến compose → **báo
+> lỗi**, không dùng mật khẩu trong git (1.7).
+>
+> **4. Sửa gốc, không vá triệu chứng.** Fallback policy thay vì vá từng endpoint (1.1). Sanitize ở
+> `QuestionService` — nơi cả 3 luồng đi qua — thay vì vá riêng luồng Excel (1.4).
 
 > **Sáu biến môi trường Production** đã xác định được từ đợt sửa mục 1.2 — dùng luôn cho
 > `docker-compose.prod.yml` ở Giai đoạn 3, không phải đoán:
@@ -1029,7 +1119,7 @@ jobs:
 □ 1.  VPS 4GB Ubuntu 22.04, đã bảo mật SSH + ufw
 □ 2.  Docker + Docker Compose
 □ 3.  Tên miền, bản ghi A trỏ về IP
-□ 4.  ĐÃ SỬA XONG toàn bộ Giai đoạn 1 — hiện 7/8 (còn duy nhất 1.4 XSS)
+✅ 4.  ĐÃ SỬA XONG toàn bộ Giai đoạn 1 — 8/8 (2026-08-06)
 □ 5.  Dockerfile API + frontend
 □ 6.  docker-compose.prod.yml + file .env trên VPS
 □ 7.  Nginx + Certbot, SSL chạy được

@@ -2,7 +2,7 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** **7/8 lỗi chặn deploy đã vá** (2026-08-05) · **TIẾP THEO: lỗi #4 — Stored XSS** (Day 42)
+> 📍 **ĐANG Ở:** ✅ **8/8 lỗi chặn deploy ĐÃ VÁ** (2026-08-06) · **TIẾP THEO: Day 50 — Dockerfile**
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -21,7 +21,16 @@
 > | 6 | Redis kết nối đồng bộ lúc boot | 43 | ✅ 2026-08-05 |
 > | 7 | docker-compose: PID/ports/password | 43 | ✅ 2026-08-05 |
 > | 8 | File media hoàn toàn public | 41 | ✅ 2026-08-05 |
-> | **4** | **Stored XSS — 15 chỗ render HTML thô** | **42** | ⬜ **← tiếp theo** |
+> | 4 | Stored XSS — 15 chỗ render HTML thô | 42 | ✅ **2026-08-06** |
+>
+> **🎯 Giai đoạn 1 hoàn tất.** Kế hoạch ghi *"giai đoạn 1 là điều kiện để có thể deploy"* — điều
+> kiện đó đã đủ. Chi tiết cách vá + bài học: [09 — Phần 1](09-hien-trang-va-khuyen-nghi.md).
+>
+> **Còn nợ trước khi deploy thật:**
+> - ⬜ Test UI luồng thi trên trình duyệt (signed URL media chỉ mới test bằng curl)
+> - ⬜ Day 35–38: tách DTO theo người xem · giao diện 3 role (Admin chưa có UI)
+> - ⬜ Day 44–49: auto-refresh token · khôi phục phiên khi F5 · lockout
+> - ⬜ Day 33: đọc JD thật · quyết định bản quyền đề ETS
 >
 > ### 🔴 Việc PHẢI làm khi đổi máy — xem [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md)
 > Bảy User Secrets (dùng `127.0.0.1`, **không** `localhost`) · `docker compose up -d

