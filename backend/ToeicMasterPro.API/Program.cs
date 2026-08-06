@@ -116,6 +116,7 @@ builder.Services.AddHangfire(config => config
 builder.Services.AddHangfireServer();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<MediaPathProvider>();
+builder.Services.AddSingleton<HtmlContentSanitizer>();
 builder.Services.AddSingleton<MediaTokenService>();
 builder.Services.AddScoped<IVocabularyService, VocabularyService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

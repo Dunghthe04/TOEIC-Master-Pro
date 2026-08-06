@@ -12,9 +12,13 @@ namespace ToeicMasterPro.Infrastructure.Services;
 public class QuestionService : IQuestionService
 {
     private readonly IUnitOfWork _uow;
+    private readonly HtmlContentSanitizer _html;
 
-    public QuestionService(IUnitOfWork uow) => _uow = uow;
-
+    public QuestionService(IUnitOfWork uow, HtmlContentSanitizer html)
+    {
+        _uow = uow;
+        _html = html;
+    }
     //tạo câu hỏi
     public async Task<Result<Guid>> CreateAsync(CreateQuestionRequest req)
     {
@@ -25,18 +29,22 @@ public class QuestionService : IQuestionService
         {
             Part = req.Part,
             Difficulty = req.Difficulty,
-            Content = req.Content,
-            Explanation = req.Explanation,
+            // Sanitize HTML TRƯỚC KHI LƯU. Nội dung là rich text (TipTap) nên frontend phải
+            // render bằng dangerouslySetInnerHTML — HTML bẩn trong DB sẽ chạy như code trong
+            // trình duyệt mọi user làm đề đó. TipTap có lọc, nhưng đó là phía CLIENT: gọi
+            // thẳng API bằng curl thì onerror/script/javascript: vào DB nguyên vẹn.
+            Content = _html.Clean(req.Content) ?? string.Empty,
+            Explanation = _html.Clean(req.Explanation) ?? string.Empty,
             AudioUrl = req.AudioUrl,
             ImageUrl = req.ImageUrl,
-            Passage = req.Passage,
+            Passage = _html.Clean(req.Passage),
             Tags = req.Tags,
             IsPublished = req.IsPublished,
             // Gán Options vào navigation → EF tự cascade-insert kèm khi lưu Question
             Options = req.Options.Select(o => new QuestionOption
             {
                 Label = o.Label,
-                Content = o.Content,
+                Content = _html.Clean(o.Content) ?? string.Empty,
                 IsCorrect = o.IsCorrect
             }).ToList()
         };
@@ -93,11 +101,12 @@ public class QuestionService : IQuestionService
         // Cập nhật field
         q.Part = req.Part;
         q.Difficulty = req.Difficulty;
-        q.Content = req.Content;
-        q.Explanation = req.Explanation;
+        // Sanitize như luồng Create — Update là đường vào thứ hai, dễ bỏ sót
+        q.Content = _html.Clean(req.Content) ?? string.Empty;
+        q.Explanation = _html.Clean(req.Explanation) ?? string.Empty;
         q.AudioUrl = req.AudioUrl;
         q.ImageUrl = req.ImageUrl;
-        q.Passage = req.Passage;
+        q.Passage = _html.Clean(req.Passage);
         q.Tags = req.Tags;
         q.IsPublished = req.IsPublished;
         _uow.Repository<Question>().Update(q);
@@ -110,7 +119,7 @@ public class QuestionService : IQuestionService
             {
                 QuestionId = id,
                 Label = o.Label,
-                Content = o.Content,
+                Content = _html.Clean(o.Content) ?? string.Empty,
                 IsCorrect = o.IsCorrect
             });
 
@@ -228,7 +237,8 @@ public class QuestionService : IQuestionService
                 .Select(kv => new QuestionOption
                 {
                     Label = kv.Key,
-                    Content = kv.Value!,
+                    // Sanitize ô Excel — CM dán payload vào ô là chèn được hàng loạt câu
+                    Content = _html.Clean(kv.Value!) ?? string.Empty,
                     IsCorrect = kv.Key == correct
                 }).ToList();
 
@@ -259,11 +269,11 @@ public class QuestionService : IQuestionService
             {
                 Part = (QuestionPart)partInt,
                 Difficulty = difficulty,
-                Content = content,
-                Explanation = explanation ?? string.Empty,
+                Content = _html.Clean(content) ?? string.Empty,
+                Explanation = _html.Clean(explanation) ?? string.Empty,
                 AudioUrl = audioUrl,
                 ImageUrl = imageUrl,
-                Passage = passage,
+                Passage = _html.Clean(passage),
                 Tags = tags,
                 IsPublished = string.Equals(isPublished, "true", StringComparison.OrdinalIgnoreCase),
                 Options = options_list

@@ -124,8 +124,9 @@ services:
 
     volumes:
       # BẮT BUỘC: không có volume này thì mọi audio/ảnh đã upload MẤT SẠCH mỗi lần deploy lại
-      - media:/app/wwwroot/uploads
-      - api_logs:/app/logs
+       - media:/app/protected-media      # ← sửa từ /app/wwwroot/uploads
+       - avatars:/app/wwwroot/uploads    # ← thêm
+       - api_logs:/app/logs
 
     depends_on:
       sqlserver:
@@ -157,7 +158,8 @@ services:
 volumes:
   sqlserver_data:
   redis_data:
-  media:            # audio/ảnh đề thi + avatar — MẤT LÀ KHÔNG LẤY LẠI ĐƯỢC
+  media:            # audio/ảnh ĐỀ THI (protected-media) — MẤT LÀ KHÔNG LẤY LẠI ĐƯỢC
+  avatars:          # avatar user (wwwroot/uploads) — công khai, tách khỏi media đề thi
   api_logs:
   certbot_certs:
   certbot_www:

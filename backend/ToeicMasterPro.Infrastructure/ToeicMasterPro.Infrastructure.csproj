@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="EPPlus" Version="7.6.1" />
     <PackageReference Include="Google.Apis.Auth" Version="1.75.0" />
+    <PackageReference Include="HtmlSanitizer" Version="9.1.982" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
