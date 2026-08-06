@@ -101,19 +101,24 @@ public class TestController : ControllerBase
         return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
     }
     // Day 26: User — chỉ đề published; ?series=ETS%202026
-    // Ba endpoint dưới đây là luồng THI của học viên → chỉ role User.
-    // CM soạn nội dung, Admin quản account — không vai nào cần thi.
+    //
+    // [AllowAnonymous] có chủ ý — landing page cho khách vãng lai xem CÓ NHỮNG ĐỀ NÀO
+    // trước khi đăng ký, giống các trang luyện thi TOEIC thật.
+    // Chỉ trả đề ĐÃ PUBLISH và chỉ metadata (tên, series, số câu, thời lượng) —
+    // KHÔNG lộ câu hỏi hay đáp án. Muốn thi thật thì /play vẫn đòi role User.
     [HttpGet("published")]
-    [Authorize(Roles = "User")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetPublished([FromQuery] string? series)
     {
         var result = await _service.GetPublishedListAsync(series);
         return Ok(result);
     }
 
-    // Màn cấu trúc Part (full / chọn từng part)
+    // Màn cấu trúc Part (full / chọn từng part).
+    // [AllowAnonymous] cùng lý do trên: khách xem được bảng "Part 1: 6 câu, Part 2: 25 câu..."
+    // để biết đề dài thế nào. Vẫn không có nội dung câu hỏi.
     [HttpGet("{id:Guid}/structure")]
-    [Authorize(Roles = "User")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetStructure(Guid id)
     {
         var result = await _service.GetStructureAsync(id);

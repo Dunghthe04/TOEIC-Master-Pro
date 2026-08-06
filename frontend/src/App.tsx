@@ -10,13 +10,12 @@
 
 // Syntax: import Button từ thư mục ui (do shadcn generate)
 // "@/" là alias trỏ vào thư mục "src/" — thay thế cho "../../components/ui/button"
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
-import MainLayout from '@/components/layout/MainLayout'
 import DashboardPage from '@/pages/DashboardPage'
 import TestListPage from '@/pages/cm/TestListPage'
 import TestFormPage from '@/pages/cm/TestFormPage'
@@ -34,6 +33,12 @@ import TestHistoryPage from '@/pages/TestHistoryPage'
 import TestHistoryDetailPage from '@/pages/TestHistoryDetailPage'
 import TestProgressPage from '@/pages/TestProgressPage'
 import CertificatePreviewPage from '@/pages/CertificatePreviewPage'
+import LandingPage from '@/pages/LandingPage'
+import RoleLayout from '@/components/layout/RoleLayout'
+import RequireRole from '@/components/auth/RequireRole'
+import CmHomePage from '@/pages/cm/CmHomePage'
+import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 
 
@@ -46,35 +51,64 @@ function App() {
     <>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Landing page — mặc định vào web là thấy đây, KHÔNG bắt đăng nhập.
+              Khách xem được tính năng + danh sách đề; bấm chức năng mới hiện popup login. */}
+          <Route path="/" element={<LandingPage />} />
           <Route path='/login' element={<LoginPage />} />
           <Route path='/register' element={<RegisterPage />} />
           <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+
+          {/* CÔNG KHAI — khách vãng lai xem được cấu trúc đề trước khi đăng ký.
+              Backend GET /api/test/{id}/structure đã [AllowAnonymous]: chỉ trả bảng
+              "Part 1: 6 câu, Part 2: 25 câu…", KHÔNG có nội dung câu hỏi hay đáp án.
+              Bấm "Bắt đầu thi" trong trang này mới cần đăng nhập (/play đòi role User). */}
+          <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
+
+          {/* CÔNG KHAI — lịch thi TOEIC. Backend GET /api/examschedule đã [AllowAnonymous]
+              từ Day 34 nhưng trước đây không route nào của FE gọi tới khi chưa login. */}
+          <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+
           {/* Protected — phải login mới vào được, có layout sidebar+header */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<MainLayout />}>
+            {/* RoleLayout tự chọn: User → header ngang · CM/Admin → sidebar dọc */}
+            <Route element={<RoleLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/cm/tests" element={<TestListPage />} />
-              <Route path="/cm/tests/create" element={<TestFormPage />} />
-              <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
-              <Route path="/cm/tests/:id/questions" element={<TestQuestionsPage />} />
-              <Route path="/cm/questions" element={<QuestionListPage />} />
-              <Route path="/cm/questions/create" element={<QuestionFormPage />} />
-              <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
-              <Route path="/cm/questions/import" element={<QuestionImportPage />} />
-              <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+
+              {/* /cm/* chỉ CM hoặc Admin (RequireRole) — chặn ở đây chỉ là UX, bảo mật
+                  thật nằm ở [Authorize(Roles="ContentManager")] phía server (Day 35) */}
+              <Route element={<RequireRole allow={['ContentManager', 'Admin']} />}>
+                <Route path="/cm" element={<CmHomePage />} />
+                <Route path="/cm/tests" element={<TestListPage />} />
+                <Route path="/cm/tests/create" element={<TestFormPage />} />
+                <Route path="/cm/tests/:id/edit" element={<TestFormPage />} />
+                <Route path="/cm/tests/:id/questions" element={<TestQuestionsPage />} />
+                <Route path="/cm/questions" element={<QuestionListPage />} />
+                <Route path="/cm/questions/create" element={<QuestionFormPage />} />
+                <Route path="/cm/questions/:id/edit" element={<QuestionFormPage />} />
+                <Route path="/cm/questions/import" element={<QuestionImportPage />} />
+              </Route>
+
+              {/* /admin/* chỉ Admin — trang chủ Admin, chỉ xem không CRUD nội dung */}
+              <Route element={<RequireRole allow={['Admin']} />}>
+                <Route path="/admin" element={<AdminOverviewPage />} />
+              </Route>
+
+              {/* /exam-schedule đã khai CÔNG KHAI ở trên — không đặt lại trong ProtectedRoute */}
               <Route path="/vocabulary" element={<VocabularyPage />} />
               <Route path="/practice" element={<PracticePage />} />
               <Route path="/mock-test" element={<MockTestPage />} />
               <Route path="/mock-test/history" element={<TestHistoryPage />} />
               <Route path="/mock-test/progress" element={<TestProgressPage />} />
               <Route path="/mock-test/certificate-preview" element={<CertificatePreviewPage />} />
-              <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
+              {/* /mock-test/:id đã khai CÔNG KHAI ở trên — không đặt lại trong ProtectedRoute */}
             </Route>
             {/* Thi thử — full màn hình, không sidebar */}
             <Route path="/mock-test/history/:sessionId" element={<TestHistoryDetailPage />} />
             <Route path="/mock-test/:id/play" element={<MockTestPlayPage />} />
           </Route>
+
+          {/* Route sai / gõ nhầm URL — phải đặt CUỐI CÙNG, React Router khớp thứ tự trên xuống */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
       <Toaster richColors position="top-right" />

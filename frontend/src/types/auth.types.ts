@@ -32,5 +32,13 @@ export interface User {
     xpPoints: number
     streakDays: number
     createdAt: string
+    /**
+     * Role từ backend (GET /api/profile/me) — dùng để lọc menu và chọn layout.
+     * Đọc từ DB, KHÔNG parse JWT: Admin gán role mới thì token cũ chưa biết.
+     *
+     * ⚠️ Đây chỉ là UX. Bảo mật thật nằm ở [Authorize(Roles=...)] phía server —
+     * frontend chạy trên máy người dùng, họ sửa được tất cả.
+     */
+    roles: string[]
 }
 

@@ -21,6 +21,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuthStore } from '@/store/auth.store'
 import { profileService } from '@/services/profile.service'
+import { homeFor } from '@/lib/roles'
 
 
 //Khai báo schema validate
@@ -60,8 +61,11 @@ export default function LoginPage() {
             const user = await profileService.getMe()
             //Lưu thông tin user vào store
             loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
-            //Navigate sang dashboard
-            navigate('/dashboard')
+            // Điều hướng theo VAI, không hardcode /dashboard:
+            //   User → /dashboard · CM → /cm · Admin → /admin
+            // Dùng biến `user` vừa lấy từ getMe(), KHÔNG đọc lại từ store —
+            // store cập nhật bất đồng bộ nên đọc ngay sau loginSuccess() có thể còn giá trị cũ.
+            navigate(homeFor(user), { replace: true })
         } catch (err: any) {
             // Không có response = lỗi mạng/CORS/SSL (request chưa tới API)
             const msg =
@@ -142,7 +146,7 @@ export default function LoginPage() {
                                 saveTokens(res.accessToken, res.refreshToken)
                                 const user = await profileService.getMe()
                                 loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
-                                navigate('/dashboard')
+                                navigate(homeFor(user), { replace: true })
                             } catch {
                                 setServerError('Đăng nhập Google thất bại.')
                             }
