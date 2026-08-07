@@ -42,10 +42,11 @@ public class AuthController : ControllerBase{
     }
 
     [HttpPost("refresh-token")]
-    public async Task<IActionResult> Refresh(RefreshTokenRequest req)
+    public async Task<IActionResult> Refresh()
     {
-        //Đọc từ cookie - k nhận refresh token từ body JSON nữa, vì refresh token là sensitive data, k muốn FE đọc được
-        //Trình duyệt tự động đính kèm cookie này vì Path="/api/auth" khớp.
+        // KHÔNG nhận body: refresh token đọc từ cookie httpOnly (Path=/api/auth khớp nên
+        // trình duyệt tự đính kèm). Trước đây để tham số RefreshTokenRequest → [ApiController]
+        // bắt buộc field RefreshToken trong body → FE gửi body rỗng {} bị 400 trước khi vào hàm.
         var refreshToken = Request.GetRefreshTokenCookie();
         if(refreshToken == null) return Unauthorized(new { error = "Không tìm thấy refresh token." });
 
@@ -58,8 +59,9 @@ public class AuthController : ControllerBase{
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(RefreshTokenRequest req)
+    public async Task<IActionResult> Logout()
     {
+       // Cũng đọc từ cookie, không cần body — bỏ tham số để không dính 400 như Refresh().
        var refreshToken = Request.GetRefreshTokenCookie();
        if(refreshToken is not null) 
             await _auth.LogoutAsync(refreshToken);
