@@ -29,9 +29,15 @@ public class AuthController : ControllerBase{
     [HttpPost("login")]
     public async Task<IActionResult>Login(LoginRequest req){
         var result= await _auth.LoginAsync(req);
-        return result.IsSuccess 
-            ? Ok(result.Value)
-            : BadRequest(new {error = result.Error});
+        if(!result.IsSuccess) return BadRequest(new {error = result.Error});
+
+        //refreshToken đi qua httpOnly cookie, không còn trong body JSON 
+        //Js bên Fe sẽ k thấy giá trị này
+        Response.SetRefreshTokenCookie(result.Value!.RefreshToken, result.Value.ExpiresAt);
+        // accessToken vẫn trả trong body: FE PHẢI đọc được để gắn vào header
+        // Authorization — đây là lý do access token không thể cũng là cookie.
+        return Ok(new { accessToken = result.Value.AccessToken, expiresAt = result.Value.ExpiresAt });
+
     }
 
     [HttpPost("refresh-token")]
