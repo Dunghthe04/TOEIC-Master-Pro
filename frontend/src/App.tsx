@@ -39,6 +39,7 @@ import RequireRole from '@/components/auth/RequireRole'
 import CmHomePage from '@/pages/cm/CmHomePage'
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import { useSilentRefresh } from './hooks/useSilentRefresh'
 
 
 
@@ -47,6 +48,9 @@ import NotFoundPage from '@/pages/NotFoundPage'
 function App() {
   // return (...) — phần JSX này sẽ được render thành HTML thật trên trình duyệt.
   // JSX trông như HTML nhưng thực ra là JavaScript — Vite/TypeScript sẽ biên dịch nó.
+  const ready = useSilentRefresh()
+  if (!ready) return null 
+
   return (
     <>
       <BrowserRouter>

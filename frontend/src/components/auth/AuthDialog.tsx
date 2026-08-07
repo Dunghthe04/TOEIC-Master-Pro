@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { authService } from '@/services/auth.service'
 import { profileService } from '@/services/profile.service'
-import { saveTokens } from '@/lib/token'
 import { useAuthStore } from '@/store/auth.store'
 import { homeFor } from '@/lib/roles'
 
@@ -118,6 +117,7 @@ export default function AuthDialog({ open, returnTo, onClose }: Props) {
 function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => void }) {
     const navigate = useNavigate()
     const loginSuccess = useAuthStore(s => s.loginSuccess)
+    const setAccessToken = useAuthStore(s => s.setAccessToken)
     const [serverError, setServerError] = useState('')
     const [showPassword, setShowPassword] = useState(false)
 
@@ -126,10 +126,14 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
     })
 
     /** Dùng chung cho login thường và Google login */
-    const finish = async (accessToken: string, refreshToken: string) => {
-        saveTokens(accessToken, refreshToken)          // lưu trước để getMe() có token
+    const finish = async (accessToken: string) => {
+        // KHÔNG còn saveTokens — refreshToken đã chuyển sang httpOnly cookie, server tự
+        // set qua Set-Cookie header lúc login; accessToken chỉ cần đưa vào RAM (Zustand).
+        // Set NGAY, trước getMe() — không thì getMe() gọi lúc store chưa có token, dính
+        // 401 dư rồi phải tự refresh mới qua được (xem lại luồng Login đã mô tả).
+        setAccessToken(accessToken)
         const user = await profileService.getMe()
-        loginSuccess({ accessToken, refreshToken }, user)
+        loginSuccess(accessToken, user)
         onClose()
 
         // Khách bấm "Bắt đầu thi" mà lại là tài khoản CM/Admin → returnTo là trang thi,
@@ -142,7 +146,7 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
         setServerError('')
         try {
             const res = await authService.Login(data)
-            await finish(res.accessToken, res.refreshToken)
+            await finish(res.accessToken)
         } catch (err: any) {
             setServerError(
                 err.response?.data?.error
@@ -206,7 +210,7 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
                         if (!cred.credential) return
                         try {
                             const res = await authService.googleLogin(cred.credential)
-                            await finish(res.accessToken, res.refreshToken)
+                            await finish(res.accessToken)
                         } catch {
                             setServerError('Đăng nhập Google thất bại.')
                         }

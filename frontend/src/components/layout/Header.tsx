@@ -2,14 +2,21 @@ import { LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth.store'
+import { authService } from '@/services/auth.service'
 
 export default function Header() {
     const navigate = useNavigate()
     const { user, logout } = useAuthStore()
 
-    const handleLogout = () => {
-        logout()
-        navigate('/login')
+    const handleLogout = async () => {
+        try {
+            await authService.logout()   // báo server thu hồi DB + xóa cookie refreshToken
+        } catch {
+            // Lỗi mạng lúc gọi logout không được kẹt user lại trong app — vẫn thoát ở finally
+        } finally {
+            logout()   // xóa state RAM (accessToken, user, isAuthenticated)
+            navigate('/login')
+        }
     }
 
     return (

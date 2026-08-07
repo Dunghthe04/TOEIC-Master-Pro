@@ -16,7 +16,8 @@ export interface ForgotPasswordRequest {
 
 export interface AuthResponse {
     accessToken: string
-    refreshToken: string
+    // refreshToken KHÔNG còn trong body — backend chuyển sang httpOnly cookie
+    // (Set-Cookie header), FE không cần và không được thấy giá trị này.
     expiresAt: string
 }
 

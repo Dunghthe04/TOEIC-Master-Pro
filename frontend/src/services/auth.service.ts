@@ -30,6 +30,12 @@ export const authService = {
     async googleLogin(idToken: string): Promise<AuthResponse> {
         const res = await api.post<AuthResponse>('/auth/google-login', { idToken })
         return res.data;
-    }
+    },
 
+    //Báo server thu hồi refreshToken trong DB (RevokedAt) + xóa cookie httpOnly.
+    //Không gọi cái này thì cookie vẫn sống, refresh-token vẫn cấp được accessToken mới
+    //dù UI đã "đăng xuất" — xem CookieAuthExtensions.ClearRefreshTokenCookie ở backend.
+    async logout(): Promise<void> {
+        await api.post('/auth/logout')   // cookie tự gửi kèm nhờ withCredentials: true
+    }
 }

@@ -14,8 +14,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { authService } from '@/services/auth.service'
-//Import các hàm liên quan token
-import { saveTokens } from '@/lib/token'
 //Mắt để ẩn hiện password
 import { Eye, EyeOff } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
@@ -38,6 +36,7 @@ export default function LoginPage() {
     const [serverError, setServerError] = useState('');
     const [showPassword, setShowPassword] = useState(false)
     const loginSuccess = useAuthStore(state => state.loginSuccess)
+    const setAccessToken = useAuthStore(state => state.setAccessToken)
 
 
     //Khởi tạo form có kiểu là LoginForm
@@ -55,12 +54,13 @@ export default function LoginPage() {
         setServerError('')
         try {
             const res = await authService.Login(data);
-            // Lưu token trước để profileService.getMe() có token gắn vào request
-            saveTokens(res.accessToken, res.refreshToken)
+            // Set NGAY vào RAM — nếu để tới loginSuccess() mới set thì getMe() dưới đây
+            // gọi lúc store còn chưa có token, dính 401 dư rồi phải tự refresh mới qua được.
+            setAccessToken(res.accessToken)
             //Lấy thông tin user về
             const user = await profileService.getMe()
             //Lưu thông tin user vào store
-            loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
+            loginSuccess(res.accessToken, user)
             // Điều hướng theo VAI, không hardcode /dashboard:
             //   User → /dashboard · CM → /cm · Admin → /admin
             // Dùng biến `user` vừa lấy từ getMe(), KHÔNG đọc lại từ store —
@@ -143,9 +143,9 @@ export default function LoginPage() {
                             if (!credentialResponse.credential) return
                             try {
                                 const res = await authService.googleLogin(credentialResponse.credential)
-                                saveTokens(res.accessToken, res.refreshToken)
+                                setAccessToken(res.accessToken)   // set trước getMe() — cùng lý do ở login thường
                                 const user = await profileService.getMe()
-                                loginSuccess({ accessToken: res.accessToken, refreshToken: res.refreshToken }, user)
+                                loginSuccess(res.accessToken, user)
                                 navigate(homeFor(user), { replace: true })
                             } catch {
                                 setServerError('Đăng nhập Google thất bại.')

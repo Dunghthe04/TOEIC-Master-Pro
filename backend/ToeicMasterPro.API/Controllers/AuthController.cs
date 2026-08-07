@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Auth;
+using ToeicMasterPro.API.Extensions;
 
 
 namespace ToeicMasterPro.API.Controllers;
@@ -43,17 +44,27 @@ public class AuthController : ControllerBase{
     [HttpPost("refresh-token")]
     public async Task<IActionResult> Refresh(RefreshTokenRequest req)
     {
-        var result = await _auth.RefreshTokenAsync(req.RefreshToken);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : Unauthorized(new { error = result.Error });
+        //Đọc từ cookie - k nhận refresh token từ body JSON nữa, vì refresh token là sensitive data, k muốn FE đọc được
+        //Trình duyệt tự động đính kèm cookie này vì Path="/api/auth" khớp.
+        var refreshToken = Request.GetRefreshTokenCookie();
+        if(refreshToken == null) return Unauthorized(new { error = "Không tìm thấy refresh token." });
+
+        var result = await _auth.RefreshTokenAsync(refreshToken);
+        if(!result.IsSuccess) return Unauthorized(new { error = result.Error });
+
+        //Cookie rotate: xóa cookie cũ, set cookie mới
+        Response.SetRefreshTokenCookie(result.Value!.RefreshToken, result.Value.ExpiresAt);
+        return Ok(new { accessToken = result.Value.AccessToken, expiresAt = result.Value.ExpiresAt });
     }
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(RefreshTokenRequest req)
     {
-        await _auth.LogoutAsync(req.RefreshToken);
-        return Ok(new { message = "Đã đăng xuất." });
+       var refreshToken = Request.GetRefreshTokenCookie();
+       if(refreshToken is not null) 
+            await _auth.LogoutAsync(refreshToken);
+       Response.ClearRefreshTokenCookie();
+       return Ok(new { message = "Đăng xuất thành công." });
     }
 
     [HttpGet("confirm-email")]
@@ -83,8 +94,8 @@ public class AuthController : ControllerBase{
     [HttpPost("google-login")]
     public async Task<IActionResult> GoogleLogin(GoogleLoginRequest req){
         var result= await _auth.GoogleLoginAsync(req.IdToken);
-        return result.IsSuccess
-            ?Ok(result.Value)
-            :BadRequest(new {error=result.Error});
+        if(!result.IsSuccess) return BadRequest(new {error = result.Error});
+        Response.SetRefreshTokenCookie(result.Value!.RefreshToken, result.Value.ExpiresAt);
+        return Ok(new { accessToken = result.Value.AccessToken, expiresAt = result.Value.ExpiresAt });
     }
 }

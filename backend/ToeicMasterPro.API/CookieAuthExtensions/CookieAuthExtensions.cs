@@ -1,4 +1,4 @@
-
+namespace ToeicMasterPro.API.Extensions;
 /// <summary>
 /// Một chỗ duy nhất quyết định cookie refresh token có thuộc tính gì.
 ///

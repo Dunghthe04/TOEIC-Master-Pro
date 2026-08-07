@@ -12,6 +12,7 @@ import { ChevronDown, Flame, LogOut, Menu, User as UserIcon, X, Zap } from 'luci
 import { useAuthStore } from '@/store/auth.store'
 import { USER_NAV, type NavItem } from '@/lib/roles'
 import { getMediaUrl } from '@/lib/media'
+import { authService } from '@/services/auth.service'
 
 export default function UserTopBar() {
     const navigate = useNavigate()
@@ -42,9 +43,15 @@ export default function UserTopBar() {
         setUserMenuOpen(false)
     }, [location.pathname])
 
-    const handleLogout = () => {
-        logout()
-        navigate('/login')
+    const handleLogout = async () => {
+        try {
+            await authService.logout()   // báo server thu hồi DB + xóa cookie refreshToken
+        } catch {
+            // Lỗi mạng lúc gọi logout không được kẹt user lại trong app — vẫn thoát ở finally
+        } finally {
+            logout()   // xóa state RAM (accessToken, user, isAuthenticated)
+            navigate('/login')
+        }
     }
 
     /** Nhóm có con nào đang active → highlight cả nhóm */

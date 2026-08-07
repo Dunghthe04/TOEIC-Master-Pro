@@ -1,21 +1,24 @@
 //Lưu trạng thái auth toàn app
-//Chỉ re-render lại component nào dùng đúng field thay đổi
-//persist middleware tự động sync store với localStorage mỗi khi thay đổi và khôi phục lại khi user load trang
-//partialize chỉ lưu user và isAuthenticated vào localStorage, không lưu các hàm (loginSuccess, logout).
+//accessToken CHỈ nằm trong RAM (state của store), KHÔNG persist vào localStorage —
+//refresh token đã chuyển sang httpOnly cookie nên FE không cần biết giá trị của nó nữa.
+//F5 mất accessToken là CHỦ Ý: axios interceptor sẽ tự gọi /api/auth/refresh-token
+//(cookie tự động gửi kèm) để lấy access token mới, xem axios.ts.
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { saveTokens, clearTokens } from '../lib/token'
 import { clearMediaTokens } from '@/lib/media'
 import type { User } from '@/types/auth.types'
 
 //Định nghĩa ra trạng thái auth
 interface AuthState {
     user: User | null,
+    accessToken: string | null,
     //Đã đăng nhập hay chưa
     isAuthenticated: boolean,
     //Hàm xử lý login ko trả về gì, nhiệm vụ là lưu token + cập nhập store
-    loginSuccess: (tokens: { accessToken: string; refreshToken: string }, user: User) => void
+    loginSuccess: (accessToken: string, user: User) => void
+    /** Gọi khi silent-refresh lúc F5 thành công — CHỈ cập nhật accessToken, giữ nguyên user */
+    setAccessToken: (accessToken: string) => void
     //Hàm logout
     logout: () => void;
 }
@@ -24,25 +27,28 @@ export const useAuthStore = create<AuthState>()(
     persist(
         (set) => ({
             user: null,
+            accessToken: null,
             isAuthenticated: false,
 
-            // Gọi sau khi login thành công: lưu token + lưu user vào store
-            loginSuccess: ({ accessToken, refreshToken }, user) => {
-                saveTokens(accessToken, refreshToken)
-                set({ user, isAuthenticated: true })
+            loginSuccess: (accessToken, user) => {
+                set({ accessToken, user, isAuthenticated: true })
+            },
+
+            setAccessToken: (accessToken: string) => {
+                set({ accessToken, isAuthenticated: true })
             },
 
             // Xóa token + reset store về trạng thái chưa login
             logout: () => {
-                clearTokens()
-                // Token media nằm trong memory (lib/media.ts) — xóa để tài khoản
-                // đăng nhập sau không dùng lại token của tài khoản trước.
                 clearMediaTokens()
-                set({ user: null, isAuthenticated: false })
+                set({ accessToken: null, user: null, isAuthenticated: false })
             },
         }),
         {
             name: 'auth-storage',
+            // ⚠️ accessToken KHÔNG có trong partialize → middleware persist không ghi
+            // nó vào localStorage. Chỉ user + isAuthenticated sống qua F5 (để UI biết
+            // "có thể đã đăng nhập", còn accessToken thật phải xin lại qua cookie).
             partialize: (state) => ({
                 user: state.user,
                 isAuthenticated: state.isAuthenticated,
