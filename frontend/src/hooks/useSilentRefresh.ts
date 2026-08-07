@@ -12,7 +12,7 @@ import { profileService } from '@/services/profile.service'
 
 export function useSilentRefresh() {
     const [ready, setReady] = useState(false)// khi nào ready= true (refresh xong) mới render
-    const { isAuthenticated, setAccessToken, logout } = useAuthStore()
+    const { isAuthenticated, setAccessToken, loginSuccess, logout } = useAuthStore()
 
     useEffect(() => {
         // localStorage còn "isAuthenticated: true" từ lần trước (persist) → có khả năng
@@ -23,9 +23,13 @@ export function useSilentRefresh() {
         //request refresh không nên đi qua interceptor vì trong api đã có interceptor r
         axios.post(`${import.meta.env.VITE_BASE_URL}/auth/refresh-token`, {}, { withCredentials: true })
             .then(async (res) => {
+                // Set token TRƯỚC để api interceptor có Bearer khi gọi getMe() ngay dưới.
                 setAccessToken(res.data.accessToken)
-                // roles có thể đã đổi từ lần trước (Admin gán role mới) → lấy lại cho chắc
-                await profileService.getMe()
+                // Lấy user MỚI (roles/XP có thể đã đổi ở server) rồi GHI vào store qua
+                // loginSuccess — trước đây gọi getMe() nhưng vứt kết quả nên user vẫn là
+                // bản cũ từ localStorage, F5 xong role/XP không cập nhật.
+                const user = await profileService.getMe()
+                loginSuccess(res.data.accessToken, user)
             })
             .catch(() => logout())   // cookie hết hạn/không còn → về trạng thái chưa đăng nhập
             .finally(() => setReady(true))
