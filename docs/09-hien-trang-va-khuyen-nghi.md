@@ -52,15 +52,15 @@
 |---|---|---|
 | **Kiến trúc** | 🟢 Tốt | Clean Architecture 4 tầng rõ ràng, `Result<T>` dùng nhất quán, DI đúng. Lệch chuẩn ở chỗ service nằm ở Infrastructure — chấp nhận được và giải thích được |
 | **Nghiệp vụ cốt lõi** | 🟢 Tốt | Exam engine chạy đủ luồng. `ToeicScoreHelper` tách thuần, có 30 unit test. Đây là **điểm mạnh nhất** của dự án |
-| **Authentication** | 🟡 Khá | JWT + refresh rotation + Google OAuth làm đúng. Thiếu: lockout, reuse detection, hash refresh token |
+| **Authentication** | 🟢 Đã siết (2026-08-08) | JWT + refresh rotation + Google OAuth. **Access token chỉ ở RAM, refresh token trong cookie `httpOnly`** (XSS không đọc được token nữa); silent refresh lúc F5; logout gọi API thật (thu hồi DB + xóa cookie). Còn nợ: lockout, reuse detection, hash refresh token |
 | **Authorization (API)** | 🟢 Đã vá (2026-08-04) | Có **fallback policy** `RequireAuthenticatedUser` → mặc định ĐÓNG. Ngân hàng câu hỏi khóa theo role, ownership check tốt ở phiên thi. Bảng phân quyền: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md). Còn nợ: `PracticeController` thiếu ownership check (Day 47) |
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
 | **Hiệu năng** | 🟠 Yếu | Repository materialize-everything là gốc rễ: phân trang trong RAM, không `AsNoTracking`, query không trần |
-| **Bảo mật** | 🟢 Hết lỗ hổng chặn deploy | Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot` + signed URL · **XSS sanitize lúc ghi ở 3 luồng**. Còn nợ (không chặn deploy): token ở `localStorage`, magic bytes cho upload, zip bomb — mục 3.3 |
+| **Bảo mật** | 🟢 Hết lỗ hổng chặn deploy | Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot` + signed URL · **XSS sanitize lúc ghi ở 3 luồng** · **token khỏi `localStorage` → RAM + cookie `httpOnly`**. Còn nợ (không chặn deploy): magic bytes cho upload, zip bomb — mục 3.3 |
 | **Deploy config** | 🟢 Đã vá (2026-08-05) | `docker-compose.prod.yml` tách riêng: `MSSQL_PID=Express`, **không** expose port DB/Redis, `${VAR:?}` fail-fast thay vì fallback password. Dev bind `127.0.0.1` thay vì `0.0.0.0` |
 | **Cấu hình** | 🟢 Đã vá (2026-08-04) | Khung khóa đầy đủ ở `appsettings.json`, giá trị thật ở User Secrets (dev) / biến môi trường (prod). Thiếu cấu hình → `InvalidOperationException` **nêu đúng tên biến cần đặt**. Đã kiểm chứng chạy được với `ASPNETCORE_ENVIRONMENT=Production` |
-| **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. Thiếu auto-refresh token — hỏng UX nặng |
+| **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. **Đã có auto-refresh token** (axios interceptor gộp 401 chống race) + silent refresh lúc F5. Còn nợ: khôi phục phiên thi khi F5 (mục 2.2) |
 | **Testing** | 🟠 Yếu | 30 test nhưng chỉ phủ 2 hàm thuần. **0 test cho exam engine** — phần phức tạp nhất |
 | **CI/CD** | 🔴 Chưa có | `.github/workflows/` rỗng. 30 test không bao giờ chạy tự động |
 | **Deploy** | ⬜ Chưa làm | Chưa có Dockerfile, chưa có Nginx, chưa deploy lần nào |
@@ -331,9 +331,11 @@ dotnet user-secrets set "Jwt:SecretKey" "<gia-tri-moi>" --project backend/ToeicM
 > Create qua API · Update qua API · **Import file `.xlsx` thật** (`totalRows: 1,
 > successCount: 1` → nội dung sạch). Dữ liệu cũ trong DB: **0 dòng bẩn**, không cần script dọn.
 >
-> ### ⚠️ Còn nợ — lớp 4
-> Access token vẫn ở `localStorage` nên nếu XSS lọt lưới thì token vẫn mất. Chuyển sang memory +
-> refresh token trong cookie `httpOnly` là **việc riêng, lớn hơn** — Day 42 phần 2.
+> ### ✅ Lớp 4 — ĐÃ LÀM (2026-08-08)
+> Access token đã chuyển vào **RAM** (Zustand state, không persist), refresh token sang cookie
+> **`httpOnly`** (JS không đọc được). Nay XSS dù lọt lưới cũng **không lấy được token** — chỉ hành
+> động được trong phiên đang mở, không mang token đi dùng chỗ khác. Xem mục **Authentication** ở bảng
+> điểm và mục 2.1/2.6.
 >
 > Còn nợ khác: `MediaController` chỉ tin phần mở rộng file (chưa kiểm magic bytes), import ZIP
 > chưa whitelist đuôi + chưa giới hạn số entry (zip bomb) — xem mục 3.3.
@@ -553,9 +555,16 @@ public IActionResult GetAudio(Guid testId, string fileName) { /* kiểm quyền 
 
 > Không chặn deploy, nhưng **user sẽ gặp ngay** khi dùng thật.
 
-## 2.1 · 🔴 📋 User bị đá khỏi bài thi ở phút 61 — mất toàn bộ bài làm
+## 2.1 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — User bị đá khỏi bài thi ở phút 61
 
-**Vị trí:** [axios.ts:19-34](../frontend/src/api/axios.ts#L19)
+> **Trạng thái:** đã code. Response interceptor ở [axios.ts](../frontend/src/api/axios.ts) nay bắt 401
+> → tự gọi `/auth/refresh-token` (cookie tự gửi kèm) → set access token mới vào RAM → **gọi lại request
+> gốc**, không đá về login nữa. Có biến `refreshPromise` gộp mọi 401 đồng thời vào MỘT lần refresh
+> (chống refresh token race). Silent refresh lúc F5 ở [useSilentRefresh.ts](../frontend/src/hooks/useSilentRefresh.ts).
+> **Chưa chạy `npm run dev` để xác nhận** — cần test: F5 giữa bài thi không mất phiên, 2 tab F5 cùng lúc
+> không lỗi 401 dồn.
+
+**Vị trí (bản gốc trước khi sửa):** [axios.ts](../frontend/src/api/axios.ts)
 
 Response interceptor gặp 401 thì **xóa token và chuyển về `/login`** — **không hề gọi refresh token**.
 
@@ -662,18 +671,24 @@ tăng theo **bình phương** số câu đã trả lời.
 **Cách sửa:** cache tập `questionId` hợp lệ của phiên (Redis hoặc memory) thay vì query lại mỗi lần;
 chỉ upsert đúng những câu có trong payload.
 
-## 2.6 · 🟠 📋 Logout thực tế không bao giờ được gọi
+## 2.6 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — Logout thực tế không bao giờ được gọi
 
-**Vị trí:** [auth.store.ts:35-38](../frontend/src/store/auth.store.ts#L35),
-[Header.tsx:8-11](../frontend/src/components/layout/Header.tsx#L8)
+> **Trạng thái:** đã code. `authService.logout()` gọi `POST /api/auth/logout` (cookie tự gửi kèm) →
+> backend thu hồi refresh token trong DB (`RevokedAt`) + xóa cookie (`Response.ClearRefreshTokenCookie`).
+> [Header.tsx](../frontend/src/components/layout/Header.tsx) và
+> [UserTopBar.tsx](../frontend/src/components/layout/UserTopBar.tsx) gọi API này **trước** khi xóa
+> state RAM, bọc `try/catch/finally` để lỗi mạng không kẹt user trong app.
+> **Chưa chạy để xác nhận** — cần test: sau logout, cookie `refreshToken` biến mất khỏi DevTools và
+> `RevokedAt` trong DB đã set.
+
+**Vị trí (bản gốc):** [auth.store.ts](../frontend/src/store/auth.store.ts),
+[Header.tsx](../frontend/src/components/layout/Header.tsx)
 
 Frontend logout chỉ **xóa localStorage**. Backend **có** endpoint `/api/auth/logout` nhưng
 **không ai gọi**.
 
 → Refresh token vẫn sống **30 ngày** trong DB sau khi user đã "đăng xuất". Ai có refresh token đó vẫn
 lấy được access token mới.
-
-**Cách sửa:** gọi `POST /api/auth/logout` với refresh token trước khi xóa local state.
 
 ## 2.7 · 🟠 📋 Không có khóa tài khoản khi sai mật khẩu
 
