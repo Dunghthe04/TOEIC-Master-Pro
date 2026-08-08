@@ -34,6 +34,11 @@ type LoginForm = z.infer<typeof schema>
 export default function LoginPage() {
     const navigate = useNavigate();
     const [serverError, setServerError] = useState('');
+    // TÁCH RIÊNG khỏi serverError. Trước đây nút Google và form mật khẩu ghi chung một
+    // biến, nên widget Google lỗi là thông báo "Đăng nhập Google thất bại" hiện lên ngay
+    // trên nút "Đăng nhập" của form mật khẩu — user tưởng mình nhập sai mật khẩu.
+    // Lỗi phải hiện cạnh đúng cái nút đã gây ra nó.
+    const [googleError, setGoogleError] = useState('');
     const [showPassword, setShowPassword] = useState(false)
     const loginSuccess = useAuthStore(state => state.loginSuccess)
     const setAccessToken = useAuthStore(state => state.setAccessToken)
@@ -52,6 +57,7 @@ export default function LoginPage() {
 
     const onSubmit = async (data: LoginForm) => {
         setServerError('')
+        setGoogleError('')   // lỗi Google cũ không được đứng lại làm nhiễu lần thử này
         try {
             const res = await authService.Login(data);
             // Set NGAY vào RAM — nếu để tới loginSuccess() mới set thì getMe() dưới đây
@@ -72,7 +78,12 @@ export default function LoginPage() {
                 err.response?.data?.error
                 ?? (err.request && !err.response
                     ? 'Không kết nối được API. Kiểm tra backend đang chạy và VITE_BASE_URL.'
-                    : 'Đăng nhập thất bại, thử lại sau.')
+                    // Dự phòng cho 429: backend đã trả { error } kèm số giây nên nhánh này
+                    // hiếm khi chạy, nhưng nếu có proxy nuốt body thì vẫn không được để
+                    // user hiểu nhầm "bị chặn vì gọi nhiều" thành "sai mật khẩu".
+                    : err.response?.status === 429
+                        ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                        : 'Đăng nhập thất bại, thử lại sau.')
             setServerError(msg)
         }
     }
@@ -141,19 +152,35 @@ export default function LoginPage() {
                     <GoogleLogin
                         onSuccess={async (credentialResponse) => {
                             if (!credentialResponse.credential) return
+                            setServerError('')
+                            setGoogleError('')
                             try {
                                 const res = await authService.googleLogin(credentialResponse.credential)
                                 setAccessToken(res.accessToken)   // set trước getMe() — cùng lý do ở login thường
                                 const user = await profileService.getMe()
                                 loginSuccess(res.accessToken, user)
                                 navigate(homeFor(user), { replace: true })
-                            } catch {
-                                setServerError('Đăng nhập Google thất bại.')
+                            } catch (err: any) {
+                                // Google trả token OK nhưng BACKEND từ chối — nêu đúng lý do
+                                // (vd 429) thay vì gộp hết thành "Đăng nhập Google thất bại".
+                                setGoogleError(
+                                    err.response?.data?.error
+                                    ?? (err.response?.status === 429
+                                        ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                                        : 'Đăng nhập Google thất bại.')
+                                )
                             }
                         }}
-                        onError={() => setServerError('Đăng nhập Google thất bại.')}
+                        // Lỗi ở CHÍNH widget Google (không tải được, popup bị chặn…) —
+                        // chưa hề gọi tới backend của mình, nên nói đúng phạm vi đó.
+                        onError={() => setGoogleError('Không mở được đăng nhập Google. Thử lại hoặc dùng email và mật khẩu.')}
                         width="368"
                     />
+                    {googleError && (
+                        <p className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-600">
+                            {googleError}
+                        </p>
+                    )}
                 </CardContent>
             </Card>
         </div>

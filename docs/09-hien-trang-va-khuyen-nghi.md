@@ -555,14 +555,14 @@ public IActionResult GetAudio(Guid testId, string fileName) { /* kiểm quyền 
 
 > Không chặn deploy, nhưng **user sẽ gặp ngay** khi dùng thật.
 
-## 2.1 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — User bị đá khỏi bài thi ở phút 61
+## 2.1 · ✅ ĐÃ SỬA 2026-08-08 (kiểm chứng end-to-end 08-08) — User bị đá khỏi bài thi ở phút 61
 
 > **Trạng thái:** đã code. Response interceptor ở [axios.ts](../frontend/src/api/axios.ts) nay bắt 401
 > → tự gọi `/auth/refresh-token` (cookie tự gửi kèm) → set access token mới vào RAM → **gọi lại request
 > gốc**, không đá về login nữa. Có biến `refreshPromise` gộp mọi 401 đồng thời vào MỘT lần refresh
 > (chống refresh token race). Silent refresh lúc F5 ở [useSilentRefresh.ts](../frontend/src/hooks/useSilentRefresh.ts).
-> **Chưa chạy `npm run dev` để xác nhận** — cần test: F5 giữa bài thi không mất phiên, 2 tab F5 cùng lúc
-> không lỗi 401 dồn.
+> ✅ **Đã xác nhận 2026-08-08:** F5 liên tục 15 lần giữ nguyên phiên đăng nhập, không 401/429 lần nào.
+> Quá trình test này làm lộ ra mục 2.9 — F5 vài lần là bị đá về `/login` vì rate limit.
 
 **Vị trí (bản gốc trước khi sửa):** [axios.ts](../frontend/src/api/axios.ts)
 
@@ -671,15 +671,15 @@ tăng theo **bình phương** số câu đã trả lời.
 **Cách sửa:** cache tập `questionId` hợp lệ của phiên (Redis hoặc memory) thay vì query lại mỗi lần;
 chỉ upsert đúng những câu có trong payload.
 
-## 2.6 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — Logout thực tế không bao giờ được gọi
+## 2.6 · ✅ ĐÃ SỬA 2026-08-08 (kiểm chứng end-to-end 08-08) — Logout thực tế không bao giờ được gọi
 
 > **Trạng thái:** đã code. `authService.logout()` gọi `POST /api/auth/logout` (cookie tự gửi kèm) →
 > backend thu hồi refresh token trong DB (`RevokedAt`) + xóa cookie (`Response.ClearRefreshTokenCookie`).
 > [Header.tsx](../frontend/src/components/layout/Header.tsx) và
 > [UserTopBar.tsx](../frontend/src/components/layout/UserTopBar.tsx) gọi API này **trước** khi xóa
 > state RAM, bọc `try/catch/finally` để lỗi mạng không kẹt user trong app.
-> **Chưa chạy để xác nhận** — cần test: sau logout, cookie `refreshToken` biến mất khỏi DevTools và
-> `RevokedAt` trong DB đã set.
+> ✅ **Đã xác nhận 2026-08-08:** sau logout, cookie `refreshToken` biến mất khỏi DevTools và `RevokedAt`
+> trong DB đã được set.
 
 **Vị trí (bản gốc):** [auth.store.ts](../frontend/src/store/auth.store.ts),
 [Header.tsx](../frontend/src/components/layout/Header.tsx)
@@ -717,7 +717,7 @@ gửi mail **trước khi** commit `EmailSent = true` → `SaveChanges` lỗi sa
 **Cách sửa:** truyền `TimeZoneInfo` vào `RecurringJobOptions`; commit `EmailSent` trước khi gửi (hoặc
 dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` thay vì bằng đúng.
 
-## 2.9 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — F5 vài lần là bị đá về `/login`
+## 2.9 · ✅ ĐÃ SỬA 2026-08-08 (kiểm chứng end-to-end 08-08) — F5 vài lần là bị đá về `/login`
 
 > **Đây là lỗi TỰ TÌM RA khi test tay mục 2.1**, không nằm trong đợt audit. Đáng kể lại đầy đủ vì
 > nó là ví dụ sạch của **triệu chứng nói dối**: trông y hệt lỗi authentication, thực chất là rate limit.
@@ -779,9 +779,36 @@ mất mạng mang bốn ý nghĩa hoàn toàn khác nhau. Chỉ 401 mới là b�
 - Log Serilog cho câu trả lời quyết định trong 2 giây: `POST /api/auth/refresh-token responded **429**`
   — **không phải 401**. Đây là thứ phá vỡ sự đánh lừa của triệu chứng.
 
-⚠️ **Còn nợ:** backend **chưa restart** nên lớp 1–2 chưa từng chạy. Cần test: F5 15 lần liên tục không
-429; và **sai mật khẩu 6 lần liên tiếp PHẢI ra 429** — để chắc rằng nới cho `refresh-token` không vô tình
-nới luôn cho `login`.
+✅ **Đã kiểm chứng end-to-end 2026-08-08** sau khi restart backend: F5 liên tục 15 lần không 429 lần nào ·
+Network tab chỉ còn **1** request `refresh-token` mỗi lần F5 (trước là 2) · **sai mật khẩu 6 lần vẫn ra
+429** — xác nhận việc nới cho `refresh-token` **không** vô tình nới luôn cho `login` · logout xóa cookie
+và set `RevokedAt` đúng.
+
+### Lỗi phát sinh khi kiểm chứng: 429 hiện thông báo sai
+
+Ca test "sai mật khẩu 6 lần" làm lộ tiếp hai lỗi **thông báo** — không phải lỗi logic, nhưng đẩy user
+đi đúng hướng sai:
+
+**a. Rate limiter trả 429 với BODY RỖNG.** Frontend đọc `err.response.data.error` → `undefined` → rơi
+xuống câu mặc định *"Đăng nhập thất bại, thử lại sau"* / *"Email hoặc mật khẩu không đúng"*. User đọc
+thành "mình gõ sai mật khẩu" nên **thử lại** — mà thử lại chính là thứ đang bị chặn. Thông báo sai
+khiến user tự kéo dài thời gian bị khóa.
+
+**b. `serverError` là state DÙNG CHUNG** giữa form mật khẩu và nút Google (`LoginPage.tsx`,
+`AuthDialog.tsx`). Widget Google lỗi (nó tự gọi mạng riêng) → dòng *"Đăng nhập Google thất bại"* hiện
+lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa hề bấm Google.
+
+**Cách vá:**
+- `Program.cs` — thêm `options.OnRejected`: trả JSON `{ error }` **đúng hình dạng chung của API** kèm số
+  giây lấy từ `MetadataName.RetryAfter`, và set header `Retry-After` chuẩn HTTP. Vì client vốn đã đọc
+  `err.response.data.error`, **mọi màn hình tự khỏi mà không phải sửa gì thêm** — sửa một chỗ ở tầng
+  đúng thay vì vá từng form
+- `LoginPage.tsx` + `AuthDialog.tsx` — tách `googleError` khỏi `serverError`, mỗi lỗi hiện **cạnh đúng
+  cái nút đã gây ra nó**; phân biệt lỗi *widget Google không mở được* với lỗi *backend từ chối*; thêm
+  nhánh dự phòng cho 429 phòng khi proxy nuốt body
+
+> **Bài học thứ tư:** thông báo lỗi là một phần của **hành vi hệ thống**, không phải trang trí. Một câu
+> sai không chỉ gây khó chịu — nó chỉ cho user làm đúng cái việc khiến tình hình tệ hơn.
 
 **Ba điều học được:**
 1. **Triệu chứng nói dối.** Lỗi trông y hệt "hết phiên" nhưng là rate limit. Thứ phá vỡ được là **đọc

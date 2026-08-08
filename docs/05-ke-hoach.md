@@ -524,7 +524,15 @@ Lời tuyên bố "3 role" trong `PROJECT_DESCRIPTION.md` **thành thật**.
   → LÀM SỚM 2026-08-08 vì nó nổ ra khi test tay Day 44: F5 3 lần là bị đá về /login.
     Thêm policy "auth-refresh" 30/phút; refresh-token + logout đè ở CẤP ACTION,
     giữ "auth" ở cấp class làm mặc định siết (fail-closed).
-  ⚠️ CHƯA kiểm chứng runtime — backend chưa restart lúc sửa. Chi tiết: 09 mục 2.9
+  ✅ Kiểm chứng 2026-08-08: F5 15 lần không 429; sai mật khẩu 6 lần VẪN ra 429
+    (nới refresh-token không nới nhầm login). Chi tiết: 09 mục 2.9
+
+☑ 429 phải có thông báo riêng — LÀM SỚM 2026-08-08, lộ ra khi test ca "sai mật khẩu
+  6 lần": rate limiter trả body RỖNG nên UI hiện "Email hoặc mật khẩu không đúng"
+  → user tưởng gõ sai nên thử lại, mà thử lại đúng là thứ đang bị chặn.
+  □ Program.cs: OnRejected trả { error } + header Retry-After
+  □ LoginPage/AuthDialog: tách googleError khỏi serverError (dùng chung một biến
+    nên lỗi nút Google hiện trên nút Đăng nhập của form mật khẩu)
 ```
 
 ## Day 49 — Dọn nốt Phase 2 + đệm

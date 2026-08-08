@@ -119,6 +119,9 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
     const loginSuccess = useAuthStore(s => s.loginSuccess)
     const setAccessToken = useAuthStore(s => s.setAccessToken)
     const [serverError, setServerError] = useState('')
+    // Tách khỏi serverError — xem lý do đầy đủ ở LoginPage.tsx: dùng chung một biến thì
+    // lỗi của nút Google hiện lên ngay trên nút "Đăng nhập" của form mật khẩu.
+    const [googleError, setGoogleError] = useState('')
     const [showPassword, setShowPassword] = useState(false)
 
     const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
@@ -144,6 +147,7 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
 
     const onSubmit = async (data: LoginForm) => {
         setServerError('')
+        setGoogleError('')
         try {
             const res = await authService.Login(data)
             await finish(res.accessToken)
@@ -152,7 +156,11 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
                 err.response?.data?.error
                 ?? (err.request && !err.response
                     ? 'Không kết nối được server. Thử lại sau.'
-                    : 'Email hoặc mật khẩu không đúng.')
+                    // 429 KHÔNG được rơi vào "Email hoặc mật khẩu không đúng" — đó là lời
+                    // nói dối đẩy user đi thử lại, mà thử lại chính là thứ đang bị chặn.
+                    : err.response?.status === 429
+                        ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                        : 'Email hoặc mật khẩu không đúng.')
             )
         }
     }
@@ -208,17 +216,30 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
                 <GoogleLogin
                     onSuccess={async (cred) => {
                         if (!cred.credential) return
+                        setServerError('')
+                        setGoogleError('')
                         try {
                             const res = await authService.googleLogin(cred.credential)
                             await finish(res.accessToken)
-                        } catch {
-                            setServerError('Đăng nhập Google thất bại.')
+                        } catch (err: any) {
+                            setGoogleError(
+                                err.response?.data?.error
+                                ?? (err.response?.status === 429
+                                    ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                                    : 'Đăng nhập Google thất bại.')
+                            )
                         }
                     }}
-                    onError={() => setServerError('Đăng nhập Google thất bại.')}
+                    onError={() => setGoogleError('Không mở được đăng nhập Google. Thử lại hoặc dùng email và mật khẩu.')}
                     width="336"
                 />
             </div>
+
+            {googleError && (
+                <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-600">
+                    {googleError}
+                </p>
+            )}
         </>
     )
 }

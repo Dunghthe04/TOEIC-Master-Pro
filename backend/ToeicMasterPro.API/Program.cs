@@ -204,6 +204,29 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // Mặc định rate limiter trả 429 với BODY RỖNG. Frontend đọc `err.response.data.error`
+    // nên nhận undefined → rơi xuống câu mặc định "Đăng nhập thất bại, thử lại sau" —
+    // user đọc thành "sai mật khẩu" và cứ thử tiếp, càng thử càng bị chặn lâu.
+    // Trả JSON ĐÚNG HÌNH DẠNG { error } mà toàn bộ API đang dùng thì mọi màn hình hiện
+    // đúng thông báo mà không phải sửa gì thêm ở client.
+    options.OnRejected = async (context, ct) =>
+    {
+        // FixedWindowRateLimiter cho biết còn bao lâu tới cửa sổ mới. Không lấy được thì
+        // lùi về đúng độ dài cửa sổ (60s) — thà báo lâu hơn thực tế còn hơn báo thiếu.
+        var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var wait)
+            ? (int)Math.Ceiling(wait.TotalSeconds)
+            : 60;
+
+        // Header chuẩn HTTP — để client/proxy tự động biết chờ bao lâu, không phải parse chuỗi
+        context.HttpContext.Response.Headers.RetryAfter = retryAfter.ToString();
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = $"Bạn thao tác quá nhanh. Vui lòng thử lại sau {retryAfter} giây."
+        }, ct);
+    };
+
     //Chính sách "auth" tối đa 5 request/ phút/ mỗi địa chỉ IP
     //Dành cho các endpoint ĐOÁN ĐƯỢC bí mật: login, register, forgot/reset password,
     //google-login. Ở đây 5/phút mới có ý nghĩa — nó làm brute-force mật khẩu bất khả thi.
