@@ -22,6 +22,12 @@ import App from './App.tsx'
 //Package cho chức năng google
 import { GoogleOAuthProvider } from '@react-oauth/google'
 
+// Google Identity Services tự tính toạ độ popup và hay đẩy nó ra sát mép trái.
+// Phải chạy TRƯỚC render để window.open đã được vá xong khi user kịp bấm nút.
+import { centerGooglePopup } from '@/lib/centerPopup'
+
+centerGooglePopup()
+
 
 // document.getElementById('root')! — lấy div#root từ index.html
 // Dấu ! cuối = "tôi chắc chắn element này tồn tại" (TypeScript non-null assertion)
