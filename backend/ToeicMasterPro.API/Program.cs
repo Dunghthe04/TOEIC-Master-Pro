@@ -211,8 +211,12 @@ builder.Services.AddRateLimiter(options =>
     // đúng thông báo mà không phải sửa gì thêm ở client.
     options.OnRejected = async (context, ct) =>
     {
-        // FixedWindowRateLimiter cho biết còn bao lâu tới cửa sổ mới. Không lấy được thì
-        // lùi về đúng độ dài cửa sổ (60s) — thà báo lâu hơn thực tế còn hơn báo thiếu.
+        // ĐO THỰC TẾ 2026-08-08: với FixedWindowRateLimiter, MetadataName.RetryAfter trả
+        // ĐỘ DÀI CỬA SỔ (luôn 60), KHÔNG phải thời gian còn lại. Lấy mẫu mỗi 5 giây thấy
+        // nó đứng yên ở 60 suốt rồi cửa sổ reset:
+        //     t=5s → 60 · t=25s → 60 · t=30s → hết chặn
+        // Nên đây là CẬN TRÊN, không phải số giây chính xác. Header Retry-After hiểu theo
+        // nghĩa cận trên là đúng chuẩn HTTP, giữ nguyên.
         var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var wait)
             ? (int)Math.Ceiling(wait.TotalSeconds)
             : 60;
@@ -223,7 +227,10 @@ builder.Services.AddRateLimiter(options =>
 
         await context.HttpContext.Response.WriteAsJsonAsync(new
         {
-            error = $"Bạn thao tác quá nhanh. Vui lòng thử lại sau {retryAfter} giây."
+            // "TỐI ĐA" chứ không phải "sau N giây": ở giây thứ 25 của cửa sổ thì thực tế chỉ
+            // còn ~5 giây, hứa đúng 60 là sai. Một con số trông chính xác mà sai thì tệ hơn
+            // một ước lượng thành thật — user chờ thừa rồi kết luận thông báo không đáng tin.
+            error = $"Bạn thao tác quá nhanh. Vui lòng chờ tối đa {retryAfter} giây rồi thử lại."
         }, ct);
     };
 

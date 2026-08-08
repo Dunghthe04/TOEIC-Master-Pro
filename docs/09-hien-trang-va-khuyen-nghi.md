@@ -799,10 +799,27 @@ khiến user tự kéo dài thời gian bị khóa.
 lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa hề bấm Google.
 
 **Cách vá:**
-- `Program.cs` — thêm `options.OnRejected`: trả JSON `{ error }` **đúng hình dạng chung của API** kèm số
-  giây lấy từ `MetadataName.RetryAfter`, và set header `Retry-After` chuẩn HTTP. Vì client vốn đã đọc
-  `err.response.data.error`, **mọi màn hình tự khỏi mà không phải sửa gì thêm** — sửa một chỗ ở tầng
-  đúng thay vì vá từng form
+- `Program.cs` — thêm `options.OnRejected`: trả JSON `{ error }` **đúng hình dạng chung của API** kèm
+  header `Retry-After` chuẩn HTTP. Vì client vốn đã đọc `err.response.data.error`, **mọi màn hình tự khỏi
+  mà không phải sửa gì thêm** — sửa một chỗ ở tầng đúng thay vì vá từng form
+
+> **Giả định sai bị chính phép đo bác bỏ 🔬** — đáng nhớ vì nó suýt tạo ra một lời nói dối tinh vi.
+> Ban đầu tin rằng `MetadataName.RetryAfter` của `FixedWindowRateLimiter` trả **thời gian còn lại**, nên
+> viết thông báo *"thử lại sau 60 giây"*. Lấy mẫu mỗi 5 giây thì thấy nó **đứng yên**:
+>
+> ```
+> t= 5s → 429, Retry-After=60      t=25s → 429, Retry-After=60
+> t=10s → 429, Retry-After=60      t=30s → 400  (cửa sổ reset)
+> ```
+>
+> Nó trả **ĐỘ DÀI CỬA SỔ**, không phải thời gian còn lại. Nghĩa là ở giây thứ 25 thực tế chỉ còn ~5 giây
+> nhưng vẫn bảo user chờ 60. Đã đổi thành *"chờ **tối đa** 60 giây"*. Header `Retry-After` giữ nguyên vì
+> hiểu theo nghĩa **cận trên** là đúng chuẩn HTTP.
+>
+> **Bài học:** một con số trông chính xác mà sai thì tệ hơn một ước lượng thành thật — user chờ thừa vài
+> lần rồi kết luận mọi thông báo của hệ thống đều không đáng tin. Và: hai lần đo đầu **không kết luận
+> được** (trả 400 vì cửa sổ đã reset) — phải chuyển từ *đoán thời điểm* sang *lấy mẫu liên tục* mới ra
+> câu trả lời. Cửa sổ của `FixedWindowRateLimiter` neo theo lúc **tạo limiter**, không phải request đầu.
 - `LoginPage.tsx` + `AuthDialog.tsx` — tách `googleError` khỏi `serverError`, mỗi lỗi hiện **cạnh đúng
   cái nút đã gây ra nó**; phân biệt lỗi *widget Google không mở được* với lỗi *backend từ chối*; thêm
   nhánh dự phòng cho 429 phòng khi proxy nuốt body
