@@ -820,9 +820,26 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 > lần rồi kết luận mọi thông báo của hệ thống đều không đáng tin. Và: hai lần đo đầu **không kết luận
 > được** (trả 400 vì cửa sổ đã reset) — phải chuyển từ *đoán thời điểm* sang *lấy mẫu liên tục* mới ra
 > câu trả lời. Cửa sổ của `FixedWindowRateLimiter` neo theo lúc **tạo limiter**, không phải request đầu.
+>
+> **Bài học về cách đo:** hai lần 400 liên tiếp trông như *"không có gì bất thường"*, trong khi sự thật
+> là phép đo **chưa chạm được** vào thứ cần đo. Kết quả "không thấy gì" hiếm khi là bằng chứng mọi thứ
+> ổn — thường là dấu hiệu đo sai chỗ.
+
 - `LoginPage.tsx` + `AuthDialog.tsx` — tách `googleError` khỏi `serverError`, mỗi lỗi hiện **cạnh đúng
   cái nút đã gây ra nó**; phân biệt lỗi *widget Google không mở được* với lỗi *backend từ chối*; thêm
   nhánh dự phòng cho 429 phòng khi proxy nuốt body
+
+**Kiểm chứng 2026-08-08 — đã xong cả hai:**
+
+| Việc | Cách kiểm | Kết quả |
+|---|---|---|
+| 429 trả body JSON + `Retry-After` | curl 6 lần vào `/api/auth/login` | 5 lần đầu 400, lần 6 **429** kèm `Retry-After: 60` và body `{"error":"Bạn thao tác quá nhanh. Vui lòng chờ tối đa 60 giây rồi thử lại."}` |
+| Hạn mức `login` không bị nới nhầm | cùng phép trên | Vẫn chặn đúng ở lần thứ 6 → policy `"auth-refresh"` chỉ áp cho `refresh-token`/`logout` |
+| Lỗi Google hiện đúng chỗ | DevTools → Network → chuột phải request `google-login` → **Block request URL** → bấm nút Google | Thông báo hiện **dưới nút Google**, không còn đè lên form mật khẩu |
+
+> **Mẹo test đáng nhớ:** ý đầu tiên là chặn `accounts.google.com` — **sai**, vì chính cái nút cũng là
+> iframe tải từ domain đó, chặn thì nút không render, chẳng có gì để bấm. Phải chặn **endpoint backend**
+> (`google-login`) để Google chạy trót lọt còn lời gọi về server thì hỏng.
 
 > **Bài học thứ tư:** thông báo lỗi là một phần của **hành vi hệ thống**, không phải trang trí. Một câu
 > sai không chỉ gây khó chịu — nó chỉ cho user làm đúng cái việc khiến tình hình tệ hơn.
