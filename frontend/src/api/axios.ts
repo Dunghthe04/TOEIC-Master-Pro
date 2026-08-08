@@ -26,7 +26,12 @@ api.interceptors.request.use((config) => {
  */ 
 let refreshPromise: Promise<string> | null = null
 
-async function refreshAccessToken(): Promise<string>{
+/**
+ * EXPORT (không còn private): useSilentRefresh phải gọi ĐÚNG hàm này thay vì tự
+ * `axios.post` thô. Gọi thô là đi vòng qua lớp gộp promise ngay dưới — hai lời gọi
+ * song song mang CÙNG một cookie sẽ cùng rotate refresh token ở server, sinh race.
+ */
+export async function refreshAccessToken(): Promise<string>{
     if(refreshPromise) return refreshPromise
 
     // BASE_URL (không có VITE_) là biến dựng sẵn của Vite cho asset path, mặc định "/" —
@@ -52,16 +57,27 @@ api.interceptors.response.use(
         if (error.response?.status === 401 && !original._retry && !original.url?.includes('/auth/refresh-token')) {
             original._retry = true
             try {
+                
                 const newToken = await refreshAccessToken()
                 original.headers.Authorization = `Bearer ${newToken}`
                 return api(original)          // gọi lại request GỐC với token mới
-            } catch {
-                // Refresh cũng thất bại (cookie hết hạn/không có) → thật sự phải đăng xuất
-                useAuthStore.getState().logout()
-                try { localStorage.removeItem('auth-storage') } catch { /* ignore */ }
-                if (!window.location.pathname.startsWith('/login')) {
-                    window.location.href = '/login'
+            } catch (refreshError) {
+                // CHỈ 401 mới nghĩa là refresh token thật sự không dùng được nữa.
+                // 429 (chạm rate limit) hay lỗi mạng/server 5xx thì token VẪN CÒN TỐT —
+                // đăng xuất lúc đó là biến một trục trặc tạm thời thành mất phiên làm việc,
+                // và giữa bài thi thì đồng nghĩa mất bài.
+                const status = axios.isAxiosError(refreshError)
+                    ? refreshError.response?.status
+                    : undefined
+
+                if (status === 401) {
+                    useAuthStore.getState().logout()
+                    try { localStorage.removeItem('auth-storage') } catch { /* ignore */ }
+                    if (!window.location.pathname.startsWith('/login')) {
+                        window.location.href = '/login'
+                    }
                 }
+                // Không phải 401 → để lỗi gốc rơi xuống dưới cho caller tự xử lý/retry.
             }
         }
 

@@ -52,7 +52,7 @@
 |---|---|---|
 | **Kiến trúc** | 🟢 Tốt | Clean Architecture 4 tầng rõ ràng, `Result<T>` dùng nhất quán, DI đúng. Lệch chuẩn ở chỗ service nằm ở Infrastructure — chấp nhận được và giải thích được |
 | **Nghiệp vụ cốt lõi** | 🟢 Tốt | Exam engine chạy đủ luồng. `ToeicScoreHelper` tách thuần, có 30 unit test. Đây là **điểm mạnh nhất** của dự án |
-| **Authentication** | 🟢 Đã siết (2026-08-08) | JWT + refresh rotation + Google OAuth. **Access token chỉ ở RAM, refresh token trong cookie `httpOnly`** (XSS không đọc được token nữa); silent refresh lúc F5; logout gọi API thật (thu hồi DB + xóa cookie). Còn nợ: lockout, reuse detection, hash refresh token |
+| **Authentication** | 🟢 Đã siết (2026-08-08) | JWT + refresh rotation + Google OAuth. **Access token chỉ ở RAM, refresh token trong cookie `httpOnly`** (XSS không đọc được token nữa); silent refresh lúc F5; logout gọi API thật (thu hồi DB + xóa cookie). **Rate limit đã tách policy** — `refresh-token`/`logout` không còn chung quota với `login` (mục 2.9). Còn nợ: lockout, reuse detection, hash refresh token |
 | **Authorization (API)** | 🟢 Đã vá (2026-08-04) | Có **fallback policy** `RequireAuthenticatedUser` → mặc định ĐÓNG. Ngân hàng câu hỏi khóa theo role, ownership check tốt ở phiên thi. Bảng phân quyền: [10-phan-quyen-endpoint.md](10-phan-quyen-endpoint.md). Còn nợ: `PracticeController` thiếu ownership check (Day 47) |
 | **Authorization (UI)** | 🔴 Chưa có | Frontend không biết role. User thấy menu quản trị |
 | **Database** | 🟡 Khá | 29 index đầy đủ, Fluent API sạch, Value Converter đúng. Thiếu concurrency token |
@@ -717,6 +717,81 @@ gửi mail **trước khi** commit `EmailSent = true` → `SaveChanges` lỗi sa
 **Cách sửa:** truyền `TimeZoneInfo` vào `RecurringJobOptions`; commit `EmailSent` trước khi gửi (hoặc
 dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` thay vì bằng đúng.
 
+## 2.9 · ✅ ĐÃ SỬA 2026-08-08 (chưa kiểm chứng end-to-end) — F5 vài lần là bị đá về `/login`
+
+> **Đây là lỗi TỰ TÌM RA khi test tay mục 2.1**, không nằm trong đợt audit. Đáng kể lại đầy đủ vì
+> nó là ví dụ sạch của **triệu chứng nói dối**: trông y hệt lỗi authentication, thực chất là rate limit.
+
+**Sự việc:** đăng nhập xong, F5 hai lần thì bình thường, **lần thứ ba bị đá về `/login`** như thể hết phiên.
+
+**Ba lớp nguyên nhân xếp chồng — bỏ sót lớp nào thì lỗi vẫn còn:**
+
+**Lớp 1 — mỗi lần F5 bắn 2 request thay vì 1.** `<StrictMode>` ở dev cố ý mount → cleanup → mount lại
+để ép lộ effect không an toàn khi chạy lặp. Thân effect của `useSilentRefresh` là một lời gọi mạng thật
+nên nó bay đi **hai lần**.
+
+> **Cái bẫy:** deps `[]` kèm comment *"chỉ chạy 1 lần lúc mount"* — comment đó SAI trong ngữ cảnh
+> StrictMode. `[]` chỉ chặn **re-render**, không chặn **mount**. StrictMode dựng component MỚI, mà với
+> component mới thì `[]` nghĩa là "chạy lần đầu" — và React đang tạo ra *hai* lần đầu. `useRef` cũng vô
+> dụng vì ref thuộc về component. Chỉ biến ở **module scope** mới sống sót qua vòng mount thứ hai.
+
+**Lớp 2 — `refresh-token` bị nhốt chung hạn mức với `login`.** `[EnableRateLimiting("auth")]` đặt ở
+**cấp class** trên `AuthController` → policy 5 req/phút/IP áp cho cả `refresh-token` và `logout`.
+Đây là lỗi thiết kế thật, vì hai nhóm endpoint có **mô hình đe dọa khác hẳn nhau**:
+
+| | `login` | `refresh-token` |
+|---|---|---|
+| Kẻ tấn công cần gì? | Đoán mật khẩu — **đoán được** | Cầm sẵn token 64 byte ngẫu nhiên — **không đoán nổi** |
+| Siết chặt có tăng an toàn? | **Có** — brute-force bất khả thi | **Không** — chẳng ai brute-force được thứ đó |
+| Ai chịu thiệt khi siết? | Kẻ tấn công | **User thật**, vì họ gọi nó liên tục |
+
+**Lớp 3 — frontend hiểu nhầm "bị chặn" thành "hết phiên".** `useSilentRefresh` kết thúc bằng
+`.catch(() => logout())` — bắt **mọi** lỗi rồi quy về một kết luận duy nhất, trong khi 401 / 429 / 5xx /
+mất mạng mang bốn ý nghĩa hoàn toàn khác nhau. Chỉ 401 mới là bằng chứng token hỏng thật.
+
+**Ba lớp cộng lại — số khớp chính xác với quan sát:**
+
+| Hành động | Request | Cộng dồn |
+|---|---|---|
+| Đăng nhập | 1 | 1 |
+| F5 lần 1 | 2 *(StrictMode)* | 3 |
+| F5 lần 2 | 2 | 5 — hết quota |
+| F5 lần 3 | 2 | thứ 6 → **429** → `.catch()` → `logout()` |
+
+**Cách vá — cả ba lớp:**
+1. `Program.cs`: thêm policy `"auth-refresh"` 30 req/phút
+2. `AuthController`: `refresh-token` + `logout` đè sang policy mới ở **cấp action**; giữ `"auth"` ở cấp
+   class làm mặc định siết — quên đánh dấu endpoint mới thì nó bị siết (phiền nhưng an toàn), thay vì
+   không có rate limit nào (im lặng và nguy hiểm). Cùng tư duy fail-closed với fallback policy ở mục 1.1
+3. `useSilentRefresh`: guard cấp **module** + gọi chung `refreshAccessToken()` đã export từ `axios.ts`
+4. `axios.ts` + `useSilentRefresh`: **chỉ `logout()` khi 401**
+
+> **Vì sao KHÔNG tắt `<StrictMode>` cho nhanh:** nó đang làm đúng việc — chỉ ra effect này không an toàn
+> khi chạy 2 lần, và điều đó là sự thật khách quan chứ không phải chuyện riêng của dev. Hai request
+> refresh song song mang **cùng một cookie** cùng rotate token ở server; hiện chưa nổ chỉ vì cả hai kịp
+> đọc token trước khi bên nào ghi. Tắt StrictMode là **bịt đèn báo** — race vẫn nguyên và sẽ nổ ở
+> production khi hai tab cùng F5 hoặc mạng chậm làm lệch nhịp. Cách đúng là làm effect **idempotent**.
+
+**Kiểm chứng từng bước — bằng chứng chứ không phải suy đoán:**
+- Sau khi vá lớp 1 và 3 (frontend, HMR nạp ngay) mà **chưa** restart backend: ngưỡng dịch từ ~3 lần F5
+  sang **~5 lần**, và khi chạm thì chỉ hỏng dashboard **thay vì đá về `/login`**. Cả hai con số dịch đúng
+  hướng và đúng lượng dự đoán → xác nhận lớp 1 và 3 đã ăn.
+- Log Serilog cho câu trả lời quyết định trong 2 giây: `POST /api/auth/refresh-token responded **429**`
+  — **không phải 401**. Đây là thứ phá vỡ sự đánh lừa của triệu chứng.
+
+⚠️ **Còn nợ:** backend **chưa restart** nên lớp 1–2 chưa từng chạy. Cần test: F5 15 lần liên tục không
+429; và **sai mật khẩu 6 lần liên tiếp PHẢI ra 429** — để chắc rằng nới cho `refresh-token` không vô tình
+nới luôn cho `login`.
+
+**Ba điều học được:**
+1. **Triệu chứng nói dối.** Lỗi trông y hệt "hết phiên" nhưng là rate limit. Thứ phá vỡ được là **đọc
+   status code thật** — 401 và 429 dẫn tới hai hướng điều tra khác hẳn nhau.
+2. **Rate limit là quyết định bảo mật, không phải con số kỹ thuật.** Áp cùng một hạn mức lên hai endpoint
+   khác mô hình đe dọa thì hoặc quá lỏng với cái này, hoặc quá chặt với cái kia — ở đây là **cả hai cùng lúc**.
+3. **Nuốt lỗi thì đắt.** `.catch(() => logout())` ngắn gọn và trông vô hại, nhưng vứt đi thông tin phân
+   biệt *tạm thời* với *vĩnh viễn*, biến trục trặc 60 giây thành mất phiên làm việc. Với app thi 2 tiếng,
+   mất phiên = **mất bài**. Bắt lỗi mà không phân loại thường tệ hơn không bắt.
+
 ---
 
 # 3. Nợ kỹ thuật còn lại
@@ -768,7 +843,7 @@ dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` t
 | Lỗi verify Google trả nguyên `ex.Message` ra client | `AuthService.cs:172-176` |
 | Token xác thực email và reset mật khẩu **in ra stdout** | `AuthService.cs:53-54, 124-125` |
 | DTO auth **không có validation nào** — null/rỗng đi thẳng vào Identity gây 500 | `DTOs/Auth/*.cs` |
-| Rate limit chỉ theo IP, chưa đọc `X-Forwarded-For`, và chỉ áp cho `AuthController` | `Program.cs:149-165` |
+| Rate limit chỉ theo IP, chưa đọc `X-Forwarded-For`, và chỉ áp cho `AuthController`. 🟡 *Đã tách policy 2026-08-08:* `login`/`register`/`reset-password` giữ 5/phút, `refresh-token`/`logout` sang `"auth-refresh"` 30/phút — xem mục 2.9 | `Program.cs:202-253` |
 | Thiếu `UseHsts`, security headers, `AllowedHosts = "*"` | `Program.cs:211-216` |
 | iCal injection — `RegisterUrl` không escape khi sinh file `.ics` (endpoint ẩn danh) | `ExamScheduleService.cs:144-145` |
 

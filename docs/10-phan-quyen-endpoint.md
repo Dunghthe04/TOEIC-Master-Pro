@@ -242,7 +242,7 @@ Chạy bằng `curl` với token thật, không phải suy luận từ code:
 | Frontend chưa lọc menu theo role — User thấy menu quản trị | `Sidebar.tsx` | 36 |
 | `PracticeController` thiếu ownership check | `PracticeService.cs:69` | 47 |
 | Mọi lỗi nghiệp vụ trả 400 — không phân biệt 403/404 | toàn bộ service | 49 |
-| Rate limit `"auth"` bóp cả `refresh-token` và `logout` | `Program.cs:149` | 48 |
+| ~~Rate limit `"auth"` bóp cả `refresh-token` và `logout`~~ | ✅ **vá 2026-08-08** — policy `"auth-refresh"` 30/phút, đè ở cấp action (chưa kiểm chứng runtime) | — |
 
 ---
 

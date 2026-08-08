@@ -205,6 +205,8 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     //Chính sách "auth" tối đa 5 request/ phút/ mỗi địa chỉ IP
+    //Dành cho các endpoint ĐOÁN ĐƯỢC bí mật: login, register, forgot/reset password,
+    //google-login. Ở đây 5/phút mới có ý nghĩa — nó làm brute-force mật khẩu bất khả thi.
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             //lấy ip của client
@@ -219,6 +221,31 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }
 
+        )
+    );
+
+    // Chính sách "auth-refresh" — cho refresh-token và logout.
+    //
+    // VÌ SAO PHẢI TÁCH: hai nhóm endpoint này có mô hình đe dọa KHÁC HẲN nhau, nên
+    // không thể dùng chung một hạn mức.
+    //   · login  → kẻ tấn công ĐOÁN được mật khẩu, nên hạn mức phải chặt.
+    //   · refresh-token → phải cầm sẵn refresh token 64 byte ngẫu nhiên mới gọi được
+    //     gì có ý nghĩa; đoán mò là bất khả thi nên siết chặt KHÔNG thêm an toàn.
+    //
+    // Trước đây [EnableRateLimiting("auth")] đặt ở cấp class nên refresh-token dùng
+    // chung quota 5/phút với login. Hậu quả thật đã gặp: user F5 vài lần là hết quota,
+    // server trả 429, frontend hiểu nhầm thành "hết phiên" và đá về /login — tức là
+    // rate limit tự biến thành lỗi đăng xuất ngẫu nhiên, trong khi token vẫn còn tốt.
+    // 30/phút đủ chỗ cho F5 liên tục và nhiều tab, vẫn chặn được vòng lặp hỏng.
+    options.AddPolicy("auth-refresh", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }
         )
     );
 });

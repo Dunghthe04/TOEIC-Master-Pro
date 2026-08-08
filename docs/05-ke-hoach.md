@@ -520,7 +520,11 @@ Lời tuyên bố "3 role" trong `PROJECT_DESCRIPTION.md` **thành thật**.
 □ Bỏ ex.Message của Google trả ra client (AuthService.cs:175)
 □ Register: bỏ "Email đã được sử dụng" → thống nhất chống user enumeration
 □ Thêm validation cho DTO auth (hiện null/rỗng đi thẳng vào Identity gây 500)
-□ Rate limit policy "auth": tách riêng login, đừng bóp nghẹt cả refresh-token và logout
+☑ Rate limit policy "auth": tách riêng login, đừng bóp nghẹt cả refresh-token và logout
+  → LÀM SỚM 2026-08-08 vì nó nổ ra khi test tay Day 44: F5 3 lần là bị đá về /login.
+    Thêm policy "auth-refresh" 30/phút; refresh-token + logout đè ở CẤP ACTION,
+    giữ "auth" ở cấp class làm mặc định siết (fail-closed).
+  ⚠️ CHƯA kiểm chứng runtime — backend chưa restart lúc sửa. Chi tiết: 09 mục 2.9
 ```
 
 ## Day 49 — Dọn nốt Phase 2 + đệm

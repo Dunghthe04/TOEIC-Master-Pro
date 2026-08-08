@@ -10,6 +10,9 @@ namespace ToeicMasterPro.API.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+// Mặc định SIẾT: mọi endpoint trong controller này chịu "auth" (5 req/phút/IP).
+// Endpoint nào cần rộng hơn phải NÓI RA bằng [EnableRateLimiting] riêng ở action —
+// giữ đúng hướng fail-closed: quên đánh dấu thì bị siết, không phải bị mở toang.
 [EnableRateLimiting("auth")]
 [AllowAnonymous]
 public class AuthController : ControllerBase{
@@ -41,7 +44,10 @@ public class AuthController : ControllerBase{
 
     }
 
+    // Đè policy cấp class: attribute ở action được ưu tiên hơn ở controller.
+    // Không có dòng này thì mỗi lần F5 trang là ăn quota chung với login → 429.
     [HttpPost("refresh-token")]
+    [EnableRateLimiting("auth-refresh")]
     public async Task<IActionResult> Refresh()
     {
         // KHÔNG nhận body: refresh token đọc từ cookie httpOnly (Path=/api/auth khớp nên
@@ -58,7 +64,10 @@ public class AuthController : ControllerBase{
         return Ok(new { accessToken = result.Value.AccessToken, expiresAt = result.Value.ExpiresAt });
     }
 
+    // Logout bị 429 thì user KHÔNG đăng xuất được — refresh token sống tiếp trong DB.
+    // Đây là hạn mức làm giảm an toàn chứ không tăng, nên nới cùng nhóm với refresh.
     [HttpPost("logout")]
+    [EnableRateLimiting("auth-refresh")]
     public async Task<IActionResult> Logout()
     {
        // Cũng đọc từ cookie, không cần body — bỏ tham số để không dính 400 như Refresh().
