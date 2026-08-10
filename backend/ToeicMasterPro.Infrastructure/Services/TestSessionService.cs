@@ -21,6 +21,79 @@ public class TestSessionService : ITestSessionService
 
     public TestSessionService(IUnitOfWork uow) => _uow = uow;
 
+    /// <summary>
+    /// Reading section của TOEIC là 75 phút.
+    /// Phải khớp READING_SECTION_SECONDS ở frontend — bước 5 sẽ bỏ hằng số bên đó
+    /// đi để chỉ còn MỘT nguồn sự thật là con số này.
+    /// </summary>
+    private const int ReadingSectionMinutes = 75;
+
+
+    /// <summary>
+    /// Biên độ dư cho thời gian đọc directions, màn nghỉ giữa section, lệch đồng hồ
+    /// máy khách và độ trễ mạng. Mục tiêu là chặn "nộp bài sau ba ngày", không phải
+    /// bắt bẻ từng phút — nên thà rộng tay còn hơn cắt oan bài của người dùng.
+    /// </summary>
+    private const int GraceMinutes = 5;
+
+    /// <summary>
+    /// Trần tuyệt đối cho một phiên — KHÔNG phải luật thi, chỉ để phiên bỏ dở không
+    /// nằm InProgress vĩnh viễn (chính thứ đã đẻ ra 82 phiên rác trong DB).
+    /// </summary>
+    private const int SessionMaxHours = 24;
+
+    /// <summary>
+    /// Số giây Reading còn lại, tính từ ReadingStartedAt.
+    ///   null = chưa vào Reading (frontend không hiện đồng hồ)
+    ///   0    = đã hết giờ
+    ///
+    /// Lưu ý về Kind: ReadingStartedAt đọc từ SQL Server về mang Kind = Unspecified,
+    /// còn DateTime.UtcNow là Kind = Utc. Phép trừ trong C# bỏ qua Kind, chỉ trừ tick —
+    /// nên kết quả ĐÚNG vì ta luôn GHI bằng UtcNow. Nếu sau này có chỗ nào ghi giờ
+    /// địa phương vào cột này thì phép tính sẽ lệch đúng bằng chênh múi giờ.
+    /// </summary>
+    /// 
+    private static int? ComputeReadingSecondsLeft(TestSession session)
+    {
+        if (session.ReadingStartedAt is null) return null;
+
+        var deadline = session.ReadingStartedAt.Value.AddMinutes(ReadingSectionMinutes);
+        var left = (deadline - DateTime.UtcNow).TotalSeconds;
+        return left <= 0 ? 0 : (int)Math.Ceiling(left);
+    }
+
+
+    /// <summary>
+    /// Thời điểm phiên hết hạn.
+    ///   · Chưa vào Reading → chỉ có trần 24h
+    ///   · Đã vào Reading   → ReadingStartedAt + 75 phút — đây mới là hạn thật
+    ///
+    /// VÌ SAO LISTENING KHÔNG BỊ BÓ GIỜ — quyết định có cân nhắc, không phải bỏ sót:
+    /// ETS quy định Listening 45 phút, nhưng trong phòng thi thật con số đó được thực
+    /// thi BẰNG CHÍNH CUỐN BĂNG chạy liên tục, không phải bằng đồng hồ thí sinh nhìn.
+    /// App này cũng vậy: audio tạo bằng `new Audio()` KHÔNG có controls — không pause,
+    /// không tua, không nghe lại — và trình duyệt vẫn phát đúng tốc độ khi tab ở nền.
+    /// Băng chính là đồng hồ.
+    ///
+    /// Reading thì ngược lại: không có gì điều nhịp, nên bắt buộc phải neo vào server
+    /// (CWE-602 — giờ phía client chỉ được dùng để hiển thị).
+    ///
+    /// Hệ quả chấp nhận: phiên có thể kéo dài nhiều giờ nếu user bỏ dở rồi quay lại.
+    /// Điểm số VẪN hợp lệ vì từng phần đều được điều nhịp đúng — tính hợp lệ đến từ
+    /// nhịp của từng section, không phải từ tổng thời gian đồng hồ treo tường.
+    /// Xem lại nếu sau này có bảng xếp hạng hoặc điểm dùng để so giữa người dùng.
+    /// </summary>
+    private static DateTime ComputeDeadline(TestSession session)
+    {
+        var hardCap = session.StartedAt.AddHours(SessionMaxHours);
+
+        if (session.ReadingStartedAt is null) return hardCap;
+
+        var readingDeadline = session.ReadingStartedAt.Value
+            .AddMinutes(ReadingSectionMinutes + GraceMinutes);
+
+        return readingDeadline < hardCap ? readingDeadline : hardCap;
+    }
     // ═══════════════════════════════════════════════════════════════════════
     // START — Bắt đầu phiên thi
     // ═══════════════════════════════════════════════════════════════════════
@@ -41,6 +114,52 @@ public class TestSessionService : ITestSessionService
         if (questionCount == 0)
             return Result<TestSessionStartedResponse>.Failure("Đề không có câu hỏi phù hợp filter Part.");
 
+        var existing = (await _uow.Repository<TestSession>().FindAsync(s =>
+           s.UserId == userId &&
+           s.TestId == req.TestId &&
+           s.Status == TestSessionStatus.InProgress &&
+           s.PartsFilter == partsFilterStr))
+       .OrderByDescending(s => s.StartedAt)
+       .FirstOrDefault();
+        // ── Phiên quá hạn thì ĐÓNG LẠI, không khôi phục ──
+        // Thiếu nhánh này thì bước 2 và bước 4 đánh nhau: user bỏ dở 2 ngày rồi quay
+        // lại sẽ được StartAsync trả về đúng phiên đã chết đó, mà SaveAnswers thì chặn
+        // mọi thao tác vì quá hạn → bị nhốt trong bài thi không làm gì được, cũng
+        // không bắt đầu lại được.
+        // Đây cũng là chỗ TỰ DỌN RÁC: phiên bỏ dở tự chuyển Abandoned khi user quay
+        // lại, không cần job quét định kỳ.
+        if (existing is not null && DateTime.UtcNow > ComputeDeadline(existing))
+        {
+            existing.Status = TestSessionStatus.Abandoned;
+            existing.SetUpdatedAt();
+            _uow.Repository<TestSession>().Update(existing);
+            await _uow.SaveChangesAsync();
+            existing = null;   // rơi xuống nhánh tạo phiên mới bên dưới
+        }
+
+        if (existing is not null)
+        {
+            var savedAnswers = (await _uow.Repository<TestSessionAnswer>()
+                    .FindAsync(a => a.SessionId == existing.Id))
+                .Select(a => new SessionAnswerItem(a.QuestionId, a.SelectedOptionId))
+                .ToList();
+
+            return Result<TestSessionStartedResponse>.Success(new TestSessionStartedResponse(
+                existing.Id,
+                test.Id,
+                test.Title,
+                existing.Status,
+                existing.StartedAt,   // GIỮ mốc cũ — không được làm mới, nếu không là reset đồng hồ
+                partsArr,
+                questionCount,
+                Resumed: true,
+                Answers: savedAnswers,
+                ReadingStartedAt: existing.ReadingStartedAt,
+                ReadingSecondsLeft: ComputeReadingSecondsLeft(existing)
+            ));
+        }
+
+        // ── Không có phiên dở → tạo mới như cũ ──
         var session = new TestSession
         {
             UserId = userId,
@@ -60,8 +179,34 @@ public class TestSessionService : ITestSessionService
             session.Status,
             session.StartedAt,
             partsArr,
-            questionCount
+            questionCount,
+            Resumed: false,
+            Answers: [],
+            ReadingStartedAt: null,
+            ReadingSecondsLeft: null
         ));
+    }
+
+    /// <inheritdoc />
+
+    public async Task<Result<int?>> MarkReadingStartedAsync(Guid userId, Guid sessionId)
+    {
+        var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
+        if (session is null)
+            return Result<int?>.Failure("Không tìm thấy phiên thi.");
+        if (session.UserId != userId)
+            return Result<int?>.Failure("Phiên thi không thuộc tài khoản này.");
+        if (session.Status != TestSessionStatus.InProgress)
+            return Result<int?>.Failure("Phiên thi đã kết thúc.");
+
+        if (session.ReadingStartedAt is null)
+        {
+            session.ReadingStartedAt = DateTime.UtcNow;
+            session.SetUpdatedAt();
+            _uow.Repository<TestSession>().Update(session);
+            await _uow.SaveChangesAsync();
+        }
+        return Result<int?>.Success(ComputeReadingSecondsLeft(session));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -85,7 +230,12 @@ public class TestSessionService : ITestSessionService
             return Result<int>.Failure("Phiên thi không thuộc tài khoản này.");
         if (session.Status != TestSessionStatus.InProgress)
             return Result<int>.Failure("Phiên thi đã kết thúc — không thể sửa đáp án.");
-
+        // ── Hết giờ thì không cho ghi thêm ──
+        // Kiểm Status là CHƯA ĐỦ: phiên hết giờ vẫn đang InProgress. Không chặn ở
+        // đây thì user thi hôm nay, mai mở lại trả lời tiếp rồi nộp — và chặn ở
+        // Submit cũng vô ích, vì lúc đó đáp án đã nằm sẵn trong DB rồi.
+        if (DateTime.UtcNow > ComputeDeadline(session))
+            return Result<int>.Failure("Đã hết giờ làm bài — không thể lưu thêm đáp án.");
         // Tập QuestionId hợp lệ trong phạm vi session (đề + parts filter)
         var partsArr = ParsePartsFilter(session.PartsFilter);
         var allowedIds = await GetQuestionIdsInScopeAsync(session.TestId, partsArr);
@@ -142,7 +292,12 @@ public class TestSessionService : ITestSessionService
             return Result<TestSessionSubmitResponse>.Failure("Phiên thi không thuộc tài khoản này.");
         if (session.Status != TestSessionStatus.InProgress)
             return Result<TestSessionSubmitResponse>.Failure("Phiên thi đã được nộp trước đó.");
-
+        // ── Quá hạn thì VẪN CHẤM ──
+        // Từ chối sẽ phạt oan người mất mạng đúng lúc hết giờ, và làm phiên kẹt
+        // InProgress vĩnh viễn — không nộp được, cũng không xem lại được.
+        // An toàn vì SaveAnswers (4.4) đã chặn ghi sau hạn: đáp án trong DB chắc
+        // chắn là những gì user làm được TRONG giờ.
+        var submitDeadline = ComputeDeadline(session);
         // ── Lấy tất cả câu trong phạm vi session ──
         var partsArr = ParsePartsFilter(session.PartsFilter);
         var scopeQuestions = await GetScopedQuestionsAsync(session.TestId, partsArr);
@@ -250,7 +405,7 @@ public class TestSessionService : ITestSessionService
 
         var partBreakdown = PartBreakdownBuilder.Build(partStats);
 
-        var completedAt = DateTime.UtcNow;
+        var completedAt = DateTime.UtcNow > submitDeadline ? submitDeadline : DateTime.UtcNow;
         session.Status = TestSessionStatus.Completed;
         session.CompletedAt = completedAt;
         session.CorrectCount = correctTotal;
@@ -301,7 +456,7 @@ public class TestSessionService : ITestSessionService
         return arr.Length == 0 ? null : arr;
     }
 
-  private async Task<int> CountQuestionsInScopeAsync(Guid testId, int[]? parts)
+    private async Task<int> CountQuestionsInScopeAsync(Guid testId, int[]? parts)
     {
         var list = await GetScopedQuestionsAsync(testId, parts);
         return list.Count;

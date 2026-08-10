@@ -30,6 +30,13 @@ export const TestSessionService = {
             .post<TestSessionStarted>('/test-session/start', payload)
             .then((r) => r.data),
 
+    markReadingStarted: (sessionId: string) =>
+        api
+            .post<{ readingSecondsLeft: number | null }>(
+                `/test-session/${sessionId}/reading-start`,
+            )
+            .then((r) => r.data),
+
     /**
      * Lưu đáp án tạm (upsert trên server).
      * Gọi khi user chọn đáp án — có thể debounce 300–500ms để giảm request.

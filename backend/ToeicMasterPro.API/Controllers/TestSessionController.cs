@@ -47,6 +47,24 @@ public class TestSessionController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
+
+    /// <summary>
+    /// Đánh dấu bắt đầu phần Reading — FE gọi khi chuyển sang màn Reading directions.
+    ///
+    /// Idempotent: gọi lại (vd sau F5) KHÔNG đặt lại mốc, chỉ trả về số giây còn lại.
+    /// Nhờ vậy đồng hồ tiếp tục từ chỗ dở thay vì quay về 75:00.
+    /// </summary>
+    [HttpPost("{id:Guid}/reading-start")]
+    public async Task<IActionResult> ReadingStart(Guid id)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.MarkReadingStartedAsync(userId.Value, id);
+        return result.IsSuccess
+            ? Ok(new { readingSecondsLeft = result.Value })
+            : BadRequest(new { error = result.Error });
+    }
     /// <summary>
     /// Lưu / cập nhật đáp án tạm (chưa chấm điểm).
     ///

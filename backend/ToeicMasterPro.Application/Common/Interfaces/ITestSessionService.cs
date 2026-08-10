@@ -21,7 +21,13 @@ public interface ITestSessionService
   /// Kiểm tra: đề published, user đăng nhập, không có session InProgress trùng đề (tùy rule).
   /// </summary>
   Task<Result<TestSessionStartedResponse>> StartAsync(Guid userId, StartTestSessionRequest req);
-
+  
+  /// <summary>
+  /// Đánh dấu user đã bước vào phần Reading. Trả số giây còn lại.
+  /// Idempotent: gọi nhiều lần chỉ ghi mốc ở lần đầu.
+  /// </summary>
+  Task<Result<int?>> MarkReadingStartedAsync(Guid userId, Guid sessionId);
+ 
   /// <summary>
   /// Lưu / cập nhật đáp án tạm (upsert theo QuestionId trong session).
   /// Chỉ khi Status = InProgress và session thuộc userId.

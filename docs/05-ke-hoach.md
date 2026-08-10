@@ -2,7 +2,8 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ **8/8 lỗi chặn deploy ĐÃ VÁ** (2026-08-06) · **TIẾP THEO: Day 50 — Dockerfile**
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–46 XONG** (auth · khôi phục phiên thi khi F5 ·
+> ràng buộc thời gian phía server) · **TIẾP THEO: Day 47 — vá 2 lỗ logic phá hoại nghiệp vụ**
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -459,26 +460,40 @@ Lời tuyên bố "3 role" trong `PROJECT_DESCRIPTION.md` **thành thật**.
 **Con số:** access token **60 phút** · bài thi TOEIC **~2 tiếng** → **chắc chắn xảy ra** với mọi user thi full test
 **Chữa cháy tạm nếu chưa kịp:** nâng `AccessTokenExpiryMinutes` lên 180
 
-## Day 45 — Khôi phục phiên thi khi F5
+## Day 45 — Khôi phục phiên thi khi F5 — ✅ XONG 2026-08-10
 
 ```
-□ ⚠️ TỰ KIỂM CHỨNG TRƯỚC: đáp án ĐÃ được debounce-save lên server rồi
-  (MockTestPlayPage.tsx:536 → PATCH /answers). Cái thiếu THẬT SỰ chỉ là:
+☑ ⚠️ TỰ KIỂM CHỨNG TRƯỚC: đáp án ĐÃ được debounce-save lên server rồi
+  → ĐÚNG. Xác nhận bằng DB: phiên InProgress có đáp án ngay trong lúc thi.
 
-□ Backend: endpoint GET phiên InProgress kèm đáp án đã lưu + thời gian còn lại
-□ Frontend: lưu sessionId vào sessionStorage khi start
-  → mount lại thì khôi phục phiên cũ thay vì tạo phiên MỚI
-□ Sửa .catch(() => {}) đang nuốt lỗi lưu đáp án
-□ StartAsync: chặn tạo nhiều phiên InProgress trùng đề
+☑ StartAsync IDEMPOTENT thay vì thêm endpoint GET riêng — frontend vốn đã gọi
+  start lúc mount, nên chỉ cần server trả thêm dữ liệu là F5 tự khỏi.
+  Khớp (UserId, TestId, PartsFilter): dở Part 5,6,7 vs full đề là HAI bài khác nhau.
+☑ BỎ sessionStorage của kế hoạch gốc — chết khi đóng tab, không chung giữa các
+  tab, mất khi đổi máy. Server làm nguồn sự thật thì đúng ở mọi tình huống.
+☑ Thêm cột ReadingStartedAt + POST /{id}/reading-start (ghi MỘT LẦN, không ghi đè)
+☑ Phiên quá hạn → tự Abandoned + cấp phiên mới, không nhốt user trong bài chết
+□ .catch(() => {}) nuốt lỗi lưu đáp án — DOC LỆCH CODE, chỗ này đã có toast từ trước
+
+⚠️ Ba cái bẫy chỉ lộ khi chạy thật — xem 09 mục 2.2:
+   hai lối vào Reading · thứ tự nhánh khôi phục · flushSaveAnswers chặn submit
 ```
 
-## Day 46 — Ràng buộc thời gian phía server
+## Day 46 — Ràng buộc thời gian phía server — ✅ XONG 2026-08-10 (gộp với Day 45)
 
 ```
-□ Hiện DurationMinutes chỉ là số TRANG TRÍ — phiên thi nộp được sau nhiều ngày
-□ Server tính thời gian còn lại từ StartedAt, không tin đồng hồ client
-□ SubmitAsync: từ chối nếu quá hạn (hoặc chấm theo đáp án đã lưu tới thời điểm hết giờ)
-□ Endpoint GET phiên (Day 45) trả về remainingSeconds do server tính
+☑ Hạn = min(ReadingStartedAt + 80', StartedAt + 24h)
+☑ CHẶN Ở SaveAnswers, không chỉ ở Submit — phiên hết giờ VẪN đang InProgress,
+  nên không chặn ghi thì user thi hôm nay mai mở lại làm tiếp rồi nộp
+☑ SubmitAsync: quá hạn VẪN CHẤM (không từ chối), CompletedAt = thời điểm hết hạn
+  → từ chối sẽ phạt oan người mất mạng đúng lúc hết giờ + kẹt phiên vĩnh viễn
+☑ readingSecondsLeft do server tính, client chỉ hiển thị (CWE-602)
+☑ Client tự sửa lệch đồng hồ: lưu thất bại → hỏi lại server → về 0 → tự nộp
+
+QUYẾT ĐỊNH: Listening KHÔNG bó giờ. ETS quy định 45' nhưng thực thi BẰNG CUỐN BĂNG,
+không bằng đồng hồ. App dùng new Audio() không controls, và trình duyệt vẫn phát
+đúng tốc độ ở tab nền — băng chính là đồng hồ. Reading không có gì điều nhịp nên
+bắt buộc neo server. Phân tích đầy đủ + nguồn ETS/CWE: 09 mục 2.2.
 ```
 
 ## Day 47 — Vá 2 lỗ logic phá hoại nghiệp vụ

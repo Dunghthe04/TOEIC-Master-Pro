@@ -28,6 +28,14 @@ export interface TestSessionStarted {
     startedAt: string
     partsFilter: number[] | null
     questionCount: number
+        /** true = phiên đang làm dở được trả lại, không phải phiên mới tạo */
+    resumed: boolean
+    /** Đáp án đã lưu trên server — rỗng nếu là phiên mới */
+    answers: SessionAnswerItem[]
+    /** null = chưa từng vào Reading */
+    readingStartedAt: string | null
+    /** Giây Reading còn lại DO SERVER TÍNH — null = chưa vào Reading */
+    readingSecondsLeft: number | null
 }
 
 /** Một đáp án user chọn — selectedOptionId null = bỏ qua */

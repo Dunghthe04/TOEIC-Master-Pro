@@ -9,6 +9,8 @@ public class TestSession : BaseEntity
     public Guid TestId { get; set; }
     public TestSessionStatus Status { get; set; } = TestSessionStatus.InProgress;
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    //Thời gian bắt đầu reading -> để biết được còn bao nhiêu thời gian
+    public DateTime? ReadingStartedAt {get;set;}
     public DateTime? CompletedAt { get; set; }
 
     /// <summary>

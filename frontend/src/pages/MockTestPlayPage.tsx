@@ -166,7 +166,13 @@ export default function MockTestPlayPage() {
                 const data = await TestService.getPlay(id, partsFilter)
                 if (cancelled) return
                 setPlay(data)
-                setAnswers({})
+                 setAnswers(
+                    Object.fromEntries(
+                        session.answers
+                            .filter((a) => a.selectedOptionId)
+                            .map((a) => [a.questionId, a.selectedOptionId as string]),
+                    ),
+                )
                 setBookmarks({})
                 setPartIdx(0)
                 setUnitIdx(0)
@@ -174,16 +180,45 @@ export default function MockTestPlayPage() {
 
                 const listenOrder = listeningPartsInOrder(data.questions)
                 const readOrder = readingPartsInOrder(data.questions)
-                if (listenOrder.length > 0) {
+
+                if (session.readingStartedAt && readOrder.length > 0) {
+                    // ── (1) KHÔI PHỤC: user đã từng vào Reading ──
+                    // Không được ném về Listening. Trước đây dòng `if (listenOrder…)`
+                    // đứng đầu nên F5 giữa Reading trong bài full test là quay lại
+                    // nghe từ đầu — khôi phục đáp án đúng nhưng ném sai chỗ.
+                    setSection('reading')
+                    setPhase('directions')
+                    setReadingSecondsLeft(session.readingSecondsLeft ?? 0)
+                } else if (listenOrder.length > 0) {
+                    // ── (2) Bắt đầu bằng Listening ──
+                    // Chưa đặt mốc Reading: mốc chỉ đặt khi thật sự sang Reading,
+                    // ở startReadingSection() bên dưới.
                     setSection('listening')
                     setPhase('directions')
                 } else if (readOrder.length > 0) {
+                    // ── (3) Đề chỉ có Reading (?parts=5,6,7) → vào thẳng ──
+                    // PHẢI gọi markReadingStarted ở đây. Nếu chỉ móc vào
+                    // startReadingSection() — chỗ trông "chính thống" hơn — thì
+                    // nhánh này không bao giờ đặt mốc, ReadingStartedAt mãi null,
+                    // và server không có gì để tính giờ.
                     setSection('reading')
                     setPhase('directions')
-                    setReadingSecondsLeft(READING_SECTION_SECONDS)
+                    const { readingSecondsLeft } =
+                        await TestSessionService.markReadingStarted(session.sessionId)
+                    if (cancelled) return
+                    setReadingSecondsLeft(readingSecondsLeft ?? READING_SECTION_SECONDS)
                 } else {
                     setPhase('done')
                     toast.error('Gói này không có câu hỏi.')
+                }
+
+                if (session.resumed) {
+                    const answered = session.answers.filter((a) => a.selectedOptionId).length
+                    toast.info(
+                        session.readingSecondsLeft != null
+                            ? `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời, còn ${formatExamCountdown(session.readingSecondsLeft)}`
+                            : `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời`,
+                    )
                 }
             } catch (err: unknown) {
                 const status = (err as { response?: { status?: number; data?: { error?: string } } })
@@ -429,15 +464,29 @@ export default function MockTestPlayPage() {
     }, [readingPartsOrder.length])
 
     /** User bấm "Bắt đầu Reading" sau màn nghỉ giữa section */
-    const startReadingSection = useCallback(() => {
+    const startReadingSection = useCallback(async () => {
         stopAudio()
         setSection('reading')
         setPartIdx(0)
         setReadingItemIdx(0)
         setUnitIdx(0)
         setPhase('directions')
-        setReadingSecondsLeft(READING_SECTION_SECONDS)
+
+        const sid = sessionIdRef.current
+        if (!sid) return
+
+        try {
+            const { readingSecondsLeft } = await TestSessionService.markReadingStarted(sid)
+            setReadingSecondsLeft(readingSecondsLeft ?? READING_SECTION_SECONDS)
+        } catch {
+            // Mạng lỗi đúng lúc chuyển section: vẫn cho làm bài với 75' mặc định
+            // thay vì chặn user lại. An toàn vì server mới là nơi giữ hạn thật —
+            // nó sẽ từ chối lưu đáp án sau giờ dù client hiển thị bao nhiêu.
+            setReadingSecondsLeft(READING_SECTION_SECONDS)
+            toast.error('Không đồng bộ được đồng hồ với server — tạm dùng 75 phút.')
+        }
     }, [])
+
 
     const advanceAfterUnit = useCallback(() => {
         setUnitIdx((i) => {
@@ -552,8 +601,30 @@ export default function MockTestPlayPage() {
                 selectedOptionId,
             }))
             if (items.length === 0) return
-            TestSessionService.saveAnswers(sid, items).catch(() => {
-                toast.error('Không lưu được đáp án tạm — kiểm tra mạng.')
+           TestSessionService.saveAnswers(sid, items).catch(async (err) => {
+                // Hiện ĐÚNG lý do server nêu. Câu "kiểm tra mạng" chỉ dành cho
+                // trường hợp thật sự không có response — đoán bừa khi server đã
+                // trả lời rõ ràng là đẩy user đi sửa nhầm thứ.
+                toast.error(
+                    err?.response?.data?.error ??
+                        'Không lưu được đáp án tạm — kiểm tra mạng.',
+                )
+
+                // 400 = server từ chối vì lý do nghiệp vụ, gần như luôn là hết giờ.
+                // Nghĩa là đồng hồ client đang LỆCH so với server — xảy ra thật khi
+                // Chrome bóp setInterval lúc tab chạy nền, client tưởng còn 5 phút
+                // trong khi server đã đóng cửa.
+                // Hỏi lại server số giây thật (endpoint idempotent nên gọi thoải mái);
+                // về 0 thì effect tự-nộp sẽ chạy và bài được chốt đúng lúc.
+                if (err?.response?.status === 400) {
+                    try {
+                        const { readingSecondsLeft } =
+                            await TestSessionService.markReadingStarted(sid)
+                        if (readingSecondsLeft != null) setReadingSecondsLeft(readingSecondsLeft)
+                    } catch {
+                        /* đồng bộ hỏng thì thôi, đừng làm hỏng thêm */
+                    }
+                }
             })
         }, 400)
     }, [])
@@ -571,7 +642,17 @@ export default function MockTestPlayPage() {
             selectedOptionId,
         }))
         if (items.length === 0) return
-        await TestSessionService.saveAnswers(sid, items)
+
+        try {
+            await TestSessionService.saveAnswers(sid, items)
+        } catch {
+            // NUỐT LỖI CÓ CHỦ Ý — đây là ngoại lệ hiếm hoi hợp lý.
+            // flush chỉ là "cố lưu nốt câu cuối trước khi nộp". Nếu server từ chối
+            // (hết giờ), việc nộp bài VẪN PHẢI chạy tiếp: backend đã thiết kế để
+            // chấm theo đáp án đã lưu, chính là để không phạt người mất mạng đúng
+            // lúc hết giờ. Ném lỗi ở đây sẽ chặn luôn submit, biến "nộp muộn vẫn
+            // chấm được" thành "không nộp được" — vô hiệu hóa cả quyết định đó.
+        }
     }, [])
 
     /** Nộp bài — flush đáp án → POST submit → màn kết quả */

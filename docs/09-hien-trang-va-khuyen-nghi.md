@@ -60,7 +60,7 @@
 | **Bảo mật** | 🟢 Hết lỗ hổng chặn deploy | Đã vá: secrets trong git · Hangfire dashboard (Basic Auth + read-only) · media đề thi ra khỏi `wwwroot` + signed URL · **XSS sanitize lúc ghi ở 3 luồng** · **token khỏi `localStorage` → RAM + cookie `httpOnly`**. Còn nợ (không chặn deploy): magic bytes cho upload, zip bomb — mục 3.3 |
 | **Deploy config** | 🟢 Đã vá (2026-08-05) | `docker-compose.prod.yml` tách riêng: `MSSQL_PID=Express`, **không** expose port DB/Redis, `${VAR:?}` fail-fast thay vì fallback password. Dev bind `127.0.0.1` thay vì `0.0.0.0` |
 | **Cấu hình** | 🟢 Đã vá (2026-08-04) | Khung khóa đầy đủ ở `appsettings.json`, giá trị thật ở User Secrets (dev) / biến môi trường (prod). Thiếu cấu hình → `InvalidOperationException` **nêu đúng tên biến cần đặt**. Đã kiểm chứng chạy được với `ASPNETCORE_ENVIRONMENT=Production` |
-| **Frontend** | 🟡 Khá | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. **Đã có auto-refresh token** (axios interceptor gộp 401 chống race) + silent refresh lúc F5. Còn nợ: khôi phục phiên thi khi F5 (mục 2.2) |
+| **Frontend** | 🟢 Tốt (2026-08-10) | React 19, kỹ thuật thi (debounce, useRef guard) làm tốt. **Auto-refresh token** (axios interceptor gộp 401 chống race) + silent refresh lúc F5. **Khôi phục phiên thi khi F5 đã xong** — đáp án, đồng hồ và vị trí section đều lấy từ server (mục 2.2) |
 | **Testing** | 🟠 Yếu | 30 test nhưng chỉ phủ 2 hàm thuần. **0 test cho exam engine** — phần phức tạp nhất |
 | **CI/CD** | 🔴 Chưa có | `.github/workflows/` rỗng. 30 test không bao giờ chạy tự động |
 | **Deploy** | ⬜ Chưa làm | Chưa có Dockerfile, chưa có Nginx, chưa deploy lần nào |
@@ -602,9 +602,27 @@ api.interceptors.response.use(undefined, async (error) => {
 **Cách chữa cháy tạm nếu chưa kịp sửa:** nâng `AccessTokenExpiryMinutes` lên 180. Không phải giải pháp
 đúng (token sống lâu = lộ thì thiệt hại lâu) nhưng chặn được lỗi mất bài ngay lập tức.
 
-## 2.2 · 🔴 📋 F5 giữa bài thi mất sạch
+## 2.2 · ✅ ĐÃ SỬA 2026-08-10 (kiểm chứng end-to-end) — F5 giữa bài thi mất sạch
 
-**Vị trí:** [MockTestPlayPage.tsx:131-194](../frontend/src/pages/MockTestPlayPage.tsx#L131)
+> **Trạng thái:** đã sửa trọn vẹn, gộp luôn Day 46 (ràng buộc thời gian phía server) vì cùng một mốc
+> dữ liệu. Thêm cột `TestSession.ReadingStartedAt`; `StartAsync` **idempotent** — có phiên `InProgress`
+> cùng `(UserId, TestId, PartsFilter)` thì trả lại phiên đó kèm đáp án đã lưu; endpoint
+> `POST /{id}/reading-start` đặt mốc **một lần duy nhất** và trả `readingSecondsLeft` do server tính.
+>
+> **Kiểm chứng bằng dữ liệu, không phải bằng mắt:** tổng phiên `InProgress` giữ ở **1** qua nhiều lần
+> F5 (trước đây mỗi F5 đẻ thêm một phiên — DB từng tích 82 phiên rác) · toast báo *"còn 74:14"* thay
+> vì 74:59, chứng minh mốc không bị ghi đè · chặn ghi sau giờ: DB giữ nguyên 3 đáp án, không thành 4 ·
+> `CompletedAt = ReadingStartedAt + 80 phút` dù bấm nộp muộn 100 phút.
+>
+> **Ba điều thiết kế khác kế hoạch gốc — đều có lý do:**
+> 1. **Bỏ `sessionStorage`.** Nó chết khi đóng tab, không dùng chung giữa các tab, mất khi đổi máy.
+>    Server đã biết ai đang thi dở bài gì — để server làm nguồn sự thật thì đúng ở mọi tình huống,
+>    kể cả mở lại trên điện thoại.
+> 2. **`PartsFilter` là một phần định danh phiên.** Đang dở Part 5,6,7 mà vào full đề là **hai bài
+>    khác nhau**. Chỉ khớp `TestId` sẽ ném user vào bài cũ sai phạm vi.
+> 3. **Listening không bị bó giờ** — xem phân tích ở khối dưới.
+
+**Vị trí (bản gốc trước khi sửa):** [MockTestPlayPage.tsx:131-194](../frontend/src/pages/MockTestPlayPage.tsx#L131)
 
 F5 → component mount lại → gọi `start` → **tạo phiên thi MỚI**. Đồng hồ reset về 75:00, đáp án biến
 khỏi màn hình (dữ liệu vẫn còn trong DB ở phiên cũ, nhưng user không vào lại được).
@@ -625,6 +643,61 @@ Backend cần thêm endpoint trả phiên `InProgress` kèm đáp án đã lưu.
 > Kèm theo: server nên lưu `StartedAt` và tính thời gian còn lại **phía server** — hiện tại
 > `DurationMinutes` chỉ là số trang trí, **không có ràng buộc thời gian nào ở server**, phiên thi có
 > thể nộp sau nhiều ngày.
+
+### Quyết định: Reading bó giờ chặt, Listening để yên 🔬
+
+Tra ETS: **45 phút Listening · 75 phút Reading**. Nhưng điểm mấu chốt là **cách 45 phút đó được thực
+thi**: trong phòng thi thật, Listening là **một băng ghi âm chạy liên tục**, không có đồng hồ nào cho
+thí sinh nhìn. Con số 45 là **mô tả độ dài cuốn băng**, không phải luật canh bằng đồng hồ.
+
+App này cũng vậy: audio tạo bằng `new Audio()` — **không có controls**, không pause, không tua, không
+nghe lại — và trình duyệt **vẫn phát đúng tốc độ khi tab ở nền** (media được miễn trừ khỏi cơ chế bóp
+tài nguyên tab nền). **Băng chính là đồng hồ.**
+
+Reading thì ngược lại: không có gì điều nhịp. Nên nó bắt buộc phải neo vào server — đúng **CWE-602
+(Client-Side Enforcement of Server-Side Security)**: giờ phía client chỉ được dùng để **hiển thị**.
+
+> **Tương phản đáng nhớ, cùng một trang, cùng chạy ở tab nền:**
+>
+> | | Ở tab nền |
+> |---|---|
+> | `new Audio()` | **Đúng tốc độ thật** — được miễn trừ |
+> | `setInterval` (đồng hồ Reading) | **Bị bóp**, có thể xuống 1 lần/phút |
+>
+> Đây chính là lý do Listening **tự nó đáng tin** còn Reading thì **không**. Sự phân đôi này khớp
+> đúng ranh giới kỹ thuật, không phải trùng hợp.
+
+**Hạn thực tế** = `min(ReadingStartedAt + 80 phút, StartedAt + 24 giờ)`. Vế thứ hai **không phải luật
+thi** — chỉ để phiên bỏ dở không nằm `InProgress` vĩnh viễn.
+
+**Hệ quả chấp nhận:** phiên có thể kéo dài nhiều giờ nếu user bỏ dở rồi quay lại. Điểm số **vẫn hợp
+lệ** vì từng phần đều được điều nhịp đúng — tính hợp lệ đến từ nhịp của **từng section**, không phải
+từ tổng thời gian đồng hồ treo tường. Xem lại nếu sau này có bảng xếp hạng hoặc điểm dùng để so giữa
+người dùng với nhau.
+
+**Quá hạn thì vẫn chấm, không từ chối.** Từ chối sẽ phạt oan người mất mạng đúng lúc hết giờ và làm
+phiên kẹt `InProgress` vĩnh viễn. An toàn vì `SaveAnswers` đã chặn ghi sau hạn — đáp án trong DB chắc
+chắn là những gì làm được **trong giờ**.
+
+### Ba cái bẫy chỉ lộ ra khi chạy thật
+
+**1. Hai lối vào Reading, không phải một.** `startReadingSection()` là lối "chính thống" sau Listening,
+nhưng đề chỉ có Reading (`?parts=5,6,7`) đi thẳng từ effect mount. Chỉ móc vào lối thứ nhất thì phiên
+Reading-only **không bao giờ đặt mốc**, `ReadingStartedAt` mãi null, server không có gì để tính.
+
+**2. Thứ tự nhánh quyết định đúng/sai.** Nhánh "đã từng vào Reading" phải đứng **trước** nhánh "có Part
+Listening" — vì bài full test luôn thỏa điều kiện thứ hai. Để sai thứ tự thì F5 giữa Reading sẽ ném
+user về nghe lại từ đầu: khôi phục đáp án đúng nhưng ném sai chỗ, còn khó chịu hơn.
+
+**3. `flushSaveAnswers` suýt vô hiệu hóa cả quyết định "quá hạn vẫn chấm".** `handleSubmit` gọi
+`await flushSaveAnswers()` **trước** `submit`. Khi hết giờ, lời gọi đó bị server từ chối → ném lỗi →
+`submit` **không bao giờ chạy tới**. Backend sẵn sàng chấm mà frontend không bao giờ hỏi. Phải nuốt lỗi
+**có chủ ý** ở flush — một trong số rất ít trường hợp `catch {}` trống là hành vi đúng, nên bắt buộc
+phải ghi lý do vào comment kẻo người review sau xóa mất.
+
+> **Bài học về cách kiểm chứng:** mọi lần **tải lại trang đều xóa trạng thái test** — kể cả khi Vite
+> HMR tự nạp lúc sửa code. Ba lần thử đầu đều "không thấy báo gì" vì lúc bấm chọn đáp án thì phiên đã
+> được cấp mới còn nguyên 75 phút. Sửa code chính là hành động phá mất điều kiện thử nghiệm.
 
 ## 2.3 · 🟠 📋 Import Excel tạo được câu hỏi KHÔNG có đáp án đúng → chặn vĩnh viễn việc nộp bài
 

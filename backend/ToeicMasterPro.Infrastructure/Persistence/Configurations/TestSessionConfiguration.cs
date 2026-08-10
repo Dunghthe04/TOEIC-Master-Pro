@@ -18,6 +18,7 @@ public class TestSessionConfiguration : IEntityTypeConfiguration<TestSession>
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Status).HasConversion<int>();
         builder.Property(s => s.StartedAt).HasDefaultValueSql("GETUTCDATE()");
+        // ReadingStartedAt CỐ Ý không có default — phải null tới khi user vào Reading thật.
         // "1,2,5,6" — null = full test
         builder.Property(s => s.PartsFilter).HasMaxLength(30);
 
