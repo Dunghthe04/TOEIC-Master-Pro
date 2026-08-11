@@ -138,13 +138,30 @@ public class QuestionService : IQuestionService
     }
 
     //--Helpers--
+    /// <summary>
+    /// Bất biến về bộ đáp án — áp cho MỌI luồng tạo câu hỏi, API lẫn import Excel.
+    ///
+    /// Tách riêng vì trước đây Validate() chỉ được Create/Update gọi, còn ImportAsync
+    /// có bộ kiểm riêng và bỏ sót đúng luật "phải có 1 đáp án đúng". Hậu quả: câu hỏi
+    /// không đáp án đúng lọt vào DB → SubmitAsync gặp nó thì trả lỗi cho CẢ BÀI THI,
+    /// mọi user làm đề đó không nộp bài được.
+    ///
+    /// Hai luồng dùng chung một hàm thì không thể lệch nhau nữa.
+    /// </summary>
+    private static string? ValidateOptionSet(int optionCount, int correctCount)
+    {
+        if (optionCount < 2) return "Phải có ít nhất 2 đáp án.";
+        if (correctCount != 1) return "Phải có đúng 1 đáp án đúng.";
+        return null;
+    }
+
     private static string? Validate(string content, List<CreateOptionRequest> options)
     {
         if (string.IsNullOrWhiteSpace(content)) return "Nội dung câu hỏi không được trống.";
-        if (options is null || options.Count < 2) return "Phải có ít nhất 2 đáp án.";
-        if (options.Count(o => o.IsCorrect) != 1) return "Phải có đúng 1 đáp án đúng.";
-        return null;
+        if (options is null) return "Phải có ít nhất 2 đáp án.";
+        return ValidateOptionSet(options.Count, options.Count(o => o.IsCorrect));
     }
+
 
     private static QuestionResponse MapToResponse(Question q, List<QuestionOption> options)
       => new(
@@ -232,15 +249,38 @@ public class QuestionService : IQuestionService
             {
                 ["A"] = optA, ["B"] = optB, ["C"] = optC, ["D"] = optD
             };
+
+            // ── LỖ CŨ NẰM Ở ĐÂY ──
+            // Kiểm ở trên chỉ hỏi "chữ cái có hợp lệ không", KHÔNG hỏi "ô nó trỏ tới
+            // có nội dung không". CorrectAnswer = C mà cột OptionC để trống thì:
+            //   · dòng 228 cho qua vì "C" là chữ cái hợp lệ
+            //   · .Where(...) bên dưới LỌC BỎ C vì rỗng
+            //   · IsCorrect = kv.Key == "C" không bao giờ đúng với A/B/D còn lại
+            //   → câu hỏi ra đời với KHÔNG đáp án nào đúng
+            if (string.IsNullOrWhiteSpace(optionMap[correct]))
+            {
+                errors.Add(new ImportRowError(row,
+                    $"CorrectAnswer = {correct} nhưng cột Option{correct} để trống."));
+                continue;
+            }
+
             var options_list = optionMap
                 .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                 .Select(kv => new QuestionOption
                 {
                     Label = kv.Key,
-                    // Sanitize ô Excel — CM dán payload vào ô là chèn được hàng loạt câu
                     Content = _html.Clean(kv.Value!) ?? string.Empty,
                     IsCorrect = kv.Key == correct
                 }).ToList();
+
+            // Lưới an toàn cuối: cùng bất biến với luồng API. Khối trên đã bịt đường
+            // đã biết, khối này bắt mọi đường CHƯA biết — rẻ, và là thứ ngăn lỗi cùng
+            // loại tái diễn nếu sau này ai đó sửa logic dựng options_list.
+            var optionError = ValidateOptionSet(
+                options_list.Count,
+                options_list.Count(o => o.IsCorrect));
+            if (optionError is not null)
+            { errors.Add(new ImportRowError(row, optionError)); continue; }
 
             var tags = string.IsNullOrWhiteSpace(tagsRaw)
                 ? Array.Empty<string>()

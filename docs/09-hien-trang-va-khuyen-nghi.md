@@ -729,7 +729,41 @@ con số khác nhau — đếm tuần tự sẽ vượt quá số màn và rơi 
 > `AlertDialogCancel`. Ranh giới giờ rõ: bấm nút đỏ = mất bài có chủ ý · **Esc / bấm ngoài = chỉ đóng
 > popup, không đụng dữ liệu**. Nhãn tự cảnh báo nên không cần xác nhận hai bước.
 
-## 2.3 · 🟠 📋 Import Excel tạo được câu hỏi KHÔNG có đáp án đúng → chặn vĩnh viễn việc nộp bài
+## 2.3 · ✅ ĐÃ VÁ 2026-08-11 — Import Excel tạo được câu hỏi KHÔNG có đáp án đúng
+
+> **Trạng thái:** đã vá. Kiểm DB trước khi sửa: **697 câu hỏi, 0 câu hỏng** — lỗi chưa từng kích hoạt
+> trên dữ liệu thật, nên đây là vá **phòng ngừa**, không phải dọn hậu quả.
+>
+> ### 🔬 Doc cũ mô tả SAI vị trí lỗ hổng
+>
+> Doc ghi *"luồng import bỏ qua kiểm tra"* — nghe như import không kiểm gì cả. Thực tế nó **có** bộ
+> kiểm riêng: bắt buộc có A và B, bắt buộc `CorrectAnswer` ∈ {A,B,C,D}. Nhìn qua thì kín.
+>
+> **Lỗ thật nằm ở chỗ khác** — `optionMap.Where(kv => !IsNullOrWhiteSpace(kv.Value))` **lọc bỏ đáp án
+> rỗng**, rồi mới gán `IsCorrect = kv.Key == correct` trên tập đã lọc:
+>
+> | Cột | Giá trị |
+> |---|---|
+> | OptionA / OptionB / OptionD | có nội dung |
+> | **OptionC** | **để trống** |
+> | **CorrectAnswer** | **C** |
+>
+> Kiểm chữ cái cho qua vì `"C"` hợp lệ · `.Where` lọc bỏ C vì rỗng · không option nào còn `Label == "C"`
+> → **câu hỏi ra đời với 0 đáp án đúng**.
+>
+> **Bản chất:** validation hỏi *"chữ cái có hợp lệ không"* nhưng không hỏi *"chữ cái đó có trỏ vào đáp
+> án tồn tại không"*. Hai câu hỏi khác nhau, chỉ hỏi câu thứ nhất. Sửa theo doc cũ (thêm `Validate()`)
+> thì vẫn khỏi, nhưng không hiểu vì sao — và lần sau gặp mẫu tương tự vẫn mắc lại.
+>
+> **Cách vá — sửa gốc, không vá triệu chứng:**
+> 1. Tách `ValidateOptionSet(optionCount, correctCount)` thành **bất biến dùng chung**. Gốc rễ là *hai
+>    luồng có hai bộ luật*; dùng chung một hàm thì không thể lệch nhau nữa
+> 2. Kiểm `optionMap[correct]` có nội dung không — bịt đúng lỗ đã biết, thông báo nêu **đúng tên cột**
+>    để CM mở Excel sửa ngay thay vì dò 200 dòng
+> 3. Gọi `ValidateOptionSet` sau khi dựng `options_list` — lưới an toàn cho những đường **chưa biết**
+>
+> **Còn nợ (không chặn):** `SaveChangesAsync` nằm **trong vòng lặp** nên dòng hỏng ở giữa file vẫn để
+> lại các dòng trước đó trong DB — không có rollback. Xem phần góp ý import ZIP ở mục 3.4.
 
 **Vị trí:** [QuestionService.cs:218-233](../backend/ToeicMasterPro.Infrastructure/Services/QuestionService.cs#L218)
 
