@@ -35,6 +35,7 @@ import TestProgressPage from '@/pages/TestProgressPage'
 import CertificatePreviewPage from '@/pages/CertificatePreviewPage'
 import LandingPage from '@/pages/LandingPage'
 import RoleLayout from '@/components/layout/RoleLayout'
+import PublicRoleLayout from '@/components/layout/PublicRoleLayout'
 import RequireRole from '@/components/auth/RequireRole'
 import CmHomePage from '@/pages/cm/CmHomePage'
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
@@ -62,15 +63,21 @@ function App() {
           <Route path='/register' element={<RegisterPage />} />
           <Route path='/forgot-password' element={<ForgotPasswordPage />} />
 
-          {/* CÔNG KHAI — khách vãng lai xem được cấu trúc đề trước khi đăng ký.
-              Backend GET /api/test/{id}/structure đã [AllowAnonymous]: chỉ trả bảng
-              "Part 1: 6 câu, Part 2: 25 câu…", KHÔNG có nội dung câu hỏi hay đáp án.
-              Bấm "Bắt đầu thi" trong trang này mới cần đăng nhập (/play đòi role User). */}
-          <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
+          {/* CÔNG KHAI nhưng VẪN CÓ HEADER khi đã đăng nhập.
+              Hai route này nằm ngoài <ProtectedRoute> để khách vãng lai xem được —
+              nhưng <RoleLayout> lại ở bên trong đó, nên nếu để trần thì user đang
+              đăng nhập bấm vào sẽ rơi vào trang trơ trọi, mất cả đường quay lại.
+              <PublicRoleLayout> cấp đúng layout theo vai khi đã đăng nhập, và
+              render trần khi chưa (avatar + nút Đăng xuất là vô nghĩa với khách). */}
+          <Route element={<PublicRoleLayout />}>
+            {/* Backend GET /api/test/{id}/structure đã [AllowAnonymous]: chỉ trả bảng
+                "Part 1: 6 câu, Part 2: 25 câu…", KHÔNG có nội dung câu hỏi hay đáp án.
+                Bấm "Bắt đầu thi" mới cần đăng nhập (/play đòi role User). */}
+            <Route path="/mock-test/:id" element={<MockTestStructurePage />} />
 
-          {/* CÔNG KHAI — lịch thi TOEIC. Backend GET /api/examschedule đã [AllowAnonymous]
-              từ Day 34 nhưng trước đây không route nào của FE gọi tới khi chưa login. */}
-          <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+            {/* Lịch thi TOEIC — GET /api/examschedule đã [AllowAnonymous] từ Day 34. */}
+            <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+          </Route>
 
           {/* Protected — phải login mới vào được, có layout sidebar+header */}
           <Route element={<ProtectedRoute />}>
