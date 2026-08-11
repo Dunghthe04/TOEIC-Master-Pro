@@ -699,6 +699,36 @@ phải ghi lý do vào comment kẻo người review sau xóa mất.
 > HMR tự nạp lúc sửa code. Ba lần thử đầu đều "không thấy báo gì" vì lúc bấm chọn đáp án thì phiên đã
 > được cấp mới còn nguyên 75 phút. Sửa code chính là hành động phá mất điều kiện thử nghiệm.
 
+### Hỏi khi vào lại từ ngoài (2026-08-11)
+
+F5 và "vào lại từ danh sách đề" là **hai ý định khác nhau**, và may là chúng nằm ở **hai route khác
+nhau** nên phân biệt được chính xác, không cần đoán:
+
+| Route | Hành vi | Vì sao |
+|---|---|---|
+| `/mock-test/:id/play` | **Khôi phục im lặng** + toast | F5 giữa bài gần như luôn là tai nạn — dựng hộp thoại chắn đường lúc đang căng thẳng là thêm gánh nặng |
+| `/mock-test/:id` | **Popup hỏi** Tiếp tục / Bỏ bài thi | Vào lại là chủ ý, mà user có thể đã quên còn bài dở — im lặng ném vào bài cũ mới là gây bất ngờ |
+
+Thêm `GET /active?testId=` (chỉ đọc, **không lọc theo parts** — ở màn cấu trúc user chưa chọn phạm vi)
+và `POST /{id}/abandon`. `GET /active` dùng **chung luật hết hạn** với `StartAsync`: phiên quá hạn thì
+đóng luôn và coi như không có, để popup không mời user "tiếp tục bài còn 0 phút" rồi vào tới nơi lại
+được cấp phiên mới — thông báo nói dối còn tệ hơn không có thông báo.
+
+**Khôi phục về đúng câu đang làm dở** — suy từ đáp án đã lưu (câu có `orderIndex` lớn nhất trong số đã
+trả lời), không cần thêm cột. Phải dò qua `buildReadingItemsForPart` chứ **không đếm câu tuần tự**:
+Part 6–7 gộp nhiều câu chung một đoạn văn thành **một màn**, nên "câu thứ 12" và "màn thứ 12" là hai
+con số khác nhau — đếm tuần tự sẽ vượt quá số màn và rơi vào màn trắng.
+
+> **Nhãn nút là một quyết định bảo mật dữ liệu.** Ý đầu là hai nút *"Hủy"* và *"Tiếp tục làm"*, trong
+> đó "Hủy" sẽ abandon phiên. **Sai** — `AlertDialogCancel` đi chung đường đóng với **Esc** và **bấm ra
+> ngoài overlay**, nên người chỉ muốn xem cấu trúc đề rồi bấm Hủy (hoặc lỡ chạm Esc) sẽ mất bài đang
+> làm dở. Đó là **hành động phá hủy nấp sau nhãn vô hại** — cùng loại lỗi với `.catch(() => logout())`
+> ở mục 2.9 và câu *"kiểm tra mạng"* ở trên: hệ thống làm một việc khác hẳn điều nó nói.
+>
+> Đã đổi thành **"Bỏ bài thi"** màu đỏ (`variant="destructive"`), dùng `<Button>` thường thay vì
+> `AlertDialogCancel`. Ranh giới giờ rõ: bấm nút đỏ = mất bài có chủ ý · **Esc / bấm ngoài = chỉ đóng
+> popup, không đụng dữ liệu**. Nhãn tự cảnh báo nên không cần xác nhận hai bước.
+
 ## 2.3 · 🟠 📋 Import Excel tạo được câu hỏi KHÔNG có đáp án đúng → chặn vĩnh viễn việc nộp bài
 
 **Vị trí:** [QuestionService.cs:218-233](../backend/ToeicMasterPro.Infrastructure/Services/QuestionService.cs#L218)

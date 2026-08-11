@@ -211,4 +211,32 @@ public class TestSessionController : ControllerBase
 
     /// <summary>Lấy UserId từ JWT — null nếu token không hợp lệ.</summary>
     private Guid? RequireUserId() => _currentUser.UserId;
+
+    /// <summary>
+    /// Bài đang làm dở của đề này — 204 nếu không có.
+    /// Màn cấu trúc đề gọi để hỏi "tiếp tục hay làm lại" trước khi user bấm bắt đầu.
+    /// </summary>
+    [HttpGet("active")]
+    public async Task<IActionResult> GetActive([FromQuery] Guid testId)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.GetActiveAsync(userId.Value, testId);
+        if (!result.IsSuccess) return BadRequest(new { error = result.Error });
+        return result.Value is null ? NoContent() : Ok(result.Value);
+    }
+
+    /// <summary>Bỏ hẳn phiên đang dở — nút "Làm lại từ đầu".</summary>
+    [HttpPost("{id:Guid}/abandon")]
+    public async Task<IActionResult> Abandon(Guid id)
+    {
+        var userId = RequireUserId();
+        if (userId is null) return Unauthorized();
+
+        var result = await _service.AbandonAsync(userId.Value, id);
+        return result.IsSuccess
+            ? Ok(new { message = "Đã bỏ phiên thi." })
+            : BadRequest(new { error = result.Error });
+    }
 }

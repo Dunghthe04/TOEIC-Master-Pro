@@ -209,6 +209,70 @@ public class TestSessionService : ITestSessionService
         return Result<int?>.Success(ComputeReadingSecondsLeft(session));
     }
 
+    /// <inheritdoc />
+    public async Task<Result<ActiveTestSessionResponse?>> GetActiveAsync(Guid userId, Guid testId)
+    {
+        // KHÔNG lọc theo PartsFilter: ở màn cấu trúc, user chưa quyết định phạm vi.
+        // Câu hỏi đúng là "đề này có bài dở nào không", không phải "có bài dở đúng
+        // phạm vi tôi đang tick".
+        var session = (await _uow.Repository<TestSession>().FindAsync(s =>
+                s.UserId == userId &&
+                s.TestId == testId &&
+                s.Status == TestSessionStatus.InProgress))
+            .OrderByDescending(s => s.StartedAt)
+            .FirstOrDefault();
+
+        if (session is null)
+            return Result<ActiveTestSessionResponse?>.Success(null);
+
+        // Quá hạn thì đóng luôn và coi như không có — DÙNG CHUNG luật với StartAsync.
+        // Thiếu chỗ này thì banner sẽ mời user "tiếp tục bài còn 0 phút", bấm vào lại
+        // được cấp phiên mới tinh — thông báo nói dối, còn tệ hơn không có thông báo.
+        if (DateTime.UtcNow > ComputeDeadline(session))
+        {
+            session.Status = TestSessionStatus.Abandoned;
+            session.SetUpdatedAt();
+            _uow.Repository<TestSession>().Update(session);
+            await _uow.SaveChangesAsync();
+            return Result<ActiveTestSessionResponse?>.Success(null);
+        }
+
+        var test = await _uow.Repository<Test>().GetByIdAsync(testId);
+        var partsArr = ParsePartsFilter(session.PartsFilter);
+
+        // Chỉ đếm câu THẬT SỰ đã chọn — SelectedOptionId null là câu bỏ qua.
+        var answered = (await _uow.Repository<TestSessionAnswer>()
+            .FindAsync(a => a.SessionId == session.Id && a.SelectedOptionId != null)).Count;
+
+        return Result<ActiveTestSessionResponse?>.Success(new ActiveTestSessionResponse(
+            session.Id,
+            testId,
+            test?.Title ?? string.Empty,
+            session.StartedAt,
+            partsArr,
+            answered,
+            await CountQuestionsInScopeAsync(testId, partsArr),
+            ComputeReadingSecondsLeft(session)
+        ));
+    }
+
+    /// <inheritdoc />
+    public async Task<Result> AbandonAsync(Guid userId, Guid sessionId)
+    {
+        var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
+        if (session is null)
+            return Result.Failure("Không tìm thấy phiên thi.");
+        if (session.UserId != userId)
+            return Result.Failure("Phiên thi không thuộc tài khoản này.");
+        if (session.Status != TestSessionStatus.InProgress)
+            return Result.Failure("Phiên thi đã kết thúc.");
+
+        session.Status = TestSessionStatus.Abandoned;
+        session.SetUpdatedAt();
+        _uow.Repository<TestSession>().Update(session);
+        await _uow.SaveChangesAsync();
+        return Result.Success();
+    }
     // ═══════════════════════════════════════════════════════════════════════
     // SAVE ANSWERS — Lưu đáp án tạm (upsert)
     // ═══════════════════════════════════════════════════════════════════════

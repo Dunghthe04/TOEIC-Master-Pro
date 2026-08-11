@@ -18,6 +18,7 @@ import type {
     TestStatsOverviewResponse,
     TestStatsTimelineResponse,
     TestStatsPartsResponse,
+    ActiveTestSession,
 } from '@/types/test-session.types'
 
 export const TestSessionService = {
@@ -98,5 +99,20 @@ export const TestSessionService = {
             .get<TestStatsPartsResponse>('/test-session/stats/parts', {
                 params: { fullOnly: params?.fullOnly ?? true },
             })
+            .then((r) => r.data),
+    
+        /**
+     * Bài đang làm dở của đề này. Backend trả 204 khi không có → axios cho
+     * data = '' (chuỗi rỗng), nên phải quy về null tường minh.
+     */
+    getActive: (testId: string) =>
+        api
+            .get<ActiveTestSession | ''>('/test-session/active', { params: { testId } })
+            .then((r) => (r.data ? r.data : null)),
+
+    /** Bỏ hẳn phiên đang dở — nút "Làm lại từ đầu". */
+    abandon: (sessionId: string) =>
+        api
+            .post<{ message: string }>(`/test-session/${sessionId}/abandon`)
             .then((r) => r.data),
 }

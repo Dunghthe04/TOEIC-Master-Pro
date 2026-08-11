@@ -17,8 +17,22 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { ArrowLeft, Play } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { TestSessionService } from '@/services/test-session.service'
+import type { ActiveTestSession } from '@/types/test-session.types'
+import { formatExamCountdown } from '@/lib/examTimer'
+import { useAuthStore } from '@/store/auth.store'
 
 /** "Part1" → 1 — dùng cho query ?parts=1,2,3 */
 function partToNumber(part: string): number {
@@ -37,27 +51,76 @@ export default function MockTestStructurePage() {
     /** Các Part đang tick (số 1–7) — chỉ dùng khi selectPartsMode */
     const [selectedParts, setSelectedParts] = useState<number[]>([])
 
+    const [activeSession, setActiveSession] = useState<ActiveTestSession | null>(null)
+    /** Popup hỏi tiếp tục — tự mở khi phát hiện bài dở. */
+    const [resumeDialogOpen, setResumeDialogOpen] = useState(false)
+    const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+
+    /** Bài đang làm dở — CHỈ hỏi khi đã đăng nhập. */
+    useEffect(() => {
+        // Trang này CÔNG KHAI (App.tsx nằm ngoài ProtectedRoute) — khách vãng lai
+        // xem được cấu trúc đề. Gọi API khi chưa đăng nhập sẽ dính 401, interceptor
+        // thử refresh, thất bại, rồi đá họ về /login — hỏng trải nghiệm xem thử.
+        if (!id || !isAuthenticated) return
+        let cancelled = false
+        TestSessionService.getActive(id)
+            .then((s) => {
+                if (cancelled) return
+                setActiveSession(s)
+                if (s) setResumeDialogOpen(true)
+            })
+            .catch(() => { /* không có bài dở cũng không sao — im lặng */ })
+        return () => { cancelled = true }
+    }, [id, isAuthenticated])
+
+    /** Tiếp tục bài cũ — dùng Part CỦA BÀI CŨ, không phải ô đang tick. */
+    const handleContinue = () => {
+        if (!id || !activeSession) return
+        const parts = activeSession.partsFilter?.join(',')
+        navigate(parts ? `/mock-test/${id}/play?parts=${parts}` : `/mock-test/${id}/play`)
+    }
+
+    /**
+     * Bỏ hẳn bài đang dở → Status = Abandoned, sau đó bấm "Bắt đầu" là được phiên mới.
+     *
+     * Nhãn nút CỐ Ý là "Bỏ bài thi" chứ không phải "Hủy": đây là hành động PHÁ HỦY.
+     * Nhãn "Hủy" sẽ khiến người chỉ muốn xem cấu trúc đề bấm vào rồi mất bài — hành
+     * động phá hủy nấp sau nhãn vô hại. Esc và bấm ra ngoài overlay vẫn chỉ đóng
+     * popup, KHÔNG đụng dữ liệu.
+     */
+    const handleAbandon = async () => {
+        if (!activeSession) return
+        try {
+            await TestSessionService.abandon(activeSession.sessionId)
+            setActiveSession(null)
+            setResumeDialogOpen(false)
+            toast.success('Đã bỏ bài cũ — bấm "Bắt đầu" để làm lại từ đầu.')
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error ?? 'Không bỏ được bài cũ.')
+        }
+    }
+
     /** Load cấu trúc đề published. */
     useEffect(() => {
         if (!id) return
         let cancelled = false
-        ;(async () => {
-            setLoading(true)
-            try {
-                const data = await TestService.getStructure(id)
-                if (cancelled) return
-                setStructure(data)
-                // Mặc định tick hết Part có trong đề (khi user bật chế độ chọn)
-                setSelectedParts(
-                    data.parts.map((p) => partToNumber(p.part)).filter((n) => n > 0)
-                )
-            } catch {
-                toast.error('Không tải được cấu trúc đề.')
-                navigate('/mock-test')
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        })()
+            ; (async () => {
+                setLoading(true)
+                try {
+                    const data = await TestService.getStructure(id)
+                    if (cancelled) return
+                    setStructure(data)
+                    // Mặc định tick hết Part có trong đề (khi user bật chế độ chọn)
+                    setSelectedParts(
+                        data.parts.map((p) => partToNumber(p.part)).filter((n) => n > 0)
+                    )
+                } catch {
+                    toast.error('Không tải được cấu trúc đề.')
+                    navigate('/mock-test')
+                } finally {
+                    if (!cancelled) setLoading(false)
+                }
+            })()
         return () => {
             cancelled = true
         }
@@ -251,11 +314,10 @@ export default function MockTestStructurePage() {
                 <div className="rounded-xl border bg-white px-8 py-6 shadow-sm space-y-4 text-center">
                     <p className="text-sm text-muted-foreground">
                         {selectPartsMode
-                            ? `Sẽ làm ${selectedQuestionCount} câu · Part: ${
-                                  selectedParts.length
-                                      ? [...selectedParts].sort((a, b) => a - b).join(', ')
-                                      : '—'
-                              }`
+                            ? `Sẽ làm ${selectedQuestionCount} câu · Part: ${selectedParts.length
+                                ? [...selectedParts].sort((a, b) => a - b).join(', ')
+                                : '—'
+                            }`
                             : `Full test · ${structure.totalQuestions} câu · ~${structure.durationMinutes} phút`}
                     </p>
                     <Button
@@ -277,6 +339,60 @@ export default function MockTestStructurePage() {
                     </Button>
                 </div>
             </div>
+
+            {/*
+              Popup hỏi khi CHỦ ĐỘNG vào lại đề. F5 giữa bài thì /play tự khôi phục
+              im lặng — không hỏi, vì F5 là tai nạn còn vào lại từ đây là chủ ý.
+              "Để sau" đóng popup mà không mất gì: bài cũ vẫn nằm đó, bấm "Bắt đầu"
+              cùng phạm vi thì StartAsync vẫn tự khôi phục.
+            */}
+            <AlertDialog open={resumeDialogOpen} onOpenChange={setResumeDialogOpen}>
+                <AlertDialogContent className="max-w-md p-6 sm:p-8 gap-5">
+                    <AlertDialogHeader className="text-left place-items-start">
+                        <AlertDialogTitle className="text-xl font-semibold">
+                            Bạn có một bài đang làm dở
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-1 text-base">
+                                <p>
+                                    {activeSession?.partsFilter
+                                        ? `Part ${activeSession.partsFilter.join(', ')}`
+                                        : 'Full đề'}
+                                    {' · '}
+                                    đã trả lời {activeSession?.answeredCount}/
+                                    {activeSession?.questionCount} câu
+                                </p>
+                                {activeSession?.readingSecondsLeft != null && (
+                                    <p className="font-semibold text-[#1a4d7c]">
+                                        Còn lại {formatExamCountdown(activeSession.readingSecondsLeft)}
+                                    </p>
+                                )}
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="sm:gap-3">
+                        {/*
+                          Button thường, KHÔNG dùng AlertDialogCancel: Cancel đi chung
+                          đường với Esc và bấm ra ngoài overlay, nên gắn hành động phá
+                          hủy vào đó sẽ khiến người chỉ muốn đóng popup mất luôn bài thi.
+                          Tách ra thì Esc / bấm ngoài chỉ đóng popup, không đụng dữ liệu.
+                        */}
+                        <Button
+                            variant="destructive"
+                            className="sm:min-w-[130px]"
+                            onClick={handleAbandon}
+                        >
+                            Bỏ bài thi
+                        </Button>
+                        <AlertDialogAction
+                            className="sm:min-w-[150px] bg-[#1a4d7c] hover:bg-[#153d63]"
+                            onClick={handleContinue}
+                        >
+                            Tiếp tục làm
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

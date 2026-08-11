@@ -137,102 +137,132 @@ export default function MockTestPlayPage() {
     useEffect(() => {
         if (!id) return
         let cancelled = false
-        ;(async () => {
-            setPhase('loading')
-            setSessionId(null)
-            setSessionStartedAt(null)
-            setSubmitResult(null)
-            setIsSubmitting(false)
-            setReadingSecondsLeft(null)
-            setMediaReady(false)
-            readingAutoSubmitTriggeredRef.current = false
-            try {
-                // Bước A0: xin token media TRƯỚC khi setPlay() gây render <audio>/<img>.
-                // getMediaUrl() đọc token từ cache đồng bộ — chưa có là trả URL trần → 401.
-                await prefetchMediaToken(id)
-                if (cancelled) return
-                setMediaReady(true)
-
-                // Bước A: tạo TestSession trên server (thay localStorage Day 27)
-                const session = await TestSessionService.start({
-                    testId: id,
-                    parts: partsFilter,
-                })
-                if (cancelled) return
-                setSessionId(session.sessionId)
-                setSessionStartedAt(session.startedAt)
-
-                // Bước B: lấy câu hỏi + directions (che đáp án đúng)
-                const data = await TestService.getPlay(id, partsFilter)
-                if (cancelled) return
-                setPlay(data)
-                 setAnswers(
-                    Object.fromEntries(
-                        session.answers
-                            .filter((a) => a.selectedOptionId)
-                            .map((a) => [a.questionId, a.selectedOptionId as string]),
-                    ),
-                )
-                setBookmarks({})
-                setPartIdx(0)
-                setUnitIdx(0)
-                setReadingItemIdx(0)
-
-                const listenOrder = listeningPartsInOrder(data.questions)
-                const readOrder = readingPartsInOrder(data.questions)
-
-                if (session.readingStartedAt && readOrder.length > 0) {
-                    // ── (1) KHÔI PHỤC: user đã từng vào Reading ──
-                    // Không được ném về Listening. Trước đây dòng `if (listenOrder…)`
-                    // đứng đầu nên F5 giữa Reading trong bài full test là quay lại
-                    // nghe từ đầu — khôi phục đáp án đúng nhưng ném sai chỗ.
-                    setSection('reading')
-                    setPhase('directions')
-                    setReadingSecondsLeft(session.readingSecondsLeft ?? 0)
-                } else if (listenOrder.length > 0) {
-                    // ── (2) Bắt đầu bằng Listening ──
-                    // Chưa đặt mốc Reading: mốc chỉ đặt khi thật sự sang Reading,
-                    // ở startReadingSection() bên dưới.
-                    setSection('listening')
-                    setPhase('directions')
-                } else if (readOrder.length > 0) {
-                    // ── (3) Đề chỉ có Reading (?parts=5,6,7) → vào thẳng ──
-                    // PHẢI gọi markReadingStarted ở đây. Nếu chỉ móc vào
-                    // startReadingSection() — chỗ trông "chính thống" hơn — thì
-                    // nhánh này không bao giờ đặt mốc, ReadingStartedAt mãi null,
-                    // và server không có gì để tính giờ.
-                    setSection('reading')
-                    setPhase('directions')
-                    const { readingSecondsLeft } =
-                        await TestSessionService.markReadingStarted(session.sessionId)
+            ; (async () => {
+                setPhase('loading')
+                setSessionId(null)
+                setSessionStartedAt(null)
+                setSubmitResult(null)
+                setIsSubmitting(false)
+                setReadingSecondsLeft(null)
+                setMediaReady(false)
+                readingAutoSubmitTriggeredRef.current = false
+                try {
+                    // Bước A0: xin token media TRƯỚC khi setPlay() gây render <audio>/<img>.
+                    // getMediaUrl() đọc token từ cache đồng bộ — chưa có là trả URL trần → 401.
+                    await prefetchMediaToken(id)
                     if (cancelled) return
-                    setReadingSecondsLeft(readingSecondsLeft ?? READING_SECTION_SECONDS)
-                } else {
-                    setPhase('done')
-                    toast.error('Gói này không có câu hỏi.')
-                }
+                    setMediaReady(true)
 
-                if (session.resumed) {
-                    const answered = session.answers.filter((a) => a.selectedOptionId).length
-                    toast.info(
-                        session.readingSecondsLeft != null
-                            ? `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời, còn ${formatExamCountdown(session.readingSecondsLeft)}`
-                            : `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời`,
+                    // Bước A: tạo TestSession trên server (thay localStorage Day 27)
+                    const session = await TestSessionService.start({
+                        testId: id,
+                        parts: partsFilter,
+                    })
+                    if (cancelled) return
+                    setSessionId(session.sessionId)
+                    setSessionStartedAt(session.startedAt)
+
+                    // Bước B: lấy câu hỏi + directions (che đáp án đúng)
+                    const data = await TestService.getPlay(id, partsFilter)
+                    if (cancelled) return
+                    setPlay(data)
+                    setAnswers(
+                        Object.fromEntries(
+                            session.answers
+                                .filter((a) => a.selectedOptionId)
+                                .map((a) => [a.questionId, a.selectedOptionId as string]),
+                        ),
                     )
+                    setBookmarks({})
+                    setPartIdx(0)
+                    setUnitIdx(0)
+                    setReadingItemIdx(0)
+
+                    const listenOrder = listeningPartsInOrder(data.questions)
+                    const readOrder = readingPartsInOrder(data.questions)
+
+                    if (session.readingStartedAt && readOrder.length > 0) {
+                        // ── (1) KHÔI PHỤC: user đã từng vào Reading ──
+                        setSection('reading')
+                        setReadingSecondsLeft(session.readingSecondsLeft ?? 0)
+
+                        // Câu đã trả lời có orderIndex LỚN NHẤT = chỗ đang làm dở.
+                        // Suy từ đáp án nên không cần thêm cột nào ở DB.
+                        const answeredIds = new Set(
+                            session.answers
+                                .filter((a) => a.selectedOptionId)
+                                .map((a) => a.questionId),
+                        )
+                        const answeredInReading = data.questions
+                            .filter((q) => answeredIds.has(q.questionId) && readOrder.includes(q.part))
+                            .sort((a, b) => a.orderIndex - b.orderIndex)
+                        const lastQ = answeredInReading[answeredInReading.length - 1]
+
+                        if (lastQ) {
+                            // Dò ngược questionId → (partIdx, readingItemIdx).
+                            // Phải dùng buildReadingItemsForPart chứ không đếm câu tuần tự:
+                            // Part 6–7 gộp nhiều câu chung một đoạn văn thành MỘT màn, nên
+                            // "câu thứ 12" và "màn thứ 12" là hai con số khác nhau.
+                            const pIdx = readOrder.indexOf(lastQ.part)
+                            const items = buildReadingItemsForPart(data.questions, lastQ.part)
+                            const iIdx = items.findIndex((it) =>
+                                it.kind === 'single'
+                                    ? it.question.questionId === lastQ.questionId
+                                    : it.questions.some((q) => q.questionId === lastQ.questionId),
+                            )
+                            setPartIdx(pIdx >= 0 ? pIdx : 0)
+                            setReadingItemIdx(iIdx >= 0 ? iIdx : 0)
+                            // Vào thẳng màn làm bài — đọc lại directions lúc này là thừa
+                            setPhase('answering')
+                        } else {
+                            // Đã vào Reading nhưng chưa trả lời câu nào → directions như cũ
+                            setPhase('directions')
+                        }
+                    } else if (listenOrder.length > 0) {
+
+                        // ── (2) Bắt đầu bằng Listening ──
+                        // Chưa đặt mốc Reading: mốc chỉ đặt khi thật sự sang Reading,
+                        // ở startReadingSection() bên dưới.
+                        setSection('listening')
+                        setPhase('directions')
+                    } else if (readOrder.length > 0) {
+                        // ── (3) Đề chỉ có Reading (?parts=5,6,7) → vào thẳng ──
+                        // PHẢI gọi markReadingStarted ở đây. Nếu chỉ móc vào
+                        // startReadingSection() — chỗ trông "chính thống" hơn — thì
+                        // nhánh này không bao giờ đặt mốc, ReadingStartedAt mãi null,
+                        // và server không có gì để tính giờ.
+                        setSection('reading')
+                        setPhase('directions')
+                        const { readingSecondsLeft } =
+                            await TestSessionService.markReadingStarted(session.sessionId)
+                        if (cancelled) return
+                        setReadingSecondsLeft(readingSecondsLeft ?? READING_SECTION_SECONDS)
+                    } else {
+                        setPhase('done')
+                        toast.error('Gói này không có câu hỏi.')
+                    }
+
+                    if (session.resumed) {
+                        const answered = session.answers.filter((a) => a.selectedOptionId).length
+                        toast.info(
+                            session.readingSecondsLeft != null
+                                ? `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời, còn ${formatExamCountdown(session.readingSecondsLeft)}`
+                                : `Đã khôi phục bài đang làm dở — ${answered} câu đã trả lời`,
+                        )
+                    }
+                } catch (err: unknown) {
+                    const status = (err as { response?: { status?: number; data?: { error?: string } } })
+                        ?.response?.status
+                    const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
+                        ?.error
+                    if (status === 401) {
+                        toast.error('Phiên đăng nhập hết hạn — hãy login lại.')
+                    } else {
+                        toast.error(apiErr ?? 'Không tải được bài thi.')
+                    }
+                    navigate(id ? `/mock-test/${id}` : '/mock-test')
                 }
-            } catch (err: unknown) {
-                const status = (err as { response?: { status?: number; data?: { error?: string } } })
-                    ?.response?.status
-                const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-                    ?.error
-                if (status === 401) {
-                    toast.error('Phiên đăng nhập hết hạn — hãy login lại.')
-                } else {
-                    toast.error(apiErr ?? 'Không tải được bài thi.')
-                }
-                navigate(id ? `/mock-test/${id}` : '/mock-test')
-            }
-        })()
+            })()
         return () => {
             cancelled = true
             stopAudio()
@@ -272,8 +302,8 @@ export default function MockTestPlayPage() {
     /** Timer hiện trên ExamShell — chỉ khi đang làm Reading (không hiện ở màn done) */
     const shellTimerSeconds =
         section === 'reading' &&
-        readingSecondsLeft != null &&
-        (phase === 'directions' || phase === 'answering')
+            readingSecondsLeft != null &&
+            (phase === 'directions' || phase === 'answering')
             ? readingSecondsLeft
             : null
 
@@ -601,13 +631,13 @@ export default function MockTestPlayPage() {
                 selectedOptionId,
             }))
             if (items.length === 0) return
-           TestSessionService.saveAnswers(sid, items).catch(async (err) => {
+            TestSessionService.saveAnswers(sid, items).catch(async (err) => {
                 // Hiện ĐÚNG lý do server nêu. Câu "kiểm tra mạng" chỉ dành cho
                 // trường hợp thật sự không có response — đoán bừa khi server đã
                 // trả lời rõ ràng là đẩy user đi sửa nhầm thứ.
                 toast.error(
                     err?.response?.data?.error ??
-                        'Không lưu được đáp án tạm — kiểm tra mạng.',
+                    'Không lưu được đáp án tạm — kiểm tra mạng.',
                 )
 
                 // 400 = server từ chối vì lý do nghiệp vụ, gần như luôn là hết giờ.
@@ -785,7 +815,7 @@ export default function MockTestPlayPage() {
     const selectOption = (questionId: string, optionId: string) => {
         // User chọn đáp án = tương tác → browser cho phép autoplay, thử play() lại
         const a = audioRef.current
-        if (a?.src && a.paused) a.play().catch(() => {})
+        if (a?.src && a.paused) a.play().catch(() => { })
         setAnswers((prev) => {
             const next = { ...prev, [questionId]: optionId }
             scheduleSaveAnswers(next)
@@ -1114,7 +1144,7 @@ export default function MockTestPlayPage() {
                                     key={q.questionId}
                                     question={q}
                                     selectedId={answers[q.questionId]}
-                                    onSelect={() => {}}
+                                    onSelect={() => { }}
                                     maskOptionText={false}
                                     readOnly
                                 />
@@ -1191,11 +1221,10 @@ function ReadingSingleScreen({
                             <label
                                 key={opt.id}
                                 htmlFor={inputId}
-                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
-                                    selected
+                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${selected
                                         ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
                                         : 'border-border hover:bg-muted/40'
-                                }`}
+                                    }`}
                             >
                                 <input
                                     id={inputId}
@@ -1270,22 +1299,20 @@ function ReadingPassageScreen({
                     >
                         {hasImages && (
                             <div
-                                className={`pb-2 bg-white ${
-                                    multiImage
+                                className={`pb-2 bg-white ${multiImage
                                         ? 'border-2 border-slate-800'
                                         : ''
-                                }`}
+                                    }`}
                             >
                                 {imageUrls.map((url) => (
                                     <img
                                         key={url}
                                         src={getMediaUrl(url)}
                                         alt="Bài đọc"
-                                        className={`block w-full max-w-full h-auto bg-white ${
-                                            multiImage
+                                        className={`block w-full max-w-full h-auto bg-white ${multiImage
                                                 ? ''
                                                 : 'border-2 border-slate-800'
-                                        }`}
+                                            }`}
                                     />
                                 ))}
                             </div>
@@ -1338,9 +1365,8 @@ function ReadingPassageScreen({
                                             <label
                                                 key={opt.id}
                                                 htmlFor={inputId}
-                                                className={`flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer transition-colors ${
-                                                    selected ? 'bg-blue-50' : 'hover:bg-muted/40'
-                                                }`}
+                                                className={`flex items-start gap-2 rounded-md px-2 py-2 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-muted/40'
+                                                    }`}
                                             >
                                                 <input
                                                     id={inputId}
@@ -1399,9 +1425,8 @@ function QuestionBlock({
         return (
             <div className="rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm overflow-hidden">
                 <div
-                    className={`grid md:grid-cols-2 ${
-                        examMode ? 'min-h-[calc(100vh-200px)]' : 'md:min-h-[360px]'
-                    }`}
+                    className={`grid md:grid-cols-2 ${examMode ? 'min-h-[calc(100vh-200px)]' : 'md:min-h-[360px]'
+                        }`}
                 >
                     {/* Ảnh */}
                     <div className="border-b md:border-b-0 md:border-r border-[#1a4d7c]/20 p-4 flex flex-col bg-white">
@@ -1410,9 +1435,8 @@ function QuestionBlock({
                             <img
                                 src={getMediaUrl(question.imageUrl)}
                                 alt=""
-                                className={`w-full flex-1 object-contain rounded bg-white ${
-                                    examMode ? 'min-h-[280px]' : 'min-h-[240px] max-h-[520px]'
-                                }`}
+                                className={`w-full flex-1 object-contain rounded bg-white ${examMode ? 'min-h-[280px]' : 'min-h-[240px] max-h-[520px]'
+                                    }`}
                             />
                         ) : (
                             <div className="flex-1 min-h-[240px] rounded border border-dashed flex items-center justify-center text-muted-foreground text-sm">
@@ -1436,9 +1460,8 @@ function QuestionBlock({
                                     <label
                                         key={opt.id}
                                         htmlFor={inputId}
-                                        className={`flex items-start gap-3 rounded-md px-2 py-1 -mx-2 transition-colors ${
-                                            readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-muted/40'
-                                        } ${selected ? 'bg-blue-50' : ''}`}
+                                        className={`flex items-start gap-3 rounded-md px-2 py-1 -mx-2 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-muted/40'
+                                            } ${selected ? 'bg-blue-50' : ''}`}
                                     >
                                         <input
                                             id={inputId}
@@ -1473,9 +1496,8 @@ function QuestionBlock({
     if (partNum === 2 && hideText) {
         return (
             <div
-                className={`rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm flex flex-col items-center justify-center ${
-                    examMode ? 'min-h-[calc(100vh-220px)]' : 'min-h-[280px]'
-                } p-8 md:p-12`}
+                className={`rounded-lg border-2 border-[#1a4d7c]/25 bg-white shadow-sm flex flex-col items-center justify-center ${examMode ? 'min-h-[calc(100vh-220px)]' : 'min-h-[280px]'
+                    } p-8 md:p-12`}
             >
                 <p className="text-2xl font-semibold mb-10">{question.orderIndex}.</p>
                 <div
@@ -1490,9 +1512,8 @@ function QuestionBlock({
                             <label
                                 key={opt.id}
                                 htmlFor={inputId}
-                                className={`flex items-center gap-3 cursor-pointer rounded-lg px-4 py-3 transition-colors ${
-                                    selected ? 'bg-blue-50 ring-2 ring-blue-600' : 'hover:bg-muted/40'
-                                }`}
+                                className={`flex items-center gap-3 cursor-pointer rounded-lg px-4 py-3 transition-colors ${selected ? 'bg-blue-50 ring-2 ring-blue-600' : 'hover:bg-muted/40'
+                                    }`}
                             >
                                 <input
                                     id={inputId}
@@ -1539,11 +1560,10 @@ function QuestionBlock({
                             type="button"
                             disabled={readOnly}
                             onClick={() => onSelect(question.questionId, opt.id)}
-                            className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                selected
+                            className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${selected
                                     ? 'border-blue-600 bg-blue-50'
                                     : 'hover:bg-muted/50'
-                            } ${readOnly ? 'cursor-default opacity-90' : ''}`}
+                                } ${readOnly ? 'cursor-default opacity-90' : ''}`}
                         >
                             <strong className="mr-2">{opt.label}.</strong>
                             {!hideText && (

@@ -224,3 +224,15 @@ export function sessionDetailToSubmitResult(
         reviews: detail.reviews,
     }
 }
+/** GET /api/test-session/active — bài đang làm dở (204 = không có) */
+export interface ActiveTestSession {
+    sessionId: string
+    testId: string
+    testTitle: string
+    startedAt: string
+    /** Phạm vi của BÀI CŨ — null = full đề */
+    partsFilter: number[] | null
+    answeredCount: number
+    questionCount: number
+    readingSecondsLeft: number | null
+}
