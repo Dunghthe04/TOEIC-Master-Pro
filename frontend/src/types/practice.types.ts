@@ -26,6 +26,20 @@ export interface PracticeQuestion {
     options: PracticeOption[]
 }
 
+/**
+ * GET /practice/questions — câu hỏi kèm sessionId.
+ *
+ * sessionId phải gửi lại khi nộp: nó chứng minh những câu này đã thật sự được
+ * server phát cho chính user đang gọi. Trước đây submit chấm bất kỳ questionId
+ * nào, nên lấy id từ màn thi thật rồi gửi sang là nhận thẳng đáp án đúng.
+ *
+ * null = không có câu nào khớp bộ lọc, nên không có phiên nào được tạo.
+ */
+export interface PracticeStart {
+    sessionId: string | null
+    questions: PracticeQuestion[]
+}
+
 export interface PracticeFilter {
     part?: number          // query: 1–4 (Day 26)
     difficulty?: DifficultyLevel

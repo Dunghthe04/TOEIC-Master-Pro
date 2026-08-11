@@ -20,7 +20,8 @@ namespace ToeicMasterPro.Infrastructure.Services
             _uow = uow;
         }
 
-        public async Task<IReadOnlyList<PracticeQuestionResponse>> GetQuestionsAsync(
+        public async Task<PracticeStartResponse> GetQuestionsAsync(
+        Guid userId,
         QuestionPart? part,
         DifficultyLevel? difficulty,
         string? tag,
@@ -45,7 +46,7 @@ namespace ToeicMasterPro.Infrastructure.Services
                 .Take(limit)
                 .ToList();
 
-            if (picked.Count == 0) return [];
+            if (picked.Count == 0) return new PracticeStartResponse(null, []);
             //Lấy danh sách question id đã lọc
             var ids = picked.Select(q => q.Id).ToList();
             //lấy ra các câu hỏi có id nằm trong danh sách
@@ -56,7 +57,7 @@ namespace ToeicMasterPro.Infrastructure.Services
 
 
             // Map CHE IsCorrect + Explanation
-            return picked.Select(q =>
+            var questionDtos = picked.Select(q =>
             {
                 var opts = byQ.GetValueOrDefault(q.Id) ?? [];
                 return new PracticeQuestionResponse(
@@ -65,15 +66,54 @@ namespace ToeicMasterPro.Infrastructure.Services
                     opts.Select(o => new PracticeOptionDto(o.Id, o.Label, o.Content)).ToList()
                 );
             }).ToList();
+
+            // Ghi lại ĐÃ PHÁT CÂU NÀO CHO AI — đây là dữ liệu mà SubmitAsync đối chiếu.
+            // Không có bước này thì Submit không có gì để so, và buộc phải tin mọi
+            // questionId client gửi lên.
+            var session = new PracticeSession
+            {
+                UserId = userId,
+                QuestionIds = string.Join(",", ids),
+            };
+            await _uow.Repository<PracticeSession>().AddAsync(session);
+            await _uow.SaveChangesAsync();
+
+            return new PracticeStartResponse(session.Id, questionDtos);
         }
-        public async Task<Result<PracticeResultResponse>> SubmitAsync(SubmitPracticeRequest req)
+        public async Task<Result<PracticeResultResponse>> SubmitAsync(Guid userId, SubmitPracticeRequest req)
         {
             if (req.Answers is null || req.Answers.Count == 0)
                 return Result<PracticeResultResponse>.Failure("Chưa có đáp án nào.");
+
+            // ── Phiên phải tồn tại, thuộc CHÍNH user này, và chưa nộp ──
+            var session = await _uow.Repository<PracticeSession>().GetByIdAsync(req.SessionId);
+            if (session is null)
+                return Result<PracticeResultResponse>.Failure("Không tìm thấy phiên luyện tập.");
+            if (session.UserId != userId)
+                return Result<PracticeResultResponse>.Failure("Phiên luyện tập không thuộc tài khoản này.");
+            if (session.SubmittedAt is not null)
+                return Result<PracticeResultResponse>.Failure("Phiên luyện tập đã nộp trước đó.");
+
             // Chống trùng questionId trong 1 lần nộp
             var questionIds = req.Answers.Select(a => a.QuestionId).Distinct().ToList();
             if (questionIds.Count != req.Answers.Count)
                 return Result<PracticeResultResponse>.Failure("Danh sách đáp án bị trùng câu hỏi.");
+
+            // ══ CHỐT CHẶN ══
+            // Chỉ chấm câu ĐÃ ĐƯỢC PHÁT cho phiên này. Thiếu đúng khối này thì mọi thứ
+            // còn lại vô nghĩa: người đang thi thật lấy questionId từ màn hình, gửi kèm
+            // selectedOptionId = null, và nhận thẳng CorrectOptionId + CorrectLabel +
+            // Explanation. Một request, không cần đoán, nhét được cả 200 câu một lần.
+            // OWASP API1:2023 — Broken Object Level Authorization.
+            var allowed = session.QuestionIds
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .ToHashSet();
+
+            if (questionIds.Any(qid => !allowed.Contains(qid)))
+                return Result<PracticeResultResponse>.Failure(
+                    "Có câu hỏi không thuộc phiên luyện tập này.");
             var questions = await _uow.Repository<Question>()
                 .FindAsync(q => questionIds.Contains(q.Id) && q.IsPublished);
             if (questions.Count != questionIds.Count)
@@ -114,6 +154,18 @@ namespace ToeicMasterPro.Infrastructure.Services
             }
             var total = req.Answers.Count;
             var percent = total == 0 ? 0 : Math.Round(correct * 100.0 / total, 1);
+
+            // Đánh dấu đã nộp — một lượt luyện nộp MỘT lần, giống TestSession.Status.
+            // Không phải để chống khai thác (sau lần nộp đầu, đáp án đã nằm trong phản
+            // hồi rồi) mà là ngữ nghĩa: chặn client lỗi gọi hai lần ghi đè kết quả,
+            // và CorrectCount/TotalCount lưu sẵn cho lịch sử luyện tập sau này.
+            session.SubmittedAt = DateTime.UtcNow;
+            session.CorrectCount = correct;
+            session.TotalCount = total;
+            session.SetUpdatedAt();
+            _uow.Repository<PracticeSession>().Update(session);
+            await _uow.SaveChangesAsync();
+
             return Result<PracticeResultResponse>.Success(new PracticeResultResponse(
                 total, correct, skipped, percent, reviews
             ));

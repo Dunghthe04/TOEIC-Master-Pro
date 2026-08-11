@@ -8,6 +8,11 @@ namespace ToeicMasterPro.Application.DTOs.Practice
 {
     // 1 câu user chọn (SelectedOptionId = null → bỏ qua)
     public record PracticeAnswerItem(Guid QuestionId, Guid? SelectedOptionId);
-    // Danh sách đáp án cả phiên luyện
-    public record SubmitPracticeRequest(List<PracticeAnswerItem> Answers);
+
+    /// <summary>
+    /// Đáp án cả lượt luyện. SessionId BẮT BUỘC — nó là thứ chứng minh những câu này
+    /// đã thật sự được phát cho chính user đang gọi.
+    /// </summary>
+    public record SubmitPracticeRequest(Guid SessionId, List<PracticeAnswerItem> Answers);
+
 }

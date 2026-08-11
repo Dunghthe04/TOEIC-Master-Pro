@@ -781,7 +781,64 @@ viễn, cho tới khi có người phát hiện và sửa DB.
 
 **Cách sửa:** dùng chung `Validate()` cho cả luồng import; dòng nào sai thì bỏ qua và báo cáo, không tạo.
 
-## 2.4 · 🟠 📋 `POST /api/practice/submit` là máy tra đáp án
+## 2.4 · ✅ ĐÃ VÁ 2026-08-11 — `POST /api/practice/submit` là máy tra đáp án
+
+> ### 🔬 Doc cũ đánh giá NHẸ hơn thực tế
+>
+> Doc mô tả *"gửi đáp án A → biết đúng/sai → thử B, C, D"* — giả định phải **dò từng đáp án**.
+> Thực tế **không cần dò**: `PracticeAnswerReview` trả `CorrectOptionId`, `CorrectLabel` và
+> `Explanation` **vô điều kiện**, còn `SelectedOptionId = null` được coi là "bỏ qua" nên vẫn đi tiếp
+> và vẫn vào `reviews`.
+>
+> ```jsonc
+> POST /api/practice/submit
+> { "answers": [ { "questionId": "<id lấy từ màn thi>", "selectedOptionId": null } ] }
+> → { "reviews": [ { "correctOptionId": "…", "correctLabel": "B", "explanation": "…" } ] }
+> ```
+>
+> **Một request. Không đoán. Không thử.** Và không có trần trên `req.Answers.Count` — nhét cả 200
+> `questionId` của đề vào một request là nhận **toàn bộ đáp án đúng của cả đề trong một lần gọi**.
+> Rate limit cũng không chặn: policy `"auth"` chỉ áp cho `AuthController`.
+>
+> ### Gốc rễ: service không biết ai đang gọi
+>
+> ```csharp
+> public async Task<Result<PracticeResultResponse>> SubmitAsync(SubmitPracticeRequest req)
+> ```
+>
+> **Không có `userId`.** So với `TestSessionService.SubmitAsync(Guid userId, Guid sessionId)` — nơi
+> kiểm `session.UserId != userId` từ Day 28. `PracticeService` **về mặt kiểu dữ liệu không thể** kiểm
+> quyền sở hữu: dù có muốn cũng không có gì để so.
+>
+> Controller **có** `[Authorize(Roles = "User")]` nên phải đăng nhập. Nhưng đó là **authentication**,
+> không phải **authorization**: hệ thống biết bạn LÀ AI, chỉ không kiểm bạn CÓ QUYỀN với dữ liệu này
+> không. Đúng OWASP **API1:2023 — Broken Object Level Authorization**.
+>
+> ### Cách vá
+>
+> Thêm entity `PracticeSession` (`UserId`, `QuestionIds` nối bằng phẩy, `SubmittedAt`,
+> `CorrectCount`/`TotalCount`). `GetQuestionsAsync` tạo phiên ghi lại **đã phát câu nào cho ai**;
+> `SubmitAsync(userId, req)` kiểm phiên **tồn tại + đúng chủ + chưa nộp**, rồi chốt chặn:
+>
+> ```csharp
+> if (questionIds.Any(qid => !allowed.Contains(qid)))
+>     return Failure("Có câu hỏi không thuộc phiên luyện tập này.");
+> ```
+>
+> `userId` lấy từ **JWT**, không nhận từ client — để client tự khai thì kiểm quyền sở hữu thành vô nghĩa.
+>
+> **Không tách bảng con cho `QuestionIds`:** luyện tập là **một lượt** (phát câu → làm → nộp một lần),
+> tập id chỉ đọc nguyên khối đúng một lần lúc chấm. Bảng con sẽ tạo 10–50 dòng mỗi lượt cho dữ liệu
+> không ai join tới. Đánh đổi: không thống kê được "câu X được luyện bao nhiêu lần" bằng SQL.
+>
+> ### ⚠️ Rủi ro CÒN LẠI — không kín tuyệt đối
+>
+> Bản vá biến *"một request → đáp án chính xác"* thành *"phải rút thăm cho tới khi trúng"*. Muốn tra
+> một câu cụ thể giờ phải gọi `GET /practice/questions` liên tục và hy vọng câu đó rơi vào lô ngẫu
+> nhiên trong 697 câu — bộ lọc `part`/`difficulty`/`tag` giúp thu hẹp phần nào.
+>
+> Bịt kín hoàn toàn cần **tách kho luyện tập khỏi kho đề thi**, hoặc bỏ `Explanation` khỏi phản hồi.
+> Cả hai là thay đổi nghiệp vụ lớn. Ghi lại để sau này không ai tưởng lỗ đã kín hẳn.
 
 **Vị trí:** [PracticeService.cs:69-114](../backend/ToeicMasterPro.Infrastructure/Services/PracticeService.cs#L69)
 

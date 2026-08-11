@@ -1,20 +1,27 @@
 import api from '@/api/axios'
 import type {
     PracticeFilter,
-    PracticeQuestion,
+    PracticeStart,
     PracticeAnswerItem,
     PracticeResult,
 } from '@/types/practice.types'
 
 export const PracticeService = {
+    /**
+     * Lấy câu luyện tập. Trả { sessionId, questions } — KHÔNG còn là mảng trần.
+     * Phải giữ sessionId để gửi kèm lúc nộp.
+     */
     getQuestions: (filter?: PracticeFilter) =>
         api
-            .get<PracticeQuestion[]>('/practice/questions', { params: filter })
+            .get<PracticeStart>('/practice/questions', { params: filter })
             .then(r => r.data),
-    // tên phải là submit — khớp PracticePage
-    // body phải bọc { answers } — khớp SubmitPracticeRequest
-    submit: (answers: PracticeAnswerItem[]) =>
+
+    /**
+     * Nộp bài luyện. sessionId BẮT BUỘC — server chỉ chấm câu thuộc phiên đó.
+     * Thiếu nó thì server trả "Không tìm thấy phiên luyện tập."
+     */
+    submit: (sessionId: string, answers: PracticeAnswerItem[]) =>
         api
-            .post<PracticeResult>('/practice/submit', { answers })
+            .post<PracticeResult>('/practice/submit', { sessionId, answers })
             .then(r => r.data),
 }

@@ -47,6 +47,8 @@ export default function PracticePage() {
     const [secondsLeft, setSecondsLeft] = useState(0)
 
     const [questions, setQuestions] = useState<PracticeQuestion[]>([])
+    /** Phiên luyện do server cấp — bắt buộc gửi kèm khi nộp bài. */
+    const [sessionId, setSessionId] = useState<string | null>(null)
     const [index, setIndex] = useState(0)
     // questionId → optionId đã chọn
     const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -87,15 +89,17 @@ export default function PracticePage() {
                 difficulty: difficulty === 'all' ? undefined : difficulty,
                 limit: Number(limit),
             })
-            if (data.length === 0) {
+            // sessionId null = không có câu nào khớp nên server không tạo phiên
+            if (!data.sessionId || data.questions.length === 0) {
                 toast.error('Không có câu hỏi phù hợp (cần isPublished = true).')
                 return
             }
-            setQuestions(data)
+            setSessionId(data.sessionId)
+            setQuestions(data.questions)
             setAnswers({})
             setIndex(0)
             // ~45 giây / câu nếu bật timer
-            setSecondsLeft(timerOn ? data.length * 45 : 0)
+            setSecondsLeft(timerOn ? data.questions.length * 45 : 0)
             setPhase('doing')
         } catch {
             toast.error('Không tải được câu hỏi')
@@ -109,19 +113,21 @@ export default function PracticePage() {
     }
 
     const handleSubmit = async (fromTimer = false) => {
-        if (submitting || questions.length === 0) return
+        if (submitting || questions.length === 0 || !sessionId) return
         setSubmitting(true)
         try {
             const payload = questions.map(q => ({
                 questionId: q.id,
                 selectedOptionId: answers[q.id] ?? null,
             }))
-            const data = await PracticeService.submit(payload)
+            const data = await PracticeService.submit(sessionId, payload)
             setResult(data)
             setPhase('result')
             if (fromTimer) toast.message('Hết giờ — đã tự nộp bài')
-        } catch {
-            toast.error('Nộp bài thất bại')
+        } catch (err: any) {
+            // Hiện ĐÚNG lý do server nêu (vd "Phiên luyện tập đã nộp trước đó")
+            // thay vì câu chung chung — cùng bài học với lỗi 429 lúc đăng nhập.
+            toast.error(err?.response?.data?.error ?? 'Nộp bài thất bại')
         } finally {
             setSubmitting(false)
         }
@@ -130,6 +136,10 @@ export default function PracticePage() {
     const reset = () => {
         setPhase('setup')
         setQuestions([])
+        // Phiên cũ đã nộp rồi, server không nhận lại — bấm "Luyện tiếp" phải xin
+        // phiên mới qua getQuestions(). Không xóa ở đây thì lần nộp sau dính
+        // "Phiên luyện tập đã nộp trước đó".
+        setSessionId(null)
         setAnswers({})
         setResult(null)
         setIndex(0)
