@@ -76,6 +76,9 @@ builder.Services.Configure<JwtSettings>(
 builder.Services.Configure<ToeicDirectionsOptions>(
     builder.Configuration.GetSection(ToeicDirectionsOptions.SectionName));
 
+builder.Services.Configure<IigOptions>(                              // MỚI
+    builder.Configuration.GetSection(IigOptions.SectionName));
+
 //-----------gogle signin--------------
 builder.Services.Configure<GoogleAuthSettings>(
     builder.Configuration.GetSection(GoogleAuthSettings.SectionName));
@@ -95,8 +98,14 @@ builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddScoped<ITestService, TestService>();
 builder.Services.AddScoped<IExamScheduleService, ExamScheduleService>();
 builder.Services.AddScoped<IExamReminderService, ExamReminderService>();
+builder.Services.AddHttpClient("Iig", client =>            // MỚI
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddScoped<IEmailSender, ConsoleEmailSender>();
 builder.Services.AddScoped<ExamReminderJob>();
+builder.Services.AddScoped<IigExamScheduleSyncJob>();
+builder.Services.AddScoped<IIigExamScheduleSyncService, IigExamScheduleSyncService>();
 // Đăng ký Hangfire vào DI và lưu job ở cũng SQLServer, rồi bật worker chạy job
 builder.Services.AddHangfire(config => config
     //Chọn phiên bản dữ liệu Hangfire lưu vào db
@@ -409,6 +418,13 @@ using (var jobScope = app.Services.CreateScope())
             "exam-reminder-email",
             job => job.RunAsync(),
             "30 0 * * *",   // cron 5 phần: phút giờ ngày tháng thứ
+            new RecurringJobOptions());
+
+    jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>()   // MỚI
+        .AddOrUpdate<IigExamScheduleSyncJob>(
+            "iig-exam-schedule-sync",
+            job => job.RunAsync(),
+            "0 */6 * * *",   // mỗi 6 giờ, phút 0
             new RecurringJobOptions());
 }
 // ⚠️ Cron trên hiểu theo UTC → thực tế chạy 07:30 giờ VN, không phải 00:30.

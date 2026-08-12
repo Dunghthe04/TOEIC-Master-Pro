@@ -13,14 +13,16 @@ public class ExamScheduleService : IExamScheduleService
     public ExamScheduleService(IUnitOfWork uow) => _uow = uow;
 
     public async Task<IReadOnlyList<ExamScheduleResponse>> GetListAsync(
-        string? city, int? month, int? year, bool? isActive)
+     string? city, int? month, int? year, bool? isActive, string? title, string? location)
     {
         // Mỗi filter chỉ áp dụng khi client gửi giá trị
         var list = await _uow.Repository<ExamSchedule>().FindAsync(e =>
             (city == null || e.City == city) &&
             (month == null || e.ExamDate.Month == month) &&
             (year == null || e.ExamDate.Year == year) &&
-            (isActive == null || e.IsActive == isActive));
+            (isActive == null || e.IsActive == isActive) &&
+            (title == null || e.Title == title) &&
+            (location == null || e.Location == location));
 
         return list.OrderBy(e => e.ExamDate).Select(Map).ToList();
     }
@@ -154,7 +156,7 @@ public class ExamScheduleService : IExamScheduleService
         s.Replace("\\", "\\\\").Replace(";", "\\;").Replace(",", "\\,").Replace("\n", "\\n");
 
     private static ExamScheduleResponse Map(ExamSchedule e) => new(
-        e.Id, e.Title, e.Organizer, e.Location, e.City,
+        e.Id, e.Title, e.Organizer, e.Location, e.Address, e.City,
         e.ExamDate, e.StartTime, e.RegistrationDeadline,
         e.Fee, e.AvailableSlots, e.RegisterUrl, e.IsActive, e.CreatedAt
     );

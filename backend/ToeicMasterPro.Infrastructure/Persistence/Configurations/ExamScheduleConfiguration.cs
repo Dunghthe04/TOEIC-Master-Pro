@@ -18,9 +18,12 @@ public class ExamScheduleConfiguration : IEntityTypeConfiguration<ExamSchedule>
         builder.Property(e => e.Title).IsRequired().HasMaxLength(200);
         builder.Property(e => e.Organizer).IsRequired().HasMaxLength(100);
         builder.Property(e => e.Location).IsRequired().HasMaxLength(300);
+        builder.Property(e => e.Address).HasMaxLength(500);              // MỚI
         builder.Property(e => e.City).IsRequired().HasMaxLength(100);
         builder.Property(e => e.RegisterUrl).HasMaxLength(500);
         builder.Property(e => e.Fee).HasColumnType("decimal(18,0)");
+        builder.Property(e => e.ExternalId).HasMaxLength(100);           // MỚI
+        builder.Property(e => e.ExternalSource).HasMaxLength(50);
 
         builder.HasMany(e => e.Reminders)
             .WithOne(r => r.ExamSchedule)

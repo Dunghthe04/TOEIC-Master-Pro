@@ -7,7 +7,7 @@ public interface IExamScheduleService
 {
     // city/month/year/isActive = null → không lọc (Day 20 UI dùng)
     Task<IReadOnlyList<ExamScheduleResponse>> GetListAsync(
-        string? city, int? month, int? year, bool? isActive);
+    string? city, int? month, int? year, bool? isActive, string? title, string? location);
 
     Task<Result<ExamScheduleResponse>> GetByIdAsync(Guid id);
     Task<Result<Guid>> CreateAsync(CreateExamScheduleRequest req);

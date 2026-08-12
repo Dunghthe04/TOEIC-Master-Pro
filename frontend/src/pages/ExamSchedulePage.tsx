@@ -47,6 +47,11 @@ export default function ExamSchedulePage() {
     const [remindedIds, setRemindedIds] = useState<Set<string>>(new Set())
     const [togglingId, setTogglingId] = useState<string | null>(null)
 
+    const [examTitle, setExamTitle] = useState('all')
+    const [officeLocation, setOfficeLocation] = useState('all')
+    const [status, setStatus] = useState('open')   // 'open' | 'closed' | 'all'
+
+
     const load = async () => {
         setLoading(true)
         try {
@@ -54,7 +59,9 @@ export default function ExamSchedulePage() {
                 city: city !== 'all' ? city : undefined,
                 month: month !== 'all' ? Number(month) : undefined,
                 year: year !== 'all' ? Number(year) : undefined,
-                isActive: true,
+                isActive: status === 'all' ? undefined : status === 'open',   // đổi: bỏ hardcode true
+                title: examTitle !== 'all' ? examTitle : undefined,            // MỚI
+                location: officeLocation !== 'all' ? officeLocation : undefined, // MỚI
             })
             setItems(data)
 
@@ -73,7 +80,7 @@ export default function ExamSchedulePage() {
         }
     }
 
-    useEffect(() => { load() }, [city, month, year])
+    useEffect(() => { load() }, [city, month, year, examTitle, officeLocation, status])
 
     const openRegister = (url: string | null) => {
         if (!url) {
@@ -116,7 +123,8 @@ export default function ExamSchedulePage() {
             toast.error('Không tải được file iCal')
         }
     }
-
+    const examTitles = Array.from(new Set(items.map(i => i.title))).sort()
+    const officeLocations = Array.from(new Set(items.map(i => i.location))).sort()
     return (
         <div className="p-6 space-y-6">
             <div>
@@ -157,6 +165,36 @@ export default function ExamSchedulePage() {
                         ))}
                     </SelectContent>
                 </Select>
+
+                <Select value={examTitle} onValueChange={setExamTitle}>
+                    <SelectTrigger className="w-56"><SelectValue placeholder="Bài thi" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Tất cả bài thi</SelectItem>
+                        {examTitles.map(t => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={officeLocation} onValueChange={setOfficeLocation}>
+                    <SelectTrigger className="w-48"><SelectValue placeholder="Địa điểm" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Tất cả địa điểm</SelectItem>
+                        {officeLocations.map(l => (
+                            <SelectItem key={l} value={l}>{l}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="w-32"><SelectValue placeholder="Trạng thái" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="open">Đang mở</SelectItem>
+                        <SelectItem value="closed">Đã đóng</SelectItem>
+                        <SelectItem value="all">Tất cả</SelectItem>
+                    </SelectContent>
+                </Select>
+
             </div>
 
             {loading ? (
@@ -189,12 +227,12 @@ export default function ExamSchedulePage() {
                                         <Calendar className="w-4 h-4 text-muted-foreground" />
                                         {formatDate(item.examDate)} · {formatTime(item.startTime)}
                                     </p>
-                                    <p>
-                                        Hạn ĐK: <strong>{formatDate(item.registrationDeadline)}</strong>
-                                    </p>
-                                    <p>
-                                        Phí: <strong>{formatFee(item.fee)}</strong>
-                                    </p>
+                                    {item.registrationDeadline && (
+                                        <p>Hạn ĐK: <strong>{formatDate(item.registrationDeadline)}</strong></p>
+                                    )}
+                                    {item.fee != null && (
+                                        <p>Phí: <strong>{formatFee(item.fee)}</strong></p>
+                                    )}
                                     {item.availableSlots != null && (
                                         <p>Chỗ còn: {item.availableSlots}</p>
                                     )}

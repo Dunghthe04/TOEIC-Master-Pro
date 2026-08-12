@@ -6,13 +6,15 @@ public record ExamScheduleResponse(
     string Title,
     string Organizer,
     string Location,
+    string? Address,          
     string City,
     DateTime ExamDate,
     TimeSpan StartTime,
-    DateTime RegistrationDeadline,
-    decimal Fee,
+    DateTime? RegistrationDeadline,
+    decimal? Fee,
     int? AvailableSlots,
     string? RegisterUrl,
     bool IsActive,
     DateTime CreatedAt
 );
+

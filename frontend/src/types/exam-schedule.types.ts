@@ -4,11 +4,12 @@ export interface ExamSchedule {
     title: string
     organizer: string
     location: string
+    address: string | null      // MỚI
     city: string
     examDate: string            // ISO: "2026-08-15T00:00:00"
     startTime: string           // "08:30:00"
-    registrationDeadline: string
-    fee: number
+    registrationDeadline: string | null   // đổi: null với bản ghi sync IIG
+    fee: number | null                    // đổi: null với bản ghi sync IIG
     availableSlots: number | null
     registerUrl: string | null
     isActive: boolean
@@ -21,4 +22,6 @@ export interface ExamScheduleFilter {
     month?: number
     year?: number
     isActive?: boolean
+    title?: string        // MỚI — Bài thi
+    location?: string     // MỚI — Địa điểm
 }

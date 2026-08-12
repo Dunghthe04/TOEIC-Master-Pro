@@ -68,9 +68,11 @@ public class ExamScheduleController : ControllerBase
         [FromQuery] string? city,
         [FromQuery] int? month,
         [FromQuery] int? year,
-        [FromQuery] bool? isActive)
+        [FromQuery] bool? isActive,
+        [FromQuery] string? title,      // MỚI — Bài thi
+        [FromQuery] string? location)   // MỚI — Địa điểm
     {
-        var result = await _service.GetListAsync(city, month, year, isActive);
+        var result = await _service.GetListAsync(city, month, year, isActive, title, location);
         return Ok(result);
     }
 
