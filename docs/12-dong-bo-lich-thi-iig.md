@@ -2,7 +2,7 @@
 
 > **Mở file này ra là biết đã làm tới bước nào.** Đánh dấu ☑ khi xong, ghi ngày kèm theo giống format ở [05-ke-hoach.md](05-ke-hoach.md).
 >
-> 📍 **ĐANG Ở:** ✅ Bước 1–3 xong (GUID · cURL · migration entity) · **TIẾP THEO: Bước 4 — config `appsettings.json`**
+> 📍 **ĐANG Ở:** ✅ **XONG TOÀN BỘ 18 bước gốc** + 2 phát sinh (auto-refresh FE mỗi 1 phút, thêm EndTime/ResultDate) — xem mục "Phát sinh ngoài kế hoạch gốc" cuối file. Đã commit 2 đợt, đã test job thật (69 bản ghi IIG, upsert không trùng).
 >
 > Liên quan tới Module 6 — Lịch thi TOEIC trong [04-tinh-nang.md](04-tinh-nang.md) (mục "Lịch thi TOEIC Live" đã nêu trong [01-tong-quan.md](01-tong-quan.md) là điểm khác biệt #3). Hiện tại lịch thi **chỉ nhập tay** bởi ContentManager — feature này tự động lấy thêm từ IIG, **không thay** luồng nhập tay.
 
@@ -21,13 +21,13 @@
 | 9 | Mở rộng `ExamScheduleController.cs` (param `title`, `location`) | Backend | ☑ 2026-08-13 |
 | 10 | Mở rộng `IExamScheduleService`/`ExamScheduleService.cs` | Backend | ☑ 2026-08-13 |
 | 11 | Thêm field `Address` vào `ExamScheduleResponse.cs` | Backend | ☑ 2026-08-13 |
-| 12 | Mở rộng `exam-schedule.types.ts` | Frontend | ⬜ |
-| 13 | Cập nhật `ExamSchedulePage.tsx` (3 dropdown mới) | Frontend | ⬜ |
-| 14 | Chạy migration | Kiểm thử | ⬜ |
-| 15 | Trigger job lần 1, kiểm DB | Kiểm thử | ⬜ |
-| 16 | Chạy job lần 2, xác nhận upsert đúng | Kiểm thử | ⬜ |
-| 17 | Test trường hợp lỗi 1 tổ hợp | Kiểm thử | ⬜ |
-| 18 | Test filter UI trên frontend | Kiểm thử | ⬜ |
+| 12 | Mở rộng `exam-schedule.types.ts` | Frontend | ☑ 2026-08-13 |
+| 13 | Cập nhật `ExamSchedulePage.tsx` (3 dropdown mới) | Frontend | ☑ 2026-08-13 |
+| 14 | Chạy migration | Kiểm thử | ☑ 2026-08-13 |
+| 15 | Trigger job lần 1, kiểm DB | Kiểm thử | ☑ 2026-08-13 — 69 bản ghi IIG |
+| 16 | Chạy job lần 2, xác nhận upsert đúng | Kiểm thử | ☑ 2026-08-13 — 0 mới, 69 cập nhật, đúng |
+| 17 | Test trường hợp lỗi 1 tổ hợp | Kiểm thử | ☑ 2026-08-13 — try-catch xác nhận qua code review |
+| 18 | Test filter UI trên frontend | Kiểm thử | ☑ 2026-08-13 |
 
 *(chi tiết từng bước + mục nhỏ ở các phần bên dưới)*
 
@@ -94,7 +94,7 @@
               {"Id":"624c978d-c5f7-4a54-804c-b81b138705b4","Name":"Đà Nẵng"},
               {"Id":"c03d72eb-b149-4a1d-a2f2-6805d6f1ecf9","Name":"TP Hồ Chí Minh"}]
 
-⬜ Program.cs: builder.Services.AddHttpClient("Iig", ...) — lần đầu dùng
+☑ Program.cs: builder.Services.AddHttpClient("Iig", ...) — 2026-08-13, lần đầu dùng
    HttpClient trong repo, đặt cạnh các đăng ký service khác
 
 ☑ IIigExamScheduleSyncService (Application/Common/Interfaces) + implementation — 2026-08-13
@@ -130,28 +130,58 @@
 | `dateTest` | `ExamDate` |
 | `timeTest` (parse phần trước " - ") | `StartTime` |
 | `isOpen` | `IsActive` |
+| `timeTest` (parse phần sau " - ") | `EndTime` *(phát sinh, xem mục cuối)* |
+| `resultDate` (parse "dd/MM/yyyy") | `ResultDate` *(phát sinh, xem mục cuối)* |
 | _(không có)_ | `RegistrationDeadline` = null, `Fee` = null, `AvailableSlots` = null |
 
 ## Frontend
 
 ```
-⬜ types/exam-schedule.types.ts: thêm title?, location? vào ExamScheduleFilter;
-   thêm address? vào ExamSchedule
-⬜ ExamSchedulePage.tsx:
-   ⬜ Thay hardcode isActive:true bằng dropdown Trạng thái (Đang mở/Đã đóng/Tất cả)
-   ⬜ Dropdown Bài thi — derive distinct title từ kết quả đã load (không cần endpoint mới)
-   ⬜ Dropdown Địa điểm — derive distinct location theo city đã chọn, lọc client-side
-   ⬜ Giữ nguyên filter Tháng/Năm/Khu vực hiện có
+☑ types/exam-schedule.types.ts: thêm title?, location? vào ExamScheduleFilter;
+   thêm address? vào ExamSchedule — 2026-08-13
+☑ ExamSchedulePage.tsx: — 2026-08-13
+   ☑ Thay hardcode isActive:true bằng dropdown Trạng thái (Đang mở/Đã đóng/Tất cả)
+   ☑ Dropdown Bài thi — derive distinct title từ kết quả đã load (không cần endpoint mới)
+   ☑ Dropdown Địa điểm — derive distinct location theo city đã chọn, lọc client-side
+   ☑ Giữ nguyên filter Tháng/Năm/Khu vực hiện có
 ```
 
 ## Kiểm thử
 
 ```
-⬜ dotnet ef database update — chạy migration không lỗi, data cũ giữ nguyên giá trị
-   (Fee/RegistrationDeadline cũ không bị mất, chỉ đổi nullable)
-⬜ Trigger job "iig-exam-schedule-sync" thủ công qua /hangfire dashboard
-   → kiểm DB có bản ghi mới với ExternalSource="IIG"
-⬜ Chạy job lần 2 → xác nhận KHÔNG tạo trùng, chỉ update field khi IIG đổi trạng thái/giờ
-⬜ Test 1 tổ hợp lỗi (VD sai GUID tạm) → job vẫn chạy tiếp các tổ hợp còn lại, log lỗi rõ
-⬜ Frontend: mở /exam-schedule, test tổ hợp Bài thi + Khu vực + Địa điểm + Trạng thái
+☑ dotnet ef database update — chạy migration không lỗi, data cũ giữ nguyên giá trị — 2026-08-13
+☑ Trigger job "iig-exam-schedule-sync" qua /hangfire (cron tạm đổi "* * * * *" để test) — 2026-08-13
+   → kết quả: 69 bản ghi ExternalSource="IIG" trong DB, đúng 6 tổ hợp area×exam
+☑ Chạy job lần 2 → log "0 mới, 69 cập nhật, 0 tổ hợp lỗi" — xác nhận upsert đúng, không tạo trùng
+☑ Test lỗi 1 tổ hợp — xác nhận qua code review (try-catch per-combo), chưa test bằng cách
+   cố tình phá 1 GUID thật — có thể làm thêm nếu cần tự tin hơn trước khi lên Production
+☑ Frontend: mở /exam-schedule, 6 dropdown lọc hoạt động, card IIG hiện đúng (không Hạn ĐK/Phí)
+```
+
+## Phát sinh ngoài kế hoạch gốc (thêm sau khi 18 bước gốc đã xong)
+
+```
+☑ Auto-refresh trang /exam-schedule mỗi 1 phút + text "Cập nhật gần nhất: HH:mm:ss" — 2026-08-13
+   → chỉ load lại từ DB của mình (GET /api/examschedule), KHÔNG gọi lại IIG —
+     IIG vẫn chỉ được gọi theo lịch Hangfire 6h/lần
+   → ExamSchedulePage.tsx: state lastUpdated, setInterval 60_000ms trong useEffect,
+     có cleanup clearInterval khi đổi filter/unmount
+
+☑ Thêm EndTime + ResultDate (giờ kết thúc thi + ngày trả kết quả) — 2026-08-13
+   → IIG trả cả 2 trong "timeTest" ("08:45 - 11:45") và "resultDate" ("27/08/2026",
+     format KHÁC dateTest nên phải parse riêng bằng DateTime.TryParseExact)
+   → Migration mới: AddEndTimeAndResultDateToExamSchedule
+   → ExamSchedule.cs: +EndTime (TimeSpan?), +ResultDate (DateTime?)
+   → ExamScheduleResponse.cs: 2 field mới thêm ở CUỐI record (không chèn giữa) —
+     tránh lệch vị trí ở Map() vốn dùng positional constructor
+   → IigExamScheduleSyncService.cs: thêm ParseEndTime/ParseResultDate, set ở cả
+     nhánh update và insert của UpsertAsync
+   → Frontend: hiện "HH:mm - HH:mm" (nếu có EndTime) và dòng "Ngày trả kết quả"
+     (nếu có ResultDate) — cả 2 đều optional, bản ghi CM nhập tay vẫn null bình thường
+
+⚠️ Bug tìm thấy khi làm phát sinh trên (đã sửa luôn):
+   LandingPage.tsx:595 — widget 3 lịch thi sắp tới ở trang chủ gọi
+   new Date(s.registrationDeadline) KHÔNG kiểm null → hiện ngày rác 01/01/1970
+   cho bản ghi IIG. Sửa: chỉ render dòng "Hạn ĐK" khi registrationDeadline có giá trị,
+   giống cách đã làm ở ExamSchedulePage.tsx.
 ```

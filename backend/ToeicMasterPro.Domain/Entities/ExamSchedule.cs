@@ -11,6 +11,7 @@ public class ExamSchedule : BaseEntity
     public string City { get; set; } = string.Empty;
     public DateTime ExamDate { get; set; }
     public TimeSpan StartTime { get; set; }
+    public TimeSpan? EndTime { get; set; }
     public DateTime? RegistrationDeadline { get; set; }
     public decimal? Fee { get; set; }
     public int? AvailableSlots { get; set; }
@@ -18,6 +19,7 @@ public class ExamSchedule : BaseEntity
     public bool IsActive { get; set; } = true;
     public string? ExternalId { get; set; }
     public string? ExternalSource { get; set; }
+    public DateTime? ResultDate { get; set; }
 
     public ICollection<UserExamReminder> Reminders { get; set; } = [];
 }

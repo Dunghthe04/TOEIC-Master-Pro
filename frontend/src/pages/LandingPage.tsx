@@ -590,10 +590,12 @@ export default function LandingPage() {
                                         <p className="flex items-center gap-1.5">
                                             <MapPin size={14} className="shrink-0 text-gray-400" /> {s.city}
                                         </p>
-                                        <p className="flex items-center gap-1.5">
-                                            <CalendarDays size={14} className="shrink-0 text-gray-400" />
-                                            Hạn ĐK: {new Date(s.registrationDeadline).toLocaleDateString('vi-VN')}
-                                        </p>
+                                        {s.registrationDeadline && (
+                                            <p className="flex items-center gap-1.5">
+                                                <CalendarDays size={14} className="shrink-0 text-gray-400" />
+                                                Hạn ĐK: {new Date(s.registrationDeadline).toLocaleDateString('vi-VN')}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <button

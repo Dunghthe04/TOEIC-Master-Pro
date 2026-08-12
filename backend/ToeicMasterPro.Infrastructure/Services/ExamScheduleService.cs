@@ -158,7 +158,8 @@ public class ExamScheduleService : IExamScheduleService
     private static ExamScheduleResponse Map(ExamSchedule e) => new(
         e.Id, e.Title, e.Organizer, e.Location, e.Address, e.City,
         e.ExamDate, e.StartTime, e.RegistrationDeadline,
-        e.Fee, e.AvailableSlots, e.RegisterUrl, e.IsActive, e.CreatedAt
+        e.Fee, e.AvailableSlots, e.RegisterUrl, e.IsActive, e.CreatedAt,
+        e.EndTime, e.ResultDate
     );
 
 

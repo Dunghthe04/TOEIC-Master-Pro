@@ -8,12 +8,14 @@ export interface ExamSchedule {
     city: string
     examDate: string            // ISO: "2026-08-15T00:00:00"
     startTime: string           // "08:30:00"
+    endTime: string | null      // MỚI — "11:45:00"
     registrationDeadline: string | null   // đổi: null với bản ghi sync IIG
     fee: number | null                    // đổi: null với bản ghi sync IIG
     availableSlots: number | null
     registerUrl: string | null
     isActive: boolean
     createdAt: string
+    resultDate: string | null   // MỚI — ngày trả kết quả, chỉ có ở bản ghi sync IIG
 }
 
 // Tham số query GET /api/examschedule

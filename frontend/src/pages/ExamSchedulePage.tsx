@@ -37,6 +37,10 @@ function formatTime(time: string) {
     return time.slice(0, 5)
 }
 
+function formatUpdatedAt(d: Date) {
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 export default function ExamSchedulePage() {
     const [items, setItems] = useState<ExamSchedule[]>([])
     const [loading, setLoading] = useState(true)
@@ -50,6 +54,7 @@ export default function ExamSchedulePage() {
     const [examTitle, setExamTitle] = useState('all')
     const [officeLocation, setOfficeLocation] = useState('all')
     const [status, setStatus] = useState('open')   // 'open' | 'closed' | 'all'
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
 
     const load = async () => {
@@ -64,6 +69,7 @@ export default function ExamSchedulePage() {
                 location: officeLocation !== 'all' ? officeLocation : undefined, // MỚI
             })
             setItems(data)
+            setLastUpdated(new Date())
 
             // Load trạng thái chuông (cần đã login)
             try {
@@ -80,7 +86,11 @@ export default function ExamSchedulePage() {
         }
     }
 
-    useEffect(() => { load() }, [city, month, year, examTitle, officeLocation, status])
+    useEffect(() => {
+        load()
+        const interval = setInterval(load, 60_000)   // mỗi 1 phút gọi lại /api/examschedule
+        return () => clearInterval(interval)          // dọn interval cũ khi đổi filter/unmount
+    }, [city, month, year, examTitle, officeLocation, status])
 
     const openRegister = (url: string | null) => {
         if (!url) {
@@ -132,6 +142,11 @@ export default function ExamSchedulePage() {
                 <p className="text-sm text-muted-foreground mt-1">
                     Xem lịch thi IIG / BC do hệ thống cập nhật. Đăng ký thi thật trên trang tổ chức.
                 </p>
+                {lastUpdated && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Cập nhật gần nhất: {formatUpdatedAt(lastUpdated)}
+                    </p>
+                )}
             </div>
 
             {/* Bộ lọc — giá trị "all" = không gửi param lên API */}
@@ -226,12 +241,16 @@ export default function ExamSchedulePage() {
                                     <p className="flex items-center gap-2">
                                         <Calendar className="w-4 h-4 text-muted-foreground" />
                                         {formatDate(item.examDate)} · {formatTime(item.startTime)}
+                                        {item.endTime && ` - ${formatTime(item.endTime)}`}
                                     </p>
                                     {item.registrationDeadline && (
                                         <p>Hạn ĐK: <strong>{formatDate(item.registrationDeadline)}</strong></p>
                                     )}
                                     {item.fee != null && (
                                         <p>Phí: <strong>{formatFee(item.fee)}</strong></p>
+                                    )}
+                                    {item.resultDate && (
+                                        <p>Ngày trả kết quả: <strong>{formatDate(item.resultDate)}</strong></p>
                                     )}
                                     {item.availableSlots != null && (
                                         <p>Chỗ còn: {item.availableSlots}</p>

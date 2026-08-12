@@ -122,6 +122,8 @@ public class IigExamScheduleSyncService : IIigExamScheduleSyncService
             e.ExternalSource == "IIG" && e.ExternalId == item.Id)).FirstOrDefault();
 
         var startTime = ParseStartTime(item.TimeTest);
+        var endTime = ParseEndTime(item.TimeTest);
+        var resultDate = ParseResultDate(item.ResultDate);
 
         if (existing is not null)
         {
@@ -131,7 +133,9 @@ public class IigExamScheduleSyncService : IIigExamScheduleSyncService
             existing.City = item.Area;
             existing.ExamDate = item.DateTest;
             existing.StartTime = startTime;
+            existing.EndTime = endTime;
             existing.IsActive = item.IsOpen; // IIG đổi "Đang mở" ↔ "Đã đóng" thì lần sync sau tự cập nhật
+            existing.ResultDate = resultDate;
             existing.SetUpdatedAt();
             repo.Update(existing);
             return false;
@@ -148,7 +152,9 @@ public class IigExamScheduleSyncService : IIigExamScheduleSyncService
             City = item.Area,
             ExamDate = item.DateTest,
             StartTime = startTime,
+            EndTime = endTime,
             IsActive = item.IsOpen,
+            ResultDate = resultDate,
             // IIG không trả 3 field này — để null thay vì 0/DateTime.MinValue
             // (đã đổi ExamSchedule sang nullable cho đúng ở bước 3, FE cũng không hiển thị)
             RegistrationDeadline = null,
@@ -167,6 +173,22 @@ public class IigExamScheduleSyncService : IIigExamScheduleSyncService
         return TimeSpan.Parse(startPart);
     }
 
+    private static TimeSpan? ParseEndTime(string timeTest)
+    {
+        var parts = timeTest.Split('-');
+        if (parts.Length < 2) return null;
+        return TimeSpan.TryParse(parts[1].Trim(), out var t) ? t : null;
+    }
+
+    private static DateTime? ParseResultDate(string? resultDate)
+    {
+        // IIG trả "dd/MM/yyyy" (VD "27/08/2026") — KHÁC định dạng ISO của dateTest,
+        // nên không dùng DateTime thường trong record (sẽ throw lúc deserialize JSON).
+        return DateTime.TryParseExact(resultDate, "dd/MM/yyyy",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+    }
+
     // 2 record dưới đây CHỈ để deserialize JSON của IIG — không phải DTO của hệ thống mình.
     // Tên field JsonPropertyName phải khớp CHÍNH XÁC key trong response (xem ảnh Postman ban đầu).
 
@@ -182,5 +204,6 @@ public class IigExamScheduleSyncService : IIigExamScheduleSyncService
         [property: JsonPropertyName("area")] string Area,
         [property: JsonPropertyName("dateTest")] DateTime DateTest,
         [property: JsonPropertyName("timeTest")] string TimeTest,
+        [property: JsonPropertyName("resultDate")] string? ResultDate,
         [property: JsonPropertyName("isOpen")] bool IsOpen);
 }

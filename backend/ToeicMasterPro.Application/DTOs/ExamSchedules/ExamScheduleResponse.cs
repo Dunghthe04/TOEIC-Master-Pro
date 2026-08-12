@@ -15,6 +15,8 @@ public record ExamScheduleResponse(
     int? AvailableSlots,
     string? RegisterUrl,
     bool IsActive,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    TimeSpan? EndTime,      // MỚI — thêm cuối, không xáo trộn vị trí các field cũ (record positional)
+    DateTime? ResultDate    // MỚI
 );
 
