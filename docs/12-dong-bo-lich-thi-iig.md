@@ -184,4 +184,17 @@
    new Date(s.registrationDeadline) KHÔNG kiểm null → hiện ngày rác 01/01/1970
    cho bản ghi IIG. Sửa: chỉ render dòng "Hạn ĐK" khi registrationDeadline có giá trị,
    giống cách đã làm ở ExamSchedulePage.tsx.
+
+☑ Làm đẹp UI trang /exam-schedule — 2026-08-13 (commit "Làm đẹp trang lịch thi")
+   → Filter: mọi SelectTrigger to hơn (h-11, rounded-xl, shadow-sm), gom vào 1
+     khung toolbar bo góc thay vì các select rời rạc
+   → Card: rounded-2xl, hover nhích lên + đổ bóng, badge tổ chức màu xanh,
+     icon đồng bộ màu, tách riêng dòng giờ thi (icon Clock)
+   → Bỏ nút Download (.ics) khỏi card — xóa luôn handleIcal() + import Download
+     không dùng (service downloadIcal() vẫn giữ, backend GetIcalAsync vẫn còn,
+     chỉ bỏ lối vào từ UI này)
+   → Nút "Đăng ký": trước đây LUÔN disabled với bản ghi IIG vì registerUrl sync
+     về luôn null — thêm fallback sang IIG_REGISTER_URL khi organizer === "IIG"
+     và không có registerUrl riêng; KHÔNG áp dụng fallback cho tổ chức khác
+     (tránh trỏ nhầm người dùng của BC/tổ chức khác sang trang đăng ký IIG)
 ```
