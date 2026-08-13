@@ -12,10 +12,13 @@ import {
 import { Calendar, MapPin, Building2, ExternalLink, Bell, BellRing, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
-// Danh sách tỉnh hay thi — phải khớp chữ City mà CM nhập khi tạo lịch
+// Danh sách tỉnh hay thi — phải khớp CHÍNH XÁC chữ City lưu trong DB.
+// "TP Hồ Chí Minh" (không viết tắt "TP.HCM") vì đó là chuỗi IIG trả về trong field "area",
+// được lưu thẳng vào City lúc sync (IigExamScheduleSyncService.UpsertAsync) — filter so khớp
+// tuyệt đối (e.City == city) nên lệch 1 ký tự là ra danh sách rỗng, không lỗi rõ ràng gì cả.
 const CITIES = [
     'Hà Nội',
-    'TP.HCM',
+    'TP Hồ Chí Minh',
     'Đà Nẵng',
     'Hải Phòng',
     'Cần Thơ',
