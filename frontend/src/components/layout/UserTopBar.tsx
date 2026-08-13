@@ -7,7 +7,7 @@
  * Menu gộp 7 mục phẳng thành 4 nhóm (xem USER_NAV) vì 7 mục chật trên laptop 1366px.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, Flame, LogOut, Menu, User as UserIcon, X, Zap } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { USER_NAV, type NavItem } from '@/lib/roles'
@@ -15,7 +15,6 @@ import { getMediaUrl } from '@/lib/media'
 import { authService } from '@/services/auth.service'
 
 export default function UserTopBar() {
-    const navigate = useNavigate()
     const location = useLocation()
     const { user, logout } = useAuthStore()
 
@@ -49,8 +48,15 @@ export default function UserTopBar() {
         } catch {
             // Lỗi mạng lúc gọi logout không được kẹt user lại trong app — vẫn thoát ở finally
         } finally {
-            logout()   // xóa state RAM (accessToken, user, isAuthenticated)
-            navigate('/login')
+            // HARD redirect (window.location), KHÔNG dùng navigate() của React Router.
+            // Đã thử 3 cách điều hướng SPA (đổi thứ tự, setTimeout, unstable_batchedUpdates)
+            // — vẫn dính race giữa ProtectedRoute (route cũ thấy isAuthenticated=false →
+            // tự <Navigate to="/login"/>) và effect "đã login thì về home" của LandingPage
+            // (route mới thấy isAuthenticated vẫn true vì chưa kịp xóa). Load lại trang
+            // từ đầu thì không còn state "nửa vời" nào để 2 effect đó tranh nhau —
+            // logout() xong rồi mới rời trang, App mount lại 100% sạch với isAuthenticated=false.
+            logout()   // xóa state RAM + ghi localStorage (persist middleware) TRƯỚC khi rời trang
+            window.location.href = '/'
         }
     }
 

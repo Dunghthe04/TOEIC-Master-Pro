@@ -1,11 +1,9 @@
 import { LogOut } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth.store'
 import { authService } from '@/services/auth.service'
 
 export default function Header() {
-    const navigate = useNavigate()
     const { user, logout } = useAuthStore()
 
     const handleLogout = async () => {
@@ -14,8 +12,15 @@ export default function Header() {
         } catch {
             // Lỗi mạng lúc gọi logout không được kẹt user lại trong app — vẫn thoát ở finally
         } finally {
-            logout()   // xóa state RAM (accessToken, user, isAuthenticated)
-            navigate('/login')
+            // HARD redirect (window.location), KHÔNG dùng navigate() của React Router.
+            // Đã thử 3 cách điều hướng SPA (đổi thứ tự, setTimeout, unstable_batchedUpdates)
+            // — vẫn dính race giữa ProtectedRoute (route cũ thấy isAuthenticated=false →
+            // tự <Navigate to="/login"/>) và effect "đã login thì về home" của LandingPage
+            // (route mới thấy isAuthenticated vẫn true vì chưa kịp xóa). Load lại trang
+            // từ đầu thì không còn state "nửa vời" nào để 2 effect đó tranh nhau —
+            // logout() xong rồi mới rời trang, App mount lại 100% sạch với isAuthenticated=false.
+            logout()   // xóa state RAM + ghi localStorage (persist middleware) TRƯỚC khi rời trang
+            window.location.href = '/'
         }
     }
 

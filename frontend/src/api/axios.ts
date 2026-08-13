@@ -71,11 +71,17 @@ api.interceptors.response.use(
                     : undefined
 
                 if (status === 401) {
+                    // CHỈ xóa state, KHÔNG hard-redirect '/login' ở đây nữa.
+                    // Lý do: interceptor này chạy cho MỌI request, kể cả request "optional"
+                    // ở trang CÔNG KHAI (VD ExamSchedulePage gọi getMyReminders() để biết
+                    // chuông nào đã bật — khách chưa đăng nhập 401 là BÌNH THƯỜNG, trang
+                    // vẫn phải xem được, code gọi đã tự bắt lỗi này rồi).
+                    // Hard-redirect trước đây đè lên MỌI trang bất kể công khai hay không.
+                    // Với trang THẬT SỰ cần đăng nhập, logout() ở đây đã đủ: nó set
+                    // isAuthenticated=false trong store, ProtectedRoute tự re-render và
+                    // <Navigate to="/login"/> ngay — không cần ép thêm bằng window.location.
                     useAuthStore.getState().logout()
                     try { localStorage.removeItem('auth-storage') } catch { /* ignore */ }
-                    if (!window.location.pathname.startsWith('/login')) {
-                        window.location.href = '/login'
-                    }
                 }
                 // Không phải 401 → để lỗi gốc rơi xuống dưới cho caller tự xử lý/retry.
             }
