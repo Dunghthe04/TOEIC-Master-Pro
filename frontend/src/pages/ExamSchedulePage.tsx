@@ -9,7 +9,7 @@ import {
 import {
     Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from '@/components/ui/card'
-import { Calendar, MapPin, Building2, ExternalLink, Bell, BellRing, Download } from 'lucide-react'
+import { Calendar, MapPin, Building2, ExternalLink, Bell, BellRing, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Danh sách tỉnh hay thi — phải khớp chữ City mà CM nhập khi tạo lịch
@@ -20,6 +20,13 @@ const CITIES = [
     'Hải Phòng',
     'Cần Thơ',
 ]
+
+// Fallback khi lịch (nguồn IIG) không có registerUrl riêng — trang đăng ký thi chung của IIG
+const IIG_REGISTER_URL =
+    'https://online.iigvietnam.com/vi/test-registration?exam=TOEIC-OL&type=1&_gl=1*sqvxsw*_gcl_au*OTU4NDgyMTU1LjE3ODQ0MzI2MTA.'
+
+// Class chung cho mọi SelectTrigger trên trang này — to hơn mặc định (h-8) cho dễ bấm/dễ đọc
+const FILTER_TRIGGER_CLASS = 'h-11 rounded-xl text-sm px-4 shadow-sm'
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
 const YEARS = [2025, 2026, 2027]
@@ -125,14 +132,6 @@ export default function ExamSchedulePage() {
         }
     }
 
-    const handleIcal = async (id: string) => {
-        try {
-            await ExamScheduleService.downloadIcal(id)
-            toast.success('Đã tải file lịch (.ics)')
-        } catch {
-            toast.error('Không tải được file iCal')
-        }
-    }
     const examTitles = Array.from(new Set(items.map(i => i.title))).sort()
     const officeLocations = Array.from(new Set(items.map(i => i.location))).sort()
     return (
@@ -150,9 +149,9 @@ export default function ExamSchedulePage() {
             </div>
 
             {/* Bộ lọc — giá trị "all" = không gửi param lên API */}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 rounded-2xl border bg-muted/30 p-4">
                 <Select value={city} onValueChange={setCity}>
-                    <SelectTrigger className="w-40"><SelectValue placeholder="Tỉnh/TP" /></SelectTrigger>
+                    <SelectTrigger className={`w-44 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Tỉnh/TP" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả tỉnh</SelectItem>
                         {CITIES.map(c => (
@@ -162,7 +161,7 @@ export default function ExamSchedulePage() {
                 </Select>
 
                 <Select value={month} onValueChange={setMonth}>
-                    <SelectTrigger className="w-36"><SelectValue placeholder="Tháng" /></SelectTrigger>
+                    <SelectTrigger className={`w-36 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Tháng" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả tháng</SelectItem>
                         {MONTHS.map(m => (
@@ -172,7 +171,7 @@ export default function ExamSchedulePage() {
                 </Select>
 
                 <Select value={year} onValueChange={setYear}>
-                    <SelectTrigger className="w-32"><SelectValue placeholder="Năm" /></SelectTrigger>
+                    <SelectTrigger className={`w-32 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Năm" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả năm</SelectItem>
                         {YEARS.map(y => (
@@ -182,7 +181,7 @@ export default function ExamSchedulePage() {
                 </Select>
 
                 <Select value={examTitle} onValueChange={setExamTitle}>
-                    <SelectTrigger className="w-56"><SelectValue placeholder="Bài thi" /></SelectTrigger>
+                    <SelectTrigger className={`w-64 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Bài thi" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả bài thi</SelectItem>
                         {examTitles.map(t => (
@@ -192,7 +191,7 @@ export default function ExamSchedulePage() {
                 </Select>
 
                 <Select value={officeLocation} onValueChange={setOfficeLocation}>
-                    <SelectTrigger className="w-48"><SelectValue placeholder="Địa điểm" /></SelectTrigger>
+                    <SelectTrigger className={`w-56 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Địa điểm" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả địa điểm</SelectItem>
                         {officeLocations.map(l => (
@@ -202,14 +201,13 @@ export default function ExamSchedulePage() {
                 </Select>
 
                 <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger className="w-32"><SelectValue placeholder="Trạng thái" /></SelectTrigger>
+                    <SelectTrigger className={`w-36 ${FILTER_TRIGGER_CLASS}`}><SelectValue placeholder="Trạng thái" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="open">Đang mở</SelectItem>
                         <SelectItem value="closed">Đã đóng</SelectItem>
                         <SelectItem value="all">Tất cả</SelectItem>
                     </SelectContent>
                 </Select>
-
             </div>
 
             {loading ? (
@@ -217,30 +215,39 @@ export default function ExamSchedulePage() {
             ) : items.length === 0 ? (
                 <p className="text-muted-foreground">Không có lịch thi phù hợp.</p>
             ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map(item => {
                         const isReminded = remindedIds.has(item.id)
+                        // Bản ghi IIG (sync tự động) không có registerUrl riêng → dùng trang đăng ký chung của IIG
+                        const registerHref = item.registerUrl ?? (item.organizer === 'IIG' ? IIG_REGISTER_URL : null)
                         return (
-                            <Card key={item.id}>
+                            <Card
+                                key={item.id}
+                                className="rounded-2xl border-muted-foreground/10 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                            >
                                 <CardHeader>
                                     <div className="flex items-start justify-between gap-2">
-                                        <CardTitle className="text-lg">{item.title}</CardTitle>
-                                        <Badge variant="secondary">{item.organizer}</Badge>
+                                        <CardTitle className="text-lg leading-snug">{item.title}</CardTitle>
+                                        <Badge className="shrink-0 bg-blue-600 text-white hover:bg-blue-600">{item.organizer}</Badge>
                                     </div>
-                                    <CardDescription className="flex items-center gap-1">
-                                        <Building2 className="w-3.5 h-3.5" />
+                                    <CardDescription className="flex items-center gap-1.5">
+                                        <Building2 className="w-3.5 h-3.5 shrink-0" />
                                         {item.location}
                                     </CardDescription>
                                 </CardHeader>
 
-                                <CardContent className="space-y-2 text-sm">
+                                <CardContent className="space-y-2.5 text-sm">
                                     <p className="flex items-center gap-2">
-                                        <MapPin className="w-4 h-4 text-muted-foreground" />
+                                        <MapPin className="w-4 h-4 shrink-0 text-blue-500" />
                                         {item.city}
                                     </p>
                                     <p className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                                        {formatDate(item.examDate)} · {formatTime(item.startTime)}
+                                        <Calendar className="w-4 h-4 shrink-0 text-blue-500" />
+                                        {formatDate(item.examDate)}
+                                    </p>
+                                    <p className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 shrink-0 text-blue-500" />
+                                        {formatTime(item.startTime)}
                                         {item.endTime && ` - ${formatTime(item.endTime)}`}
                                     </p>
                                     {item.registrationDeadline && (
@@ -259,9 +266,9 @@ export default function ExamSchedulePage() {
 
                                 <CardFooter className="flex gap-2">
                                     <Button
-                                        className="flex-1"
-                                        disabled={!item.registerUrl}
-                                        onClick={() => openRegister(item.registerUrl)}
+                                        className="flex-1 rounded-xl"
+                                        disabled={!registerHref}
+                                        onClick={() => openRegister(registerHref)}
                                     >
                                         <ExternalLink className="w-4 h-4 mr-2" />
                                         Đăng ký
@@ -271,22 +278,15 @@ export default function ExamSchedulePage() {
                                         disabled={togglingId === item.id}
                                         title={isReminded ? 'Bấm để hủy nhắc email' : 'Đặt nhắc email trước ngày thi'}
                                         onClick={() => handleToggleReminder(item.id)}
-                                        className={isReminded
+                                        className={`rounded-xl ${isReminded
                                             ? 'border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'
-                                            : 'text-muted-foreground'}
+                                            : 'text-muted-foreground'}`}
                                     >
                                         {isReminded ? (
                                             <BellRing className="w-4 h-4 animate-bell-ring" />
                                         ) : (
                                             <Bell className="w-4 h-4" />
                                         )}
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        title="Thêm vào Calendar (.ics)"
-                                        onClick={() => handleIcal(item.id)}
-                                    >
-                                        <Download className="w-4 h-4" />
                                     </Button>
                                 </CardFooter>
                             </Card>
