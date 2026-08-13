@@ -10,7 +10,7 @@
  *   GET /api/examschedule     — lịch thi TOEIC
  */
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
     ArrowRight, Award, BarChart3, Bell, BookMarked, CalendarDays, CheckCircle2,
     ClipboardList, FileText, Headphones, MapPin, Target, Timer, TrendingUp, Zap,
@@ -75,7 +75,9 @@ const STEPS = [
  * requireLogin = true  → bấm ra popup login, xong vào đúng route đó (returnTo)
  * requireLogin = false → vào được ngay vì backend đã [AllowAnonymous]
  */
-const LANDING_NAV: { label: string; to: string; requireLogin: boolean }[] = [
+// export: PublicGuestHeader.tsx (header cho khách ở /exam-schedule, /mock-test/:id)
+// dùng lại đúng danh sách này, tránh 2 nơi giữ 2 bản nav lệch nhau.
+export const LANDING_NAV: { label: string; to: string; requireLogin: boolean }[] = [
     { label: 'Thi thử', to: '/mock-test', requireLogin: true },
     { label: 'Luyện nhanh', to: '/practice', requireLogin: true },
     { label: 'Từ vựng', to: '/vocabulary', requireLogin: true },
@@ -109,6 +111,7 @@ const DEMO_PARTS = [
 
 export default function LandingPage() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const { user, isAuthenticated } = useAuthStore()
 
     const [tests, setTests] = useState<TestSummary[]>([])
@@ -122,6 +125,14 @@ export default function LandingPage() {
     useEffect(() => {
         if (isAuthenticated && user) navigate(homeFor(user), { replace: true })
     }, [isAuthenticated, user, navigate])
+
+    // Khách bấm mục cần login trên PublicGuestHeader (VD khi đang ở /exam-schedule)
+    // → được đưa về "/?next=/mock-test" → tự mở đúng popup login nhắm tới route đó,
+    // thay vì phải tự nhớ bấm lại mục đó lần nữa sau khi vào landing page.
+    useEffect(() => {
+        const next = searchParams.get('next')
+        if (next) setAuthTarget(next)
+    }, [searchParams])
 
     useEffect(() => {
         TestService.getPublished()

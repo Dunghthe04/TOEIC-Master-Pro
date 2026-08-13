@@ -15,8 +15,18 @@
 import { Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth.store'
 import RoleLayout from './RoleLayout'
+import PublicGuestHeader from './PublicGuestHeader'
 
 export default function PublicRoleLayout() {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-    return isAuthenticated ? <RoleLayout /> : <Outlet />
+    if (isAuthenticated) return <RoleLayout />
+    // Chưa đăng nhập: KHÔNG dùng UserTopBar (avatar/đăng xuất vô nghĩa với khách),
+    // nhưng vẫn cần 1 header tối giản để có đường quay lại "/" — trước đây render
+    // trần <Outlet/> khiến trang này thành "cụt đường", không cách nào quay lại.
+    return (
+        <>
+            <PublicGuestHeader />
+            <Outlet />
+        </>
+    )
 }
