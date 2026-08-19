@@ -309,11 +309,38 @@ public class TestSessionService : ITestSessionService
             .FindAsync(a => a.SessionId == sessionId))
             .ToDictionary(a => a.QuestionId);
 
+        // Dedupe payload theo QuestionId TRƯỚC khi loop — dictionary "existing" chỉ
+        // phản ánh dữ liệu ĐÃ CÓ TRONG DB, không cập nhật theo item vừa xử lý trong
+        // loop. Payload có 2 item cùng QuestionId (debounce/race ở FE gửi trùng) thì
+        // CẢ HAI đều "miss" existing và cùng rơi vào nhánh insert → 2 dòng cùng
+        // (SessionId, QuestionId) → vi phạm unique index → DbUpdateException.
+        // Giữ item CUỐI cùng — đó là giá trị user chọn sau cùng, mới nhất.
+        var dedupedAnswers = req.Answers
+            .GroupBy(a => a.QuestionId)
+            .Select(g => g.Last())
+            .ToList();
+
+        // QuestionId → tập OptionId hợp lệ CỦA ĐÚNG câu đó — để chặn SelectedOptionId
+        // "lạc đề" (thuộc câu khác, hoặc GUID không tồn tại) trước khi ghi xuống DB.
+        var validOptionIdsByQuestion = (await _uow.Repository<QuestionOption>()
+                .FindAsync(o => allowedIds.Contains(o.QuestionId)))
+            .GroupBy(o => o.QuestionId)
+            .ToDictionary(g => g.Key, g => g.Select(o => o.Id).ToHashSet());
+
         var saved = 0;
-        foreach (var item in req.Answers)
+        foreach (var item in dedupedAnswers)
         {
             if (!allowedIds.Contains(item.QuestionId))
                 return Result<int>.Failure($"Câu {item.QuestionId} không thuộc phạm vi phiên thi này.");
+
+            // SelectedOptionId null = bỏ qua câu hỏi, hợp lệ. Có giá trị thì phải là
+            // 1 trong các option CỦA ĐÚNG QuestionId này — không cho "lạc" sang câu khác.
+            if (item.SelectedOptionId is not null &&
+                (!validOptionIdsByQuestion.TryGetValue(item.QuestionId, out var validOptionIds) ||
+                 !validOptionIds.Contains(item.SelectedOptionId.Value)))
+            {
+                return Result<int>.Failure($"Đáp án chọn không hợp lệ cho câu {item.QuestionId}.");
+            }
 
             if (existing.TryGetValue(item.QuestionId, out var row))
             {

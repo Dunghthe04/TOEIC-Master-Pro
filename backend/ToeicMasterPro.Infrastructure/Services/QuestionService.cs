@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ToeicMasterPro.Application.Common;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Questions;
@@ -123,7 +124,20 @@ public class QuestionService : IQuestionService
                 IsCorrect = o.IsCorrect
             });
 
-        await _uow.SaveChangesAsync();
+        try
+        {
+            await _uow.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // FK Restrict giữa TestSessionAnswer.SelectedOptionId → QuestionOption
+            // (TestSessionAnswerConfiguration.cs): xóa option cũ khi đã có người CHỌN
+            // nó (kể cả phiên đang làm dở/bỏ dở) bị SQL Server chặn. Không bắt ở đây
+            // thì rơi thẳng vào GlobalExceptionHandler → 500 chung, CM không biết vì sao.
+            return Result.Failure(
+                "Không thể sửa đáp án — câu hỏi này đã có người trả lời. " +
+                "Xóa/sửa đáp án lúc này sẽ làm hỏng dữ liệu bài thi đã nộp.");
+        }
         return Result.Success();
     }
 
@@ -133,7 +147,19 @@ public class QuestionService : IQuestionService
         if (q is null) return Result.Failure("Không tìm thấy câu hỏi.");
 
         _uow.Repository<Question>().Remove(q);   // Options tự xóa theo (cascade)
-        await _uow.SaveChangesAsync();
+        try
+        {
+            await _uow.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // FK Restrict giữa TestSessionAnswer → Question / QuestionOption: đã có
+            // người trả lời (kể cả phiên bỏ dở) thì không xóa được. Bắt ở đây để trả
+            // 400 rõ ràng thay vì 500 chung từ GlobalExceptionHandler.
+            return Result.Failure(
+                "Không thể xóa — câu hỏi này đã có người trả lời. " +
+                "Xóa lúc này sẽ làm hỏng dữ liệu bài thi đã nộp.");
+        }
         return Result.Success();
     }
 

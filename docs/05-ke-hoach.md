@@ -2,8 +2,8 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–46 XONG** (auth · khôi phục phiên thi khi F5 ·
-> ràng buộc thời gian phía server) · **TIẾP THEO: Day 47 — vá 2 lỗ logic phá hoại nghiệp vụ**
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** (auth · khôi phục phiên thi khi F5 ·
+> ràng buộc thời gian phía server · vá 5 lỗ logic phá hoại nghiệp vụ) · **TIẾP THEO: Day 48 — Siết authentication**
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -496,23 +496,45 @@ không bằng đồng hồ. App dùng new Audio() không controls, và trình du
 bắt buộc neo server. Phân tích đầy đủ + nguồn ETS/CWE: 09 mục 2.2.
 ```
 
-## Day 47 — Vá 2 lỗ logic phá hoại nghiệp vụ
+## ✅ Day 47 — Vá 2 lỗ logic phá hoại nghiệp vụ — XONG 2026-08-19
 
 ```
-□ Import Excel (QuestionService.cs:218-233) tạo được câu hỏi KHÔNG có đáp án đúng
+☑ Import Excel (QuestionService.cs:218-233) tạo được câu hỏi KHÔNG có đáp án đúng
   → SubmitAsync gặp câu đó trả lỗi CHO CẢ BÀI THI
   → CM sai một ô Excel = MỌI user làm đề đó không nộp bài được, VĨNH VIỄN
-  □ Dùng chung Validate() cho luồng import
-  □ Dòng nào sai thì bỏ qua + báo cáo, không tạo
+  ☑ Dùng chung Validate() cho luồng import
+  ☑ Dòng nào sai thì bỏ qua + báo cáo, không tạo
 
-□ POST /api/practice/submit (PracticeService.cs:69-114) chấm BẤT KỲ questionId nào
+☑ POST /api/practice/submit (PracticeService.cs:69-114) chấm BẤT KỲ questionId nào
   → user đang thi lấy questionId từ màn hình, gửi vào đây = MÁY TRA ĐÁP ÁN
-  □ Tạo phiên practice có state, chỉ chấm câu thuộc phiên đó
+  ☑ Tạo phiên practice có state, chỉ chấm câu thuộc phiên đó
 
-□ SaveAnswers: dedupe questionId trùng trong 1 payload (hiện → 500)
-□ SaveAnswers: kiểm SelectedOptionId có thuộc đúng QuestionId đó không
-□ Sửa/xóa Question đã có người trả lời → bắt DbUpdateException, trả 400 có thông báo
+☑ SaveAnswers: dedupe questionId trùng trong 1 payload (hiện → 500)
+  → TestSessionService.cs SaveAnswersAsync: dictionary "existing" chỉ phản ánh DB,
+    không cập nhật theo item vừa xử lý trong loop — payload có 2 item cùng
+    QuestionId thì cả 2 đều rơi vào nhánh insert → vi phạm unique index
+    (SessionId, QuestionId) → DbUpdateException → 500 chung.
+  ☑ Fix: GroupBy(QuestionId).Select(g => g.Last()) trước khi loop — giữ giá trị
+    chọn SAU CÙNG (mới nhất), dedupe hết trùng lặp trước khi đụng DB.
+
+☑ SaveAnswers: kiểm SelectedOptionId có thuộc đúng QuestionId đó không
+  → Trước đây lưu thẳng SelectedOptionId không đối chiếu ngược QuestionId —
+    GUID rác (không tồn tại) → FK vi phạm → 500; GUID thật nhưng thuộc CÂU KHÁC
+    → lưu thành công nhưng thành rác dữ liệu (không phải lỗ hổng điểm số vì GUID
+    không đoán được, nhưng review sau này dễ hiện sai đáp án).
+  ☑ Fix: dựng map QuestionId → HashSet<OptionId> hợp lệ, chặn trước khi ghi.
+
+☑ Sửa/xóa Question đã có người trả lời → bắt DbUpdateException, trả 400 có thông báo
   (hiện nổ FK Restrict → 500)
+  → QuestionService.cs UpdateAsync/DeleteAsync: FK Restrict giữa TestSessionAnswer
+    ↔ Question/QuestionOption (TestSessionAnswerConfiguration.cs:30-38) — hễ có
+    1 người từng chọn/trả lời câu đó (kể cả phiên bỏ dở) là CM không sửa/xóa được
+    NỮA, luôn ăn 500 từ GlobalExceptionHandler, không rõ vì sao.
+  ☑ Fix: try/catch DbUpdateException quanh SaveChangesAsync ở cả 2 hàm, trả
+    Result.Failure(...) → controller map thành 400 kèm thông báo rõ nguyên nhân.
+
+Kiểm chứng: build sạch (0 lỗi) + 30 test có sẵn vẫn pass (không có test riêng
+cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ```
 
 ## Day 48 — Siết authentication
