@@ -715,44 +715,176 @@ DB sập. Chống bằng khóa phân tán hoặc làm mới cache trước khi h
 
 # 8. Hangfire
 
-## ✅ Đang chạy thật — 1 job
+## 8.1 · Bốn bộ phận — hiểu 4 cái này là hiểu hết
 
-**Vấn đề nó giải:** user bấm chuông đăng ký nhắc lịch thi. Mail phải gửi **3 ngày trước ngày thi** —
-không thể bắt request chờ. Request chỉ ghi DB rồi trả về ngay; quét và gửi mail để Hangfire làm.
+Hangfire **không phải cron**. Nó là **hàng đợi job bền vững**, và cron chỉ là một cách đẩy job vào
+hàng đợi đó. Nó gồm 4 bộ phận, và chúng **chỉ nói chuyện với nhau qua Storage** — không gọi trực
+tiếp nhau. Đó là lý do bắt buộc phải có DB: nó là chỗ hẹn duy nhất.
+
+| Bộ phận | Nhiệm vụ | Ở đâu trong dự án |
+|---|---|---|
+| **Client** | Người *đặt hàng* — "chạy việc này" | [Program.cs:429-443](../backend/ToeicMasterPro.API/Program.cs#L429) `IRecurringJobManager.AddOrUpdate` |
+| **Storage** | Cuốn sổ ghi mọi thứ | [Program.cs:133-138](../backend/ToeicMasterPro.API/Program.cs#L133) `UseSqlServerStorage` |
+| **Server** (worker) | Người *làm* — đọc sổ, tới giờ thì chạy | [Program.cs:140](../backend/ToeicMasterPro.API/Program.cs#L140) `AddHangfireServer()` |
+| **Dashboard** | Trang web để *xem* cuốn sổ | [Program.cs:388-416](../backend/ToeicMasterPro.API/Program.cs#L388) |
+
+Trong dự án này cả 4 nằm **chung một process** với API. Đơn giản, nhưng nghĩa là job nặng sẽ ăn CPU
+của API. Client và Server vốn **không bắt buộc** cùng process — có thể tách máy riêng để làm job.
+
+> **Keyword: `AddHangfireServer()`** — thiếu dòng này thì job vẫn được lưu DB nhưng **không bao giờ
+> chạy**: có người đặt hàng mà không có người làm. Lỗi hay gặp.
+
+## 8.2 · Vì sao nó phải LƯU (câu hỏi hay bị hiểu sai)
+
+Cron chỉ trả lời *"chạy lúc nào"*. Bốn câu dưới đây không thể trả lời nếu trạng thái chỉ nằm trong RAM:
+
+| Tình huống | Không có storage | Có storage |
+|---|---|---|
+| Deploy lại lúc 00:29 | Không biết hôm nay chạy chưa → chạy 2 lần hoặc mất hẳn | Đọc `LastExecution` |
+| Job fail | Mất luôn | Nhớ "lần 3/10, thử lại sau 10'" |
+| **Deploy 3 container API** | **Cả 3 cùng gửi mail → user nhận 3 bản** | Giành distributed lock, 1 thằng chạy |
+| Server sập 1ms sau khi enqueue | Job bay hơi | Đã ghi DB, khởi động lại vẫn chạy |
+
+`UseSqlServerStorage(connectionString)` dùng **chung DB với app**, `PrepareSchemaIfNecessary = true`
+tự tạo ~10 bảng trong schema `HangFire`. Xem tận mắt:
+
+```sql
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'HangFire';
+-- Job, JobParameter, State, JobQueue, Server, Set, Hash, List, Counter, AggregatedCounter
+
+-- Thứ làm mọi chuyện sáng ra: chính cái cron string cũng nằm trong DB
+SELECT [Key], [Field], [Value] FROM HangFire.Hash WHERE [Key] LIKE 'recurring-job:%';
+```
+
+> **Vì sao `AddOrUpdate` mà không phải `Add`:** định nghĩa job (cron + tên class) nằm **trong DB**,
+> nên mỗi lần app khởi động phải **ghi đè** bằng định nghĩa trong code.
+> ⚠️ Bẫy kéo theo: **đổi tên job id thì cái cũ KHÔNG tự mất** — nó nằm lại trong DB và vẫn chạy
+> tiếp, song song với cái mới. Phải xoá tay hoặc `RemoveIfExists`.
+
+## 8.3 · ✅ Đang chạy thật — 2 job
+
+| Job id | Cron | Class | Việc thật |
+|---|---|---|---|
+| `exam-reminder-email` | `30 0 * * *` | [ExamReminderJob.cs](../backend/ToeicMasterPro.API/Jobs/ExamReminderJob.cs) | Gửi mail nhắc trước ngày thi 3 hôm |
+| `iig-exam-schedule-sync` | `0 */6 * * *` | [IigExamScheduleSyncJob.cs](../backend/ToeicMasterPro.API/Jobs/IigExamScheduleSyncJob.cs) | Đồng bộ lịch thi từ IIG mỗi 6 tiếng |
+
+**Vấn đề job nhắc lịch giải:** user bấm chuông đăng ký nhắc lịch thi. Mail phải gửi **3 ngày trước
+ngày thi** — không thể bắt request chờ. Request chỉ ghi DB rồi trả về ngay; quét và gửi mail để
+Hangfire làm.
 
 ```
 [User bấm chuông]  → INSERT UserExamReminders (EmailSent=false) → trả 200 ngay
 [Hangfire 00:30]   → tìm EmailSent=false AND ExamDate = hôm nay+3 → gửi mail → EmailSent=true
 ```
 
-**Cấu hình** ([Program.cs:76-91](../backend/ToeicMasterPro.API/Program.cs#L76)):
-`UseSqlServerStorage(...)` với `PrepareSchemaIfNecessary = true` (tự tạo bảng `HangFire.*`),
-`AddHangfireServer()` bật **worker**.
+**Điểm thiết kế làm đúng:** cả 2 class job chỉ có **một dòng thân**, không chứa nghiệp vụ nào:
 
-> **Keyword: `AddHangfireServer()`** — thiếu dòng này thì job vẫn được lưu DB nhưng **không bao giờ chạy**.
-> Lỗi hay gặp.
+```csharp
+public Task RunAsync() => _reminders.ProcessDueRemindersAsync();
+```
 
-**Cron** ([Program.cs:223-226](../backend/ToeicMasterPro.API/Program.cs#L223)): `"30 0 * * *"` —
-5 phần `phút giờ ngày tháng thứ`.
+Nghiệp vụ nằm ở tầng Application. Job class chỉ là **adapter** giữa Hangfire và nghiệp vụ → test
+nghiệp vụ không cần Hangfire, đổi sang Quartz/Azure Functions chỉ thay adapter.
 
-> ⚠️ **Bẫy múi giờ:** Hangfire mặc định hiểu cron theo **UTC**. Comment trong code ghi "00:30 mỗi ngày"
-> nhưng thực tế job chạy **07:30 giờ Việt Nam**. Muốn đúng phải truyền
+> ⚠️ **Bẫy múi giờ (chưa sửa — Day 49):** Hangfire mặc định hiểu cron theo **UTC**. Comment trong
+> code ghi "00:30 mỗi ngày" nhưng thực tế job chạy **07:30 giờ Việt Nam**. Muốn đúng phải truyền
 > `TimeZoneInfo` vào `RecurringJobOptions`.
 
 **Keyword: at-least-once delivery.** Hangfire đảm bảo job chạy **ít nhất một lần**, không đảm bảo
 **đúng một lần**. Worker chết giữa chừng thì job chạy lại → job phải **idempotent**. Dự án làm đúng
 nhờ cột `EmailSent`.
 
-> ⚠️ Nhưng `ExamReminderService.cs:41-67` **gửi mail TRƯỚC khi commit** `EmailSent = true`. Nếu
-> `SaveChanges` lỗi sau khi mail đã gửi thì lần chạy sau **gửi trùng**.
+> ⚠️ **Chưa sửa — Day 49:** `ExamReminderService.cs:41-67` **gửi mail TRƯỚC khi commit**
+> `EmailSent = true`. Nếu `SaveChanges` lỗi sau khi mail đã gửi thì lần retry **gửi trùng**.
 
-**Vì sao Hangfire mà không dùng `BackgroundService` của .NET?** `BackgroundService` là vòng lặp
-`while(true)` trong process — **mất trạng thái khi restart**, không có retry, không có dashboard,
-không chạy được nhiều worker. Hangfire lưu job vào SQL nên restart vẫn nhớ, có retry tự động, có UI.
+**Dự án chỉ dùng recurring job.** Không có `BackgroundJob.Enqueue` / `IBackgroundJobClient` ở đâu cả
+→ mảng fire-and-forget (gửi mail xác nhận đăng ký) hiện vẫn chạy **đồng bộ trong request**, đó là lý
+do `RegisterAsync` phải rollback user khi SMTP chết (Day 48). Đưa nó vào Hangfire là cách sửa gốc.
 
-> 🔴 **Lỗ hổng:** `app.UseHangfireDashboard("/hangfire")` ([Program.cs:221](../backend/ToeicMasterPro.API/Program.cs#L221))
-> nằm **ngoài** khối `IsDevelopment` và **không có** `DashboardOptions.Authorization`.
-> Deploy lên là ai vào `domain.com/hangfire` cũng xem và bấm "Trigger now" được.
+**Vì sao Hangfire mà không dùng `BackgroundService` của .NET?**
+
+| | `BackgroundService` + Timer | Hangfire |
+|---|---|---|
+| Cần DB | Không | **Có** — đó là cái giá |
+| Restart giữa job | Mất, không ai biết | Còn trạng thái, retry được |
+| Nhiều instance | **Chạy trùng hết** | Distributed lock, 1 thằng chạy |
+| Lịch sử | Tự viết log | Có dashboard |
+
+Câu trả lời gọn khi bị hỏi: **đổi DB writes lấy tính bền.** Và lý do nặng nhất là *nhiều instance sẽ
+chạy trùng job* — trả lời được câu đó ăn điểm hơn hẳn "vì Hangfire có dashboard".
+
+## 8.4 · Dashboard `/hangfire` — đã khoá ở Day 41 (lỗi chặn deploy #5)
+
+**Vì sao phải khoá:** `/hangfire` không phải trang chỉ-xem. Nó có nút **Trigger now** — bấm vào
+`exam-reminder-email` là **gửi email hàng loạt tới user thật, ngay lập tức**. Trước Day 41,
+`app.UseHangfireDashboard("/hangfire")` nằm **ngoài** khối `IsDevelopment` và **không có**
+`DashboardOptions.Authorization` → deploy lên là ai cũng bấm được.
+
+> **Keyword: middleware TERMINAL.** Đây là cái bẫy khiến lỗi này khó vá. `UseHangfireDashboard` khớp
+> đường dẫn rồi **tự trả response**, không đi qua routing nên **không có endpoint metadata**.
+> Fallback policy của Day 34 chỉ áp lên *endpoint* → hoàn toàn vô hình với `/hangfire`.
+> **Đổi thứ tự middleware KHÔNG cứu được.** Cách vá: đổi sang `MapHangfireDashboard` (thành endpoint
+> thật) + tự viết `IDashboardAuthorizationFilter`.
+
+**Ba nhánh** ([Program.cs:388-416](../backend/ToeicMasterPro.API/Program.cs#L388)):
+
+```csharp
+if (app.Environment.IsDevelopment())
+    → mount, Authorization = []          // mở tự do, KHÔNG đọc 2 khóa Hangfire
+else if (có đủ DashboardUser && DashboardPassword)
+    → mount, Basic Auth + IsReadOnlyFunc = _ => true
+// else → KHÔNG mount. "Thà không có dashboard hơn là có một dashboard mở."
+```
+
+> ⚠️ **Dev mở tự do là có chủ ý, nhưng thứ bảo vệ là MẠNG chứ không phải phân quyền.**
+> `launchSettings.json` đặt `applicationUrl: http://localhost:5191` → Kestrel bind **chỉ loopback**,
+> máy khác trong LAN không tới được.
+> 🔴 **Lá chắn này biến mất khi đóng Docker** (container phải bind `0.0.0.0` mới nhận request).
+> Chạy container với `ASPNETCORE_ENVIRONMENT=Development` là dashboard **mở toang ra internet**,
+> không sửa một dòng code nào. `docker-compose.prod.yml` đã làm đúng (`=Production`); cẩn thận với
+> file compose dev sẽ viết ở Day 50.
+
+**`Hangfire:DashboardUser` / `Hangfire:DashboardPassword` là gì:** một cặp user + mật khẩu **tự bịa
+ra**, chỉ để đăng nhập trang `/hangfire`. **Không** phải tài khoản trong DB, không liên quan
+`AspNetUsers`, không phải role. Giống mật khẩu trang admin của cục wifi.
+
+```
+① GET /hangfire
+② 401 + WWW-Authenticate: Basic realm="Hangfire Dashboard"
+③ [trình duyệt hiện hộp đăng nhập của CHÍNH NÓ, không phải form HTML]
+④ GET /hangfire   Authorization: Basic base64("hfadmin:MatKhau@2026")
+                                        ↑DashboardUser  ↑DashboardPassword
+⑤ Filter so sánh với config → khớp → 200
+```
+
+Hai khóa này **không có trong bất kỳ `appsettings*.json` nào** — chỉ tồn tại ở user-secrets (dev)
+hoặc biến môi trường `Hangfire__DashboardUser` / `Hangfire__DashboardPassword` (production, xem
+[docker-compose.prod.yml:114-116](../docker-compose.prod.yml#L114)).
+
+> **Thiếu 2 khóa ở Production → `/hangfire` trả 404, KHÔNG phải 401.** Cả lệnh
+> `MapHangfireDashboard` bị bỏ qua nên đường dẫn **không tồn tại**. Kể cả Admin cũng không vào được
+> — đường "Bearer JWT + role Admin" trong filter cũng vô nghĩa vì filter chưa từng được tạo ra.
+> **Job vẫn chạy bình thường**, chỉ mất trang để xem.
+
+**Hai chi tiết trong [HangfireDashboardAuthFilter.cs](../backend/ToeicMasterPro.API/Authorization/HangfireDashboardAuthFilter.cs)
+đáng nhớ:**
+
+1. **Vì sao Basic Auth mà không dùng JWT như phần còn lại của app?** `/hangfire` là trang HTML mở
+   bằng trình duyệt, mà access token nằm trong memory/localStorage — trình duyệt **không tự gắn**
+   `Authorization: Bearer` khi gõ URL vào thanh địa chỉ → `http.User` luôn ẩn danh. Basic Auth là
+   cách duy nhất khiến **trình duyệt tự hiện hộp đăng nhập**.
+2. **`CryptographicOperations.FixedTimeEquals` thay vì `==`.** So sánh chuỗi thường **thoát sớm** ở
+   ký tự khác đầu tiên → thời gian phản hồi tiết lộ độ dài prefix đúng → dò mật khẩu từng ký tự
+   (**timing attack**).
+
+> **Vì sao KHÔNG dùng `LocalRequestsOnlyAuthorizationFilter` có sẵn của Hangfire:** nó so
+> `RemoteIpAddress` với `127.0.0.1`, mà trình duyệt gọi `localhost` ra `::1` (IPv6) → **từ chối ngay
+> trên máy mình**. Còn sau reverse proxy thì **mọi** request đến từ mạng nội bộ Docker → **cho qua
+> hết**. Xác thực theo IP sai ở cả hai đầu → phải xác thực theo **DANH TÍNH**.
+
+> ⚠️ **Chưa từng được kiểm chứng chạy thật:** Dev đi nhánh `Authorization = []` nên filter này chưa
+> chạy lần nào. Muốn test phải `--environment Production`, mà môi trường đó **không nạp user-secrets**
+> → phải set biến môi trường tay, hoặc đợi Day 55-56 deploy thật.
 
 ---
 
