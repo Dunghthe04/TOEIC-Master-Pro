@@ -302,14 +302,43 @@ public class AuthService : IAuthService
     }
     public async Task<Result> ResetPasswordAsync(ResetPasswordRequest req)
     {
+        // MỘT thông báo dùng chung cho MỌI thất bại về token/email — khai báo một chỗ
+        // để không bao giờ lệch nhau giữa các nhánh. Lệch một chữ là lại phân biệt được.
+        const string invalidMsg = "Token hoặc email không hợp lệ.";
+
         //Tìm user
         var user = await _userManager.FindByEmailAsync(req.Email);
         if (user is null)
-            return Result.Failure("Token hoặc email không hợp lệ");
+            return Result.Failure(invalidMsg);
+
         var result = await _userManager.ResetPasswordAsync(user, req.Token, req.NewPassword);
         if (!result.Succeeded)
         {
-            return Result.Failure(string.Join("; ", result.Errors.Select(e => e.Description)));
+            // Errors ở đây TRỘN HAI LOẠI, không được xử lý như nhau:
+            //   · Lỗi token/user (InvalidToken) → PHẢI CHE. Trả nguyên văn "Invalid token"
+            //     là nói cho người lạ biết "email này CÓ tài khoản, chỉ token sai thôi"
+            //     — đúng đường dò vừa bịt ở RegisterAsync.
+            //   · Lỗi chính sách mật khẩu (PasswordTooShort, PasswordRequiresUpper…)
+            //     → PHẢI HIỆN. Che đi thì user gõ mật khẩu yếu mà không biết sai ở đâu,
+            //     thử mãi không được, và đây KHÔNG phải thông tin bí mật: chính sách mật
+            //     khẩu ai đăng ký cũng thấy.
+            //
+            // Phân loại theo tiền tố Code — mọi validator mật khẩu của Identity đều đặt
+            // tên "Password*" (PasswordTooShort, PasswordRequiresDigit, PasswordRequiresLower,
+            // PasswordRequiresUpper, PasswordRequiresNonAlphanumeric, PasswordRequiresUniqueChars),
+            // nên validator tự viết sau này theo cùng quy ước là tự động được nhận.
+            var passwordErrors = result.Errors
+                .Where(e => e.Code.StartsWith("Password", StringComparison.Ordinal))
+                .Select(e => e.Description)
+                .ToList();
+
+            // Không lo hai loại lẫn vào nhau trong cùng một response: UserManager
+            // .ResetPasswordAsync kiểm TOKEN TRƯỚC và return ngay nếu sai, chỉ khi token
+            // hợp lệ mới chạy tới phần validate mật khẩu. Token sai thì passwordErrors
+            // luôn rỗng → rơi đúng vào nhánh che.
+            return passwordErrors.Count > 0
+                ? Result.Failure(string.Join("; ", passwordErrors))
+                : Result.Failure(invalidMsg);
         }
         // Dùng được token gửi vào hộp thư = ĐÃ CHỨNG MINH sở hữu email, mạnh ngang
         // việc bấm link xác nhận. Không bật cờ này thì user chưa xác thực rơi vào NGÕ
