@@ -2,12 +2,12 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 7/8 mục gốc
-> xong** (lockout · hash refresh token · reuse detection · logout [Authorize] · Google login khóa
-> theo `sub` · bỏ ex.Message Google · **thống nhất chống user enumeration 3 chỗ**) **+ 5 việc phát
-> sinh xong** (bắt buộc xác thực email · gửi email thật qua Gmail SMTP · vá enumeration ở LoginAsync ·
-> quên mật khẩu chạy end-to-end · register rollback khi SMTP lỗi) · **TIẾP THEO: mục 8 — validation
-> DTO auth** (việc cuối của Day 48, đã hạ xuống mức dọn dẹp) → xong là **sang Day 49**
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–48 XONG** — Day 48 đóng **8/8 mục gốc + 5 việc
+> phát sinh** (lockout · hash refresh token · reuse detection · logout `[Authorize]` · Google login
+> khóa theo `sub` · bỏ ex.Message Google · thống nhất chống user enumeration 4 chỗ · validation DTO
+> auth · bắt buộc xác thực email · gửi email thật qua Gmail SMTP · quên mật khẩu chạy end-to-end ·
+> register rollback khi SMTP lỗi) · **TIẾP THEO: Day 49** — dọn nốt Phase 2 (cron sai múi giờ ·
+> ExamReminder gửi trùng · iCal injection · phân biệt 401/403/404)
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -541,12 +541,12 @@ Kiểm chứng: build sạch (0 lỗi) + 30 test có sẵn vẫn pass (không c�
 cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ```
 
-## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 7/8 xong — 2026-08-20/21
+## ✅ Day 48 — Siết authentication — XONG 8/8 + 5 việc phát sinh — 2026-08-20/21
 
 ```
-📍 ĐANG Ở: mục 1-7 đã vá + 5 việc phát sinh xong + build sạch + 30 test pass.
-   CÒN ĐÚNG mục 8 (validation DTO — mô tả gốc SAI, đã hạ xuống việc dọn dẹp, xem
-   bên dưới). Xong là ĐÓNG Day 48 → sang Day 49.
+🎯 ĐÓNG DAY 48: cả 8 mục gốc + 5 việc phát sinh đã vá. Build sạch, 30 test pass,
+   tsc OK. TIẾP THEO: Day 49 (dọn nốt Phase 2 — cron sai múi giờ, ExamReminder gửi
+   trùng, iCal injection, phân biệt mã lỗi HTTP).
 
 ☑ Lockout khi sai mật khẩu — XONG 2026-08-20
   ☑ LoginAsync đổi CheckPasswordAsync → SignInManager.CheckPasswordSignInAsync(
@@ -689,19 +689,54 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
 
   ⚠️ Cùng họ với việc phát sinh "vá enumeration ở LoginAsync" (xong trước đó) — 4
     chỗ này phải nhìn như MỘT việc, không phải 4 việc rời.
-⬜ Thêm validation cho DTO auth
-  🔴 MÔ TẢ GỐC SAI: "null/rỗng đi thẳng vào Identity gây 500" — đã tự kiểm, KHÔNG
-    500 ở đâu cả:
-    · cả 5 project bật <Nullable>enable</Nullable> → tham số string non-nullable
-      trong positional record được coi là [Required] NGẦM → null/thiếu field bị
-      [ApiController] chặn thành 400 TỰ ĐỘNG, không vào tới Identity
-    · RequireUniqueEmail=true (Program.cs:66) → UserValidator của Identity CÓ kiểm
-      định dạng email → gõ "abc" làm email bị chặn
-    · chuỗi rỗng "" thì lọt thật, nhưng ra FindByEmailAsync("") → null → thông báo
-      chung. Vẫn không 500.
-  → HẠ xuống việc DỌN DẸP, làm sau cùng: thêm [MaxLength] cho FullName (đang là
-    nvarchar(max), post tên 10MB được) + [EmailAddress] để lỗi hiện ở tầng DTO thay
-    vì tầng Identity. 7 DTO auth hiện không có một attribute nào.
+☑ Thêm validation cho DTO auth — XONG 2026-08-21
+
+  🔴 MÔ TẢ GỐC SAI Ở HAI CHỖ — tự kiểm mới ra:
+    (a) "null/rỗng đi thẳng vào Identity gây 500" — KHÔNG 500 ở đâu cả:
+      · cả 5 project bật <Nullable>enable</Nullable> → string non-nullable trong
+        positional record được coi là [Required] NGẦM → null/thiếu field bị
+        [ApiController] chặn thành 400 TỰ ĐỘNG, không vào tới Identity
+      · RequireUniqueEmail=true (Program.cs:66) → UserValidator CÓ kiểm định dạng
+        email → gõ "abc" bị chặn
+      · chuỗi rỗng "" lọt thật, nhưng ra FindByEmailAsync("") → null → thông báo chung
+    (b) "FullName đang nvarchar(max), post tên 10MB được" — SAI: UserConfiguration.cs:16
+      đã có HasMaxLength(100) và migration tạo cột nvarchar(100) từ đầu.
+      → Nhưng VẪN nên thêm [MaxLength] ở DTO, vì LÝ DO KHÁC: hiện tên >100 ký tự
+        xuống tới SQL Server mới vỡ ("String or binary data would be truncated")
+        → 500, thay vì 400 sạch sẽ.
+
+  GIẢI QUYẾT — 3 việc, không phải 1:
+
+  ☑ (1) Annotation cho 5 DTO auth theo NGUYÊN TẮC PHÂN VAI:
+      · DTO kiểm HÌNH DẠNG + KÍCH THƯỚC   · Identity kiểm CHÍNH SÁCH
+    → CỐ Ý không lặp luật mật khẩu (hoa/số/ký tự đặc biệt) vào DTO: lặp là tạo
+      nguồn sự thật thứ hai, rồi một ngày hai chỗ lệch mà Identity vẫn là chỗ
+      chặn thật.
+    ☑ [MaxLength(128)] trên mật khẩu là BẢO MẬT, không phải dọn dẹp: Identity băm
+      PBKDF2 trên TOÀN BỘ input → POST mật khẩu 10MB là request rẻ tiền đổi lấy
+      tải CPU nặng (CPU DoS). Tương tự [MaxLength(4096)] cho IdToken Google — chặn
+      trước khi vào ValidateAsync (parse + verify chữ ký + gọi ra Google lấy key).
+    ☑ [Required] KHÔNG dư dù Nullable đã bật: cái ngầm sinh thông báo TIẾNG ANH,
+      khai tường minh mới đặt được tiếng Việt.
+    ☑ LoginRequest CỐ Ý không có luật mật khẩu: đăng nhập mà từ chối vì "chưa đủ
+      chữ hoa" là vô nghĩa (mật khẩu đã đặt rồi, giờ chỉ đối chiếu) và còn tiết lộ
+      chính sách mật khẩu cho người chưa có tài khoản — nối mạch mục 7.
+
+  ☑ (2) InvalidModelStateResponseFactory (Program.cs) — BƯỚC LÀM CHO (1) CÓ NGHĨA.
+    Mặc định [ApiController] trả ValidationProblemDetails { errors: {...} }, mà
+    TOÀN BỘ frontend đọc lỗi bằng err.response?.data?.error. Đã grep: không chỗ
+    nào ở FE đọc .errors hay .title.
+    → Không có bước này thì annotation vừa thêm hiện ra UI thành câu fallback vô
+      nghĩa ("Đăng ký thất bại, thử lại sau."), tức là vá xong mà không ai đọc được.
+    ⚠️ Đây là thay đổi TOÀN CỤC (mọi controller). Đã test 1 form ngoài auth.
+
+  ☑ (3) Xoá RefreshTokenRequest.cs — code chết từ khi Refresh() đọc cookie httpOnly.
+    Giữ nguyên comment ở AuthController:60 vì nó đang giải thích LỊCH SỬ vì sao bỏ.
+
+  📌 BÀI HỌC LẶP LẠI LẦN THỨ 3 trong Day 48: mô tả trong audit sai, và chỉ lộ ra
+    khi tự đọc code. Mục 5 thiếu 2 nhánh, mục 8 sai cả 2 mệnh đề. Thói quen "đầu
+    ngày tự đọc code xác nhận lỗi" không phải hình thức — nó là thứ giữ cho 42 ngày
+    không xây trên mô tả sai.
 
 ### Phát sinh ngoài 8 mục gốc — lộ ra khi test tay + khi đọc lại code sau mục 5
 

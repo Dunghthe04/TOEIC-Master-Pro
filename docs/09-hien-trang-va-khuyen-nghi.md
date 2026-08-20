@@ -1090,14 +1090,14 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 |---|---|
 | Import ZIP giải nén file **bất kỳ đuôi nào**; không giới hạn số entry (**zip bomb**). 🟡 *Giảm nhẹ 2026-08-05:* giờ giải nén vào `protected-media/` (ngoài wwwroot) nên **không** ghi được HTML/JS lên origin của API nữa — nhưng vẫn cần whitelist đuôi + giới hạn entry | `TestController.cs:177-198` |
 | `MediaController` chỉ tin phần mở rộng, không kiểm nội dung file, ghi đè im lặng | `MediaController.cs:44-77` |
-| Refresh token lưu **plaintext** trong DB | `TokenService.cs:60-65` |
-| Không có **reuse detection** cho refresh token | `AuthService.cs:73-86` |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Refresh token lưu **plaintext** trong DB → giờ lưu SHA-256, không cần salt/chậm hoá vì input đã là 64 byte ngẫu nhiên thật | `TokenService.cs` |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Không có **reuse detection** cho refresh token → token đã revoke mà bị dùng lại thì thu hồi TOÀN BỘ token của user đó | `AuthService.cs` RefreshTokenAsync |
 | Access token không thể vô hiệu hóa — `jti` sinh ra nhưng không lưu, không blacklist | `TokenService.cs:28` |
-| `/api/auth/logout` — ✅ đã thêm `[Authorize]` (2026-08-04); **vẫn chưa** kiểm quyền sở hữu token → user A gửi refresh token của user B vẫn thu hồi được | `AuthController.cs:46-52` |
-| Login không kiểm `EmailConfirmed` + Google login gộp tài khoản chỉ bằng email → **pre-hijack account takeover** 🔬 | `AuthService.cs:59-71, 178` |
-| Lỗi verify Google trả nguyên `ex.Message` ra client | `AuthService.cs:172-176` |
-| Token xác thực email và reset mật khẩu **in ra stdout** | `AuthService.cs:53-54, 124-125` |
-| DTO auth **không có validation nào** — null/rỗng đi thẳng vào Identity gây 500 | `DTOs/Auth/*.cs` |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — `/api/auth/logout` giờ có cả `[Authorize]` **và** kiểm quyền sở hữu token (`stored.UserId == userId`), response giống nhau dù token không tồn tại hay không thuộc user gọi → không tạo oracle | `AuthService.cs` LogoutAsync |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Login không kiểm `EmailConfirmed` + Google login gộp tài khoản chỉ bằng email → **pre-hijack account takeover**. Vá bằng `RequireConfirmedEmail=true` **và** khoá theo Google `sub` qua `AspNetUserLogins` (3 nhánh phân loại theo "đã chứng minh sở hữu email chưa"). ⚠️ Hai thứ này là **hai lỗ khác nhau** — `RequireConfirmedEmail` do `SignInManager` thi hành nên KHÔNG chặn được đường Google | `AuthService.cs` GoogleLoginAsync |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Lỗi verify Google trả nguyên `ex.Message` ra client → giờ `LogWarning` cho mình, client chỉ nhận "Token Google không hợp lệ." | `AuthService.cs` GoogleLoginAsync |
+| ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Token xác thực email và reset mật khẩu **in ra stdout** → cả hai gửi mail thật qua Gmail SMTP (MailKit), kèm trang `/reset-password` ở frontend (trước đó không tồn tại) | `AuthService.cs` Register/ForgotPassword |
+| ✅ **ĐÃ VÁ 2026-08-21 (Day 48)** — DTO auth **không có validation nào**. ⚠️ Mô tả cũ "null/rỗng đi thẳng vào Identity gây 500" **SAI** — đã kiểm: `<Nullable>enable</Nullable>` làm string non-nullable thành `[Required]` ngầm nên null bị `[ApiController]` chặn thành 400 tự động, và `RequireUniqueEmail=true` khiến Identity có kiểm định dạng email. Giá trị thật của việc vá: thông báo tiếng Việt, `[MaxLength]` chống CPU DoS khi băm PBKDF2, và `InvalidModelStateResponseFactory` để lỗi validation trả đúng khuôn `{ error }` mà frontend đọc được | `DTOs/Auth/*.cs`, `Program.cs` |
 | Rate limit chỉ theo IP, chưa đọc `X-Forwarded-For`, và chỉ áp cho `AuthController`. 🟡 *Đã tách policy 2026-08-08:* `login`/`register`/`reset-password` giữ 5/phút, `refresh-token`/`logout` sang `"auth-refresh"` 30/phút — xem mục 2.9 | `Program.cs:202-253` |
 | Thiếu `UseHsts`, security headers, `AllowedHosts = "*"` | `Program.cs:211-216` |
 | iCal injection — `RegisterUrl` không escape khi sinh file `.ics` (endpoint ẩn danh) | `ExamScheduleService.cs:144-145` |
@@ -1111,7 +1111,7 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 | Mọi lỗi nghiệp vụ trả 400 | Không phân biệt 401/403/404 → lộ sự tồn tại của tài nguyên người khác |
 | `AddHttpContextAccessor()` gọi hai lần | `Program.cs:92` và `:169` |
 | Không có health check, không auto-migrate | DB chưa migrate → app crash lúc startup, không có endpoint chẩn đoán |
-| Code chết | `IApplicationDbContext` (không đăng ký DI), `ListAllAsync`, trạng thái `Abandoned`, `package.json` ở thư mục gốc |
+| Code chết | `IApplicationDbContext` (không đăng ký DI), `ListAllAsync`, trạng thái `Abandoned`, `package.json` ở thư mục gốc. ✅ *Đã xoá 2026-08-21:* `RefreshTokenRequest.cs` (chết từ khi `Refresh()` đọc cookie httpOnly) |
 | Frontend: không có route 404 | URL sai → trang trắng hoàn toàn |
 | Frontend: chỉ 1/8 trang CM xử lý lỗi 403 | Các trang còn lại nuốt lỗi phân quyền |
 | **Doc lệch code** | `02-cong-nghe.md:72` ghi SQL Server ở `localhost:1433` (thực tế `1434`); `06-database.md` thiếu hẳn bảng `RefreshTokens` |
