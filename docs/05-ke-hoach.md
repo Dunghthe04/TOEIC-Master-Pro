@@ -2,12 +2,12 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 6/8 mục gốc
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 7/8 mục gốc
 > xong** (lockout · hash refresh token · reuse detection · logout [Authorize] · Google login khóa
-> theo `sub` · bỏ ex.Message Google) **+ 5 việc phát sinh xong** (bắt buộc xác thực email · gửi email
-> thật qua Gmail SMTP · vá user enumeration ở LoginAsync · **quên mật khẩu chạy end-to-end** ·
-> **register rollback khi SMTP lỗi**) · **TIẾP THEO: mục 7 — Register còn tiết lộ "Email đã được sử
-> dụng"** (mục gốc cuối cùng còn giá trị bảo mật; mục 8 đã hạ xuống việc dọn dẹp)
+> theo `sub` · bỏ ex.Message Google · **thống nhất chống user enumeration 3 chỗ**) **+ 5 việc phát
+> sinh xong** (bắt buộc xác thực email · gửi email thật qua Gmail SMTP · vá enumeration ở LoginAsync ·
+> quên mật khẩu chạy end-to-end · register rollback khi SMTP lỗi) · **TIẾP THEO: mục 8 — validation
+> DTO auth** (việc cuối của Day 48, đã hạ xuống mức dọn dẹp) → xong là **sang Day 49**
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -541,13 +541,12 @@ Kiểm chứng: build sạch (0 lỗi) + 30 test có sẵn vẫn pass (không c�
 cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ```
 
-## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 6/8 xong — 2026-08-20
+## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 7/8 xong — 2026-08-20/21
 
 ```
-📍 ĐANG Ở: mục 1-6 đã vá + 5 việc phát sinh xong + build sạch + 30 test pass.
-   CÒN LẠI: mục 7 (Register enumeration — làm tiếp theo) + mục 8 (validation DTO,
-   mô tả gốc SAI, đã hạ xuống việc dọn dẹp — xem bên dưới). Xong 2 mục đó là
-   đóng Day 48 → sang Day 49.
+📍 ĐANG Ở: mục 1-7 đã vá + 5 việc phát sinh xong + build sạch + 30 test pass.
+   CÒN ĐÚNG mục 8 (validation DTO — mô tả gốc SAI, đã hạ xuống việc dọn dẹp, xem
+   bên dưới). Xong là ĐÓNG Day 48 → sang Day 49.
 
 ☑ Lockout khi sai mật khẩu — XONG 2026-08-20
   ☑ LoginAsync đổi CheckPasswordAsync → SignInManager.CheckPasswordSignInAsync(
@@ -635,13 +634,61 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
   GIẢI QUYẾT: _logger.LogWarning(ex, ...) giữ chi tiết cho mình debug, client chỉ
   nhận "Token Google không hợp lệ."
 
-⬜ Register: bỏ "Email đã được sử dụng" → thống nhất chống user enumeration
-  ⚠️ Đổi chữ là chưa đủ — phải làm response GIỐNG HỆT nhau ở cả 2 trường hợp: email
-    đã tồn tại thì VẪN trả Success, nhưng gửi vào hộp thư đó một mail khác ("có
-    người vừa thử đăng ký bằng email của bạn") → vừa bịt đường dò, vừa CẢNH BÁO
-    chính nạn nhân của kịch bản pre-hijack ở trên
-  ⚠️ Cùng họ vấn đề với việc phát sinh "vá enumeration ở LoginAsync" (đã xong) —
-    vá một chỗ mà bỏ chỗ kia thì coi như chưa vá
+☑ Thống nhất chống user enumeration — XONG 2026-08-20
+
+  VẤN ĐỀ: 3 chỗ khác nhau đều nói cho người lạ biết email nào có tài khoản. Vá lẻ
+  một chỗ thì coi như chưa vá — kẻ tấn công chỉ cần đổi sang endpoint khác.
+
+  ☑ (1) RegisterAsync: bỏ "Email đã được sử dụng."
+    → email đã tồn tại giờ VẪN trả Success, nhưng gửi vào hộp thư đó mail khác:
+      "Có người vừa thử đăng ký bằng email của bạn"
+    → Mail đó KHÔNG chỉ để hai nhánh trông giống nhau. Nó là HÀNG PHÒNG VỆ THẬT
+      cho kịch bản pre-hijack vá ở mục 5: kẻ tấn công thử chiếm email thì CHỦ HỘP
+      THƯ biết ngay, thay vì chỉ có server im lặng biết.
+    ☑ try/catch quanh mail đó — khối chỉ chạy khi email tồn tại, SMTP lỗi mà thành
+      500 là tạo oracle MỚI ngay tại chỗ vừa bịt
+
+  ☑ (2) AuthController Register: thông báo phải sửa CÙNG LÚC, không tách được —
+      Success giờ bao cả nhánh không tạo gì nên "Đăng ký thành công" thành câu nói
+      dối. Đổi sang khuôn trung tính giống forgot-password: "Nếu email chưa được
+      sử dụng, link xác nhận đã được gửi." (Câu cũ còn nói "Xem console để lấy
+      token" — lỗi thời từ khi gửi mail thật.)
+
+  ☑ (3) ResetPasswordAsync: chỗ KHÓ NHẤT — result.Errors trộn HAI loại lỗi phải
+      xử lý NGƯỢC NHAU:
+      · InvalidToken           → PHẢI CHE (trả ra = "email này CÓ tài khoản, chỉ
+                                 token sai thôi")
+      · Password* (TooShort,   → PHẢI HIỆN. Che đi thì user gõ mật khẩu yếu không
+        RequiresUpper…)          biết sai ở đâu, thử mãi rồi bỏ cuộc. Và chính sách
+                                 mật khẩu KHÔNG phải bí mật — ai vào /register cũng thấy.
+    ☑ Phân loại theo tiền tố Code.StartsWith("Password") — mọi validator mật khẩu
+      của Identity đều theo quy ước tên đó, nên validator tự viết sau này tự động
+      được nhận, không phải sửa lại chỗ này
+    ☑ Thông báo chung khai báo thành const MỘT CHỖ — lệch một dấu chấm cuối câu là
+      lại phân biệt được
+    → Tự kiểm chứng thứ tự trong UserManager.ResetPasswordAsync: nó verify TOKEN
+      TRƯỚC và return ngay nếu sai, chỉ token hợp lệ mới validate mật khẩu. Nên hai
+      loại KHÔNG bao giờ lẫn nhau trong cùng một response → không cần logic ưu tiên.
+
+  ⚠️ BA GIỚI HẠN ĐÃ BIẾT, ghi thẳng vào comment thay vì vờ như đã kín:
+    1. Timing — nhánh tạo user có CreateAsync (băm mật khẩu, chậm hẳn) nên đo thời
+       gian phản hồi là phân biệt được. Triệt phải làm registration thời-gian-hằng-số,
+       giá không xứng ở mức dự án này.
+    2. Email bombing — POST /register liên tục bằng email nạn nhân làm hộp thư họ
+       nhận mail cảnh báo lặp lại. Hiện dựa vào rate limit "auth" (5 req/phút/IP).
+       Kín hẳn phải chặn theo email + cửa sổ thời gian (cần thêm state).
+    3. SMTP hỏng toàn cục — lúc đó nhánh trên trả Success, nhánh dưới rollback +
+       Failure → lại phân biệt được. Nhưng khi SMTP hỏng thì đăng ký chết cho mọi
+       người: sự cố tạm thời, không phải đường dò thường trực.
+    → Đây là loại câu trả lời tốt khi phỏng vấn: "em vá được đường dò qua response,
+      còn timing thì em BIẾT là vẫn hở và em quyết định không đánh đổi vì…"
+
+  ⚠️ ConfirmEmailAsync cũng có 2 thông báo khác nhau nhưng CỐ Ý KHÔNG sửa: nó nhận
+    userId dạng GUID chứ không phải email → không ai dò được GUID → không phải
+    đường enumeration thật. Sửa chỉ thêm nhiễu.
+
+  ⚠️ Cùng họ với việc phát sinh "vá enumeration ở LoginAsync" (xong trước đó) — 4
+    chỗ này phải nhìn như MỘT việc, không phải 4 việc rời.
 ⬜ Thêm validation cho DTO auth
   🔴 MÔ TẢ GỐC SAI: "null/rỗng đi thẳng vào Identity gây 500" — đã tự kiểm, KHÔNG
     500 ở đâu cả:
