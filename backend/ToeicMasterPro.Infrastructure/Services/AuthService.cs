@@ -46,10 +46,50 @@ public class AuthService : IAuthService
 
     public async Task<Result> RegisterAsync(RegisterRequest req)
     {
+        // ── Chống user enumeration ──
+        // Trước đây trả "Email đã được sử dụng." → bất kỳ ai gõ email nạn nhân vào form
+        // đăng ký là biết chắc email đó CÓ tài khoản. Giờ cả hai nhánh đều trả Success,
+        // response giống hệt nhau nên thử cũng không học được gì.
         var existing = await _userManager.FindByEmailAsync(req.Email);
         if (existing is not null)
-            return Result.Failure("Email đã được sử dụng.");
+        {
+            // Gửi mail CẢNH BÁO cho chính chủ hộp thư. Hai tác dụng: giữ cho hai nhánh
+            // giống nhau (cả hai đều gửi 1 mail), và là hàng phòng vệ THẬT cho kịch bản
+            // pre-hijack đã vá ở mục Google login — nếu ai đang thử chiếm email này thì
+            // chủ nó biết ngay, thay vì chỉ có server im lặng biết.
+            //
+            // try/catch cùng lý do như ForgotPasswordAsync: khối này CHỈ chạy khi email
+            // tồn tại, nên SMTP lỗi mà để exception bay ra thành 500 thì chênh lệch với
+            // nhánh dưới lại thành oracle mới.
+            try
+            {
+                await _emailSender.SendAsync(
+                    req.Email,
+                    "Có người vừa thử đăng ký bằng email của bạn",
+                    "Ai đó vừa dùng email này để đăng ký TOEIC Master Pro. Email đã có " +
+                    "tài khoản nên KHÔNG có gì được tạo thêm và mật khẩu của bạn không đổi.\n\n" +
+                    "Nếu đó là bạn: hãy đăng nhập bằng mật khẩu, hoặc dùng \"Quên mật khẩu\".\n" +
+                    "Nếu không phải bạn: bỏ qua email này, tài khoản của bạn vẫn an toàn.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Gửi mail cảnh báo đăng ký trùng email thất bại — UserId={UserId}", existing.Id);
+            }
 
+            return Result.Success();
+        }
+
+        // ⚠️ HAI GIỚI HẠN ĐÃ BIẾT, chấp nhận có chủ ý:
+        // 1. Timing: nhánh dưới có CreateAsync (băm mật khẩu — chậm hẳn) nên thời gian
+        //    phản hồi hai nhánh khác nhau, đo được. Muốn triệt phải làm registration
+        //    thời-gian-hằng-số, cái giá không xứng ở mức dự án này.
+        // 2. Email bombing: kẻ tấn công POST /register liên tục bằng email nạn nhân sẽ
+        //    làm hộp thư họ nhận mail cảnh báo lặp lại. Hiện dựa vào rate limit "auth"
+        //    (5 req/phút/IP). Muốn kín phải chặn theo email + cửa sổ thời gian (cần state).
+        // 3. SMTP hỏng toàn cục: nhánh trên trả Success, nhánh dưới rollback + Failure
+        //    → lúc đó lại phân biệt được. Nhưng khi SMTP hỏng thì đăng ký chết cho mọi
+        //    người, đây là trạng thái sự cố tạm thời, không phải đường dò thường trực.
         var user = new ApplicationUser
         {
             UserName = req.Email,

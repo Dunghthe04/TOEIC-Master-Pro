@@ -27,8 +27,12 @@ public class AuthController : ControllerBase{
     public async Task<IActionResult> Register(RegisterRequest req)
     {
         var result = await _auth.RegisterAsync(req);
+        // Thông báo PHẢI trung tính: RegisterAsync giờ trả Success cho cả trường hợp
+        // email đã có tài khoản (chống user enumeration), nên câu "Đăng ký thành công"
+        // sẽ là nói dối ở nhánh đó. Cùng khuôn với forgot-password bên dưới.
+        // (Câu cũ còn nói "Xem console để lấy token" — lỗi thời từ khi gửi mail thật.)
         return result.IsSuccess
-            ? Ok(new { message = "Đăng ký thành công. Xem console để lấy token xác thực email." })
+            ? Ok(new { message = "Nếu email chưa được sử dụng, link xác nhận đã được gửi. Vui lòng kiểm tra hộp thư." })
             : BadRequest(new { error = result.Error });
     }
 
