@@ -19,14 +19,14 @@
 
 ---
 
-## 1. Bảy User Secrets — bắt buộc
+## 1. Mười User Secrets — bắt buộc
 
 Thiếu bất kỳ khóa nào trong 2 khóa đầu → app **fail-fast lúc boot** kèm thông báo rõ
 (`Program.cs` hàm `RequireConfig`).
 
 ```powershell
 cd backend\ToeicMasterPro.API
-dotnet user-secrets list      # kiểm trước — nếu đủ 7 khóa thì bỏ qua mục này
+dotnet user-secrets list      # kiểm trước — nếu đủ 10 khóa thì bỏ qua mục này
 ```
 
 Nếu rỗng, đặt lại (thay mật khẩu cho khớp máy đó):
@@ -50,7 +50,23 @@ dotnet user-secrets set "ContentManagerSeed:Password" "CmPass@2026"
 # 6-7. Hangfire Dashboard — chỉ dùng ở Production, nhưng đặt sẵn để test
 dotnet user-secrets set "Hangfire:DashboardUser" "hfadmin"
 dotnet user-secrets set "Hangfire:DashboardPassword" "HangfireDash@2026"
+
+# 8-10. Gmail SMTP (Day 48) — thiếu là ĐĂNG KÝ và QUÊN MẬT KHẨU chết:
+#   RegisterAsync gửi mail lỗi → rollback user vừa tạo, trả "Không gửi được email
+#   xác nhận"; ForgotPasswordAsync im lặng không gửi gì (log lỗi, vẫn trả Success
+#   để không rò email nào tồn tại).
+# Password KHÔNG phải mật khẩu Gmail — là App Password 16 ký tự, tạo tại
+#   myaccount.google.com/apppasswords (phải bật 2-Step Verification trước).
+# FromEmail/Username nằm ở đây chứ KHÔNG ở appsettings.json: repo này public trên
+#   GitHub, để email cá nhân trong file tracked là mời bot scrape spam.
+dotnet user-secrets set "Smtp:FromEmail" "<email-gmail-cua-ban>"
+dotnet user-secrets set "Smtp:Username" "<email-gmail-cua-ban>"
+dotnet user-secrets set "Smtp:Password" "<app-password-16-ky-tu>"
 ```
+
+> **Production đọc từ biến môi trường, không phải user-secrets** (user-secrets chỉ nạp ở
+> Development). Ba khóa trên thành `Smtp__FromEmail`, `Smtp__Username`, `Smtp__Password`
+> — hai gạch dưới thay dấu `:`, đúng quy ước đã dùng cho `Jwt__SecretKey` ở Day 40.
 
 ### ⚠️ Hai điểm dễ sai
 
@@ -231,7 +247,7 @@ Rồi UI:
 
 ```
 □ git pull
-□ dotnet user-secrets list  → nếu rỗng, đặt 7 khóa (mục 1)
+□ dotnet user-secrets list  → nếu rỗng, đặt 10 khóa (mục 1)
    ⚠️ 127.0.0.1 KHÔNG phải localhost
    ⚠️ Redis có abortConnect=false
 □ docker compose up -d --force-recreate

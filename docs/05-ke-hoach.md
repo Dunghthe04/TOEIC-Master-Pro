@@ -37,7 +37,7 @@
 > - ⬜ Day 33: đọc JD thật · quyết định bản quyền đề ETS
 >
 > ### 🔴 Việc PHẢI làm khi đổi máy — xem [11-thiet-lap-may-moi.md](11-thiet-lap-may-moi.md)
-> Bảy User Secrets (dùng `127.0.0.1`, **không** `localhost`) · `docker compose up -d
+> Mười User Secrets (dùng `127.0.0.1`, **không** `localhost`) · `docker compose up -d
 > --force-recreate` · di chuyển media sang `protected-media/` · SQL UPDATE 2 cột URL.
 > Bỏ qua là app không boot, hoặc audio 404 hết.
 
@@ -771,6 +771,24 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
 
 □ frontend/Dockerfile — build Vite → Nginx phục vụ file tĩnh
 □ Test local: docker compose -f docker-compose.prod.yml up
+
+🔴 docker-compose.prod.yml THIẾU 6 BIẾN — viết ngày 2026-08-05, từ đó thêm nhiều
+   tính năng mà chưa cập nhật. Đã grep xác nhận không có dòng nào:
+   □ Smtp__FromEmail / Smtp__Username / Smtp__Password  (Day 48)
+     → thiếu: RegisterAsync rollback user vừa tạo ("Không gửi được email xác
+       nhận"), ForgotPasswordAsync im lặng không gửi gì → ĐĂNG KÝ + QUÊN MẬT KHẨU
+       CHẾT CẢ HAI
+   □ Frontend__BaseUrl
+     → thiếu: link xác nhận email và link đặt lại mật khẩu thành "/confirm-email"
+       không có host → user bấm vào không đi đâu cả
+   □ GoogleAuth__ClientId
+     → thiếu: đăng nhập Google chết (ValidationSettings.Audience = null)
+   □ Iig__*  → job iig-exam-schedule-sync chạy lỗi mỗi 6 tiếng
+
+⚠️ CẨN THẬN khi viết file compose DEV để test local: giữ
+   ASPNETCORE_ENVIRONMENT=Development trong container là mở toang /hangfire ra
+   internet. Ở máy thật, thứ bảo vệ dashboard là Kestrel bind localhost — mà
+   container BUỘC phải bind 0.0.0.0 mới nhận được request. Chi tiết: 08 mục 8.4
 ```
 
 ## Day 51 — Mua VPS + bảo mật máy
