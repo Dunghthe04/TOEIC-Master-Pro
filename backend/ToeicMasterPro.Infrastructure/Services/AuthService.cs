@@ -91,16 +91,38 @@ public class AuthService : IAuthService
         var signInResult = await _signInManager.CheckPasswordSignInAsync(
             user, req.Password, lockoutOnFailure: true);
 
+        // Thông báo này CÓ rò rỉ "email này tồn tại" — chấp nhận CÓ CHỦ Ý: muốn khóa
+        // được một tài khoản thì phải sai mật khẩu 5 lần, mà email không tồn tại đã bị
+        // chặn ở trên (user is null) nên không bao giờ vào được trạng thái khóa. Che nó
+        // đi thì user thật bị khóa 15 phút mà không hiểu vì sao → đánh đổi ngược, mất
+        // nhiều hơn được.
         if (signInResult.IsLockedOut)
             return Result<AuthResponse>.Failure(
                 "Tài khoản tạm khóa do sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.");
 
-        // IsNotAllowed = mật khẩu ĐÚNG nhưng RequireConfirmedEmail chặn vì
-        // EmailConfirmed == false. Phải kiểm TRƯỚC signInResult.Succeeded — request
-        // này chưa từng Succeeded, nhưng cũng không phải "sai mật khẩu".
+        // IsNotAllowed = RequireConfirmedEmail chặn vì EmailConfirmed == false. Phải
+        // kiểm TRƯỚC signInResult.Succeeded — request này chưa từng Succeeded, nhưng
+        // cũng không phải "sai mật khẩu".
+        //
+        // ⚠️ SignInManager chạy PreSignInCheck(user) TRƯỚC khi kiểm mật khẩu, và
+        // IsNotAllowed sinh ra từ chính PreSignInCheck đó → nó trả về BẤT KỂ mật khẩu
+        // đúng hay sai. Trả thẳng thông báo ra là cho phép bất kỳ ai gõ email nạn nhân
+        // kèm mật khẩu rác để dò xem email nào có tài khoản (user enumeration) — cùng
+        // họ vấn đề với "Email đã được sử dụng" ở RegisterAsync.
+        // → Chỉ nói thật với người CHỨNG MINH được là họ biết mật khẩu.
+        //
+        // CheckPasswordAsync chỉ so hash, KHÔNG đi qua PreSignInCheck nên không bị
+        // NotAllowed chặn lần nữa; nó cũng không đếm AccessFailedCount, mà cũng không
+        // cần: PreSignInCheck đã chặn từ đầu nên lockout vốn đã không đếm cho tài khoản
+        // chưa xác thực email.
         if (signInResult.IsNotAllowed)
-            return Result<AuthResponse>.Failure(
-                "Email chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.");
+        {
+            if (await _userManager.CheckPasswordAsync(user, req.Password))
+                return Result<AuthResponse>.Failure(
+                    "Email chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.");
+
+            return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
+        }
 
         if (!signInResult.Succeeded)
             return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
