@@ -2,10 +2,11 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 4/8 mục gốc
-> xong** (lockout · hash refresh token · reuse detection · logout [Authorize]) **+ 2 việc phát sinh
-> xong** (bắt buộc xác thực email · gửi email thật qua Gmail SMTP, đang chờ set App Password ở máy
-> khác) · **TIẾP THEO: mục 5 — Google login khóa theo `sub`** (đã phân tích kỹ, chưa code)
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 6/8 mục gốc
+> xong** (lockout · hash refresh token · reuse detection · logout [Authorize] · **Google login khóa
+> theo `sub`** · **bỏ ex.Message Google**) **+ 3 việc phát sinh xong** (bắt buộc xác thực email · gửi
+> email thật qua Gmail SMTP · **vá user enumeration ở LoginAsync**) · **TIẾP THEO: quên mật khẩu đang
+> hỏng hẳn** — `ForgotPasswordAsync` vẫn `Console.WriteLine`, việc "gửi mail thật" bỏ sót hàm này
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -539,11 +540,13 @@ Kiểm chứng: build sạch (0 lỗi) + 30 test có sẵn vẫn pass (không c�
 cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ```
 
-## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 4/8 xong — 2026-08-20
+## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 6/8 xong — 2026-08-20
 
 ```
-📍 ĐANG Ở: mục 1-4 đã vá + build sạch + 30 test pass. TIẾP THEO: mục 5 — Google
-   login khóa theo `sub` (mức nghiêm trọng nhất, đã phân tích kỹ, CHƯA code).
+📍 ĐANG Ở: mục 1-6 đã vá + build sạch + 30 test pass. Còn mục 7 (Register
+   enumeration) + mục 8 (validation DTO, mô tả gốc SAI — xem bên dưới).
+   TIẾP THEO ưu tiên hơn cả 2 mục đó: ForgotPasswordAsync vẫn Console.WriteLine
+   → chức năng quên mật khẩu HỎNG HẲN với user thật, mà UI vẫn báo thành công.
 
 ☑ Lockout khi sai mật khẩu — XONG 2026-08-20
   ☑ LoginAsync đổi CheckPasswordAsync → SignInManager.CheckPasswordSignInAsync(
@@ -575,22 +578,118 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
     chỉ revoke nếu stored.UserId == userId — không tạo oracle (response giống
     nhau dù token không tồn tại hay không thuộc user gọi)
 
-⬜ Google login (AuthService.cs:~219): gộp tài khoản chỉ bằng email
-  → pre-hijack account takeover — ĐÃ PHÂN TÍCH KỸ, chưa code:
-    kẻ tấn công đăng ký trước bằng email nạn nhân (mật khẩu tự đặt) → nạn nhân
-    "Đăng nhập bằng Google" sau đó → FindByEmailAsync tìm thấy tài khoản có sẵn
-    → login thẳng vào tài khoản kẻ tấn công kiểm soát
-  ⬜ Dùng AspNetUserLogins (đã có sẵn từ InitialCreate, KHÔNG cần migration) +
-    Google `sub` làm khóa liên kết — FindByLoginAsync("Google", sub) trước,
-    FindByEmailAsync chỉ dùng để phát hiện case trùng-email-chưa-liên-kết
-  ⬜ Case trùng email chưa liên kết → TỪ CHỐI thẳng (không tự gộp), báo
-    "Email này đã có tài khoản. Vui lòng đăng nhập bằng mật khẩu."
+☑ Google login: khóa theo `sub` thay vì email — XONG 2026-08-20
 
-⬜ Bỏ ex.Message của Google trả ra client (AuthService.cs:~237)
+  VẤN ĐỀ: GoogleLoginAsync gộp tài khoản CHỈ bằng email → pre-hijack account
+  takeover. Kẻ tấn công /register trước bằng email nạn nhân (mật khẩu tự đặt) →
+  nạn nhân bấm "Đăng nhập bằng Google" → FindByEmailAsync tìm thấy tài khoản có
+  sẵn → cấp JWT vào tài khoản do kẻ tấn công kiểm soát.
+  ⚠️ RequireConfirmedEmail (việc phát sinh bên dưới) KHÔNG chặn được đường này —
+    tưởng chặn rồi là hiểu sai: cờ đó do SignInManager thi hành, mà GoogleLoginAsync
+    KHÔNG gọi SignInManager, nó đi thẳng FindByEmailAsync → BuildAuthResponseAsync.
+    Cờ đó chỉ chặn bước "kẻ tấn công tự dùng mật khẩu", còn PasswordHash vẫn nằm
+    trong DB làm BOM HẸN GIỜ: hôm nào EmailConfirmed bật lên là mật khẩu đó sống
+    lại. Mà chính nạn nhân sẽ bật nó — mail xác nhận ở bước 1 gửi vào hộp thư của
+    họ, nội dung hợp lệ, họ bấm là xong.
+
+  GIẢI QUYẾT: `sub` (Google Account ID — bất biến, không bao giờ cấp lại) làm KHÓA
+  ĐỊNH DANH; email hạ xuống thành THUỘC TÍNH.
+  ☑ FindByLoginAsync("Google", payload.Subject) làm đường tìm CHÍNH
+  ☑ AddLoginAsync ghi ánh xạ vào AspNetUserLogins cho MỌI nhánh (kể cả user cũ) —
+    code cũ chưa bao giờ gọi hàm này nên bảng đó đang RỖNG, mỗi lần login lại SUY
+    LUẬN từ email. Không cần migration (bảng có từ InitialCreate).
+    → PK là cặp (LoginProvider, ProviderKey) nên "một sub chỉ trỏ tới 1 user" là
+      ràng buộc DB CƯỠNG CHẾ, không phải quy ước code. Đây là lý do phải kiểm
+      addLogin.Succeeded (Identity trả lỗi LoginAlreadyAssociated).
+  ☑ Kiểm payload.EmailVerified — Google CÓ phát hành token với cờ này false, khi đó
+    email không chứng minh được quyền sở hữu, mà cả logic dưới đều dựa vào điều đó
+  ☑ Ba nhánh khi `sub` chưa liên kết mà email đã bị giữ — phân biệt bằng đúng một
+    câu hỏi: "tài khoản này đã từng CHỨNG MINH nó sở hữu email chưa?"
+    · không mật khẩu             → user Google cũ (chỉ luồng Google tạo được tài
+                                   khoản không mật khẩu) → nhận vào + gắn sub
+    · có mật khẩu + CHƯA xác thực → squat: Google vừa chứng minh sở hữu, bên đặt
+                                   mật khẩu chưa chứng minh gì → bên chứng minh
+                                   được THẮNG: RemovePasswordAsync +
+                                   EmailConfirmed=true + thu hồi hết refresh token
+                                   + log cảnh báo
+    · có mật khẩu + ĐÃ xác thực   → chính chủ thật → TỪ CHỐI, không tự gộp
+
+  🔴 KẾ HOẠCH GỐC GHI THIẾU 2 NHÁNH. Làm y nguyên "trùng email chưa liên kết → TỪ
+    CHỐI thẳng" thì gây 2 sự cố:
+    1. Khóa cửa với TOÀN BỘ user Google hiện có — AspNetUserLogins đang rỗng nên
+       với họ FindByLoginAsync cũng trả null y như kẻ tấn công → từ chối vĩnh viễn
+    2. Nạn nhân bị khóa vĩnh viễn khỏi email của CHÍNH MÌNH — tài khoản squat vẫn
+       nằm đó, nạn nhân nhận "hãy đăng nhập bằng mật khẩu" mà họ không biết mật
+       khẩu → kẻ tấn công thắng theo kiểu DoS thay vì takeover
+    → BÀI HỌC: "từ chối" là phản xạ an toàn nhưng KHÔNG miễn phí. Chọn nó phải hỏi
+      thêm một câu: "từ chối thì AI bị chặn oan?"
+
+  ⚠️ Hệ quả có chủ ý: tài khoản seed Admin/CM (có mật khẩu + EmailConfirmed=true)
+    rơi vào nhánh 3 → KHÔNG đăng nhập Google được nữa. Đúng, không phải lỗi: tài
+    khoản quyền cao nhất càng không được để một luồng tự-gộp chạm vào.
+
+☑ Bỏ ex.Message của Google trả ra client — XONG 2026-08-20
+  VẤN ĐỀ: message của Google nói rõ token sai ở ĐÂU (audience/issuer/thời điểm hết
+  hạn) → trả ra client là đưa kẻ tấn công bản hướng dẫn sửa token cho đúng.
+  GIẢI QUYẾT: _logger.LogWarning(ex, ...) giữ chi tiết cho mình debug, client chỉ
+  nhận "Token Google không hợp lệ."
+
 ⬜ Register: bỏ "Email đã được sử dụng" → thống nhất chống user enumeration
-⬜ Thêm validation cho DTO auth (hiện null/rỗng đi thẳng vào Identity gây 500)
+  ⚠️ Đổi chữ là chưa đủ — phải làm response GIỐNG HỆT nhau ở cả 2 trường hợp: email
+    đã tồn tại thì VẪN trả Success, nhưng gửi vào hộp thư đó một mail khác ("có
+    người vừa thử đăng ký bằng email của bạn") → vừa bịt đường dò, vừa CẢNH BÁO
+    chính nạn nhân của kịch bản pre-hijack ở trên
+  ⚠️ Cùng họ vấn đề với việc phát sinh "vá enumeration ở LoginAsync" (đã xong) —
+    vá một chỗ mà bỏ chỗ kia thì coi như chưa vá
+⬜ Thêm validation cho DTO auth
+  🔴 MÔ TẢ GỐC SAI: "null/rỗng đi thẳng vào Identity gây 500" — đã tự kiểm, KHÔNG
+    500 ở đâu cả:
+    · cả 5 project bật <Nullable>enable</Nullable> → tham số string non-nullable
+      trong positional record được coi là [Required] NGẦM → null/thiếu field bị
+      [ApiController] chặn thành 400 TỰ ĐỘNG, không vào tới Identity
+    · RequireUniqueEmail=true (Program.cs:66) → UserValidator của Identity CÓ kiểm
+      định dạng email → gõ "abc" làm email bị chặn
+    · chuỗi rỗng "" thì lọt thật, nhưng ra FindByEmailAsync("") → null → thông báo
+      chung. Vẫn không 500.
+  → HẠ xuống việc DỌN DẸP, làm sau cùng: thêm [MaxLength] cho FullName (đang là
+    nvarchar(max), post tên 10MB được) + [EmailAddress] để lỗi hiện ở tầng DTO thay
+    vì tầng Identity. 7 DTO auth hiện không có một attribute nào.
 
-### Phát sinh ngoài 8 mục gốc — lộ ra khi test tay mục Google login
+### Phát sinh ngoài 8 mục gốc — lộ ra khi test tay + khi đọc lại code sau mục 5
+
+☑ LoginAsync để BẤT KỲ AI dò được email nào có tài khoản — XONG 2026-08-20
+
+  VẤN ĐỀ: chính mục 1 + việc phát sinh RequireConfirmedEmail đã TẠO RA lỗ này.
+  Sau khi thêm 2 thứ đó, LoginAsync trả 3 thông báo phân biệt được:
+    "Tài khoản tạm khóa…"        → tài khoản TỒN TẠI
+    "Email chưa được xác thực"   → tài khoản TỒN TẠI + chưa xác thực
+    "Email hoặc mật khẩu không đúng" → không tồn tại HOẶC tồn tại+đã xác thực
+  Cái ở giữa mới là lỗ: SignInManager chạy PreSignInCheck(user) TRƯỚC khi kiểm mật
+  khẩu, và IsNotAllowed sinh ra từ chính PreSignInCheck đó → nó trả về BẤT KỂ mật
+  khẩu đúng hay sai. Gõ email nạn nhân + mật khẩu rác "aaa" là biết chắc email đó
+  có tài khoản.
+
+  🔴 COMMENT TRONG CODE ĐANG NÓI SAI — đây là lý do lỗ này tồn tại mà không ai
+    thấy: comment cũ viết "IsNotAllowed = mật khẩu ĐÚNG nhưng RequireConfirmedEmail
+    chặn". Sai. Comment nói sai làm người đọc lại tin là đã an toàn.
+    → Bằng chứng không cần tra tài liệu: chính mục 1 đã kiểm tay "đúng mật khẩu
+      trong lúc khóa VẪN bị chặn". Nếu mật khẩu được kiểm trước thì mật khẩu đúng
+      phải ra Succeeded. Nó ra LockedOut ⟹ PreSignInCheck chạy trước ⟹ mọi thứ
+      trong PreSignInCheck (gồm IsNotAllowed) đều chạy trước. Test cũ của mình đã
+      chứa sẵn câu trả lời, chỉ là lúc đó chưa đọc ra.
+
+  GIẢI QUYẾT: chỉ nói thật với người CHỨNG MINH được là họ biết mật khẩu.
+  ☑ Nhánh IsNotAllowed: gọi thêm _userManager.CheckPasswordAsync(user, password)
+    (chỉ so hash, KHÔNG đi qua PreSignInCheck) → đúng thì mới trả "Email chưa được
+    xác thực", sai thì trả thông báo chung. User thật vẫn được hướng dẫn đúng,
+    người dò bừa không học được gì.
+  ☑ Viết lại comment sai ở trên cho đúng cơ chế
+
+  ⚠️ CỐ Ý KHÔNG che "Tài khoản tạm khóa…" dù nó cũng rò: muốn khóa được một tài
+    khoản thì phải sai mật khẩu 5 lần, mà email không tồn tại đã bị chặn từ dòng
+    `user is null` nên không bao giờ vào được trạng thái khóa. Che đi thì user thật
+    bị khóa 15' mà không hiểu vì sao → đánh đổi ngược, mất nhiều hơn được.
+    Câu phỏng vấn tự mở ra: "vì sao bạn che chỗ này mà không che chỗ kia?"
 
 ☑ RequireConfirmedEmail=true — XONG 2026-08-20
   → Test tay phát hiện: đăng ký bằng email KHÔNG PHẢI của mình vẫn được, dùng
