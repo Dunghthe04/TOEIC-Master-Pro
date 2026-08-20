@@ -232,8 +232,31 @@ public class AuthService : IAuthService
         {
             //ASP.NET Identity tạo một token đặc biệt để reset mật khẩu. chỉ dùng cho reset mật khẩu
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-            Console.WriteLine($"[RESET PASSWORD] email = {user.Email}");
-            Console.WriteLine($"[RESET PASSWORD] token = {resetToken}");
+
+            // Token Identity chứa +, /, = (base64) — PHẢI url-encode, không thì link vỡ
+            // (bài học đã va ở RegisterAsync). Email cũng phải encode: địa chỉ dạng
+            // abc+tag@gmail.com có dấu + bị query string hiểu thành dấu cách.
+            var resetLink = $"{_config["Frontend:BaseUrl"]}/reset-password" +
+                $"?email={Uri.EscapeDataString(user.Email!)}" +
+                $"&token={Uri.EscapeDataString(resetToken)}";
+
+            // try/catch KHÔNG phải để cho đẹp: khối này CHỈ chạy khi email tồn tại, nên
+            // SMTP lỗi mà để exception bay ra sẽ thành 500, còn email không tồn tại thì
+            // luôn 200 → chênh lệch đó chính là oracle cho phép dò email nào có tài
+            // khoản, phá đúng cái mà "luôn trả Success" ở trên đang bảo vệ.
+            try
+            {
+                await _emailSender.SendAsync(
+                    user.Email!,
+                    "Đặt lại mật khẩu TOEIC Master Pro",
+                    $"Bấm vào link sau để đặt lại mật khẩu:\n{resetLink}\n\n" +
+                    "Nếu bạn không yêu cầu việc này, hãy bỏ qua email này — mật khẩu " +
+                    "hiện tại của bạn vẫn an toàn.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Gửi mail đặt lại mật khẩu thất bại — UserId={UserId}", user.Id);
+            }
         }
         return Result.Success();
     }
@@ -248,6 +271,16 @@ public class AuthService : IAuthService
         {
             return Result.Failure(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+        // Dùng được token gửi vào hộp thư = ĐÃ CHỨNG MINH sở hữu email, mạnh ngang
+        // việc bấm link xác nhận. Không bật cờ này thì user chưa xác thực rơi vào NGÕ
+        // CỤT do RequireConfirmedEmail (Program.cs:78) tạo ra: đặt lại mật khẩu thành
+        // công nhưng đăng nhập vẫn bị chặn, mà không còn đường nào thoát ra.
+        if (!user.EmailConfirmed)
+        {
+            user.EmailConfirmed = true;
+            await _userManager.UpdateAsync(user);
+        }
+
         // Bảo mật: đổi mật khẩu xong → thu hồi mọi refresh token đang hoạt động
         // → buộc đăng nhập lại trên mọi thiết bị (phòng trường hợp bị chiếm tài khoản).
         var activeTokens = await _context.RefreshTokens

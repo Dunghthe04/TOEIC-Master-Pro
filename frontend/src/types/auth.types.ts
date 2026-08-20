@@ -14,6 +14,14 @@ export interface ForgotPasswordRequest {
     email: string
 }
 
+// email + token đọc từ query string của link trong mail đặt lại mật khẩu
+// (AuthService.ForgotPasswordAsync dựng link), không phải người dùng tự gõ.
+export interface ResetPasswordRequest {
+    email: string
+    token: string
+    newPassword: string
+}
+
 export interface AuthResponse {
     accessToken: string
     // refreshToken KHÔNG còn trong body — backend chuyển sang httpOnly cookie

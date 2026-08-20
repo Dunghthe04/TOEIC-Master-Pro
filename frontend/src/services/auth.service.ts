@@ -1,6 +1,6 @@
 //Tập chung toàn bộ lời gọi api auth vào một chỗ, các page chỉ được gọi service k đc gọi axios
 import api from "@/api/axios"
-import type { LoginRequest, RegisterRequest, ForgotPasswordRequest, AuthResponse } from '@/types/auth.types';
+import type { LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, AuthResponse } from '@/types/auth.types';
 
 export const authService = {
     //Login, nhận LoginRequst, trả về AuthResponse
@@ -19,6 +19,13 @@ export const authService = {
     //forgot password
     async forgotPassword(data: ForgotPasswordRequest): Promise<{ message: string }> {
         const res = await api.post<{ message: string }>('/auth/forgot-password', data)
+        return res.data
+    },
+
+    //Đặt lại mật khẩu — email/token lấy từ query string của link trong mail,
+    //KHÔNG phải người dùng tự gõ (token là bằng chứng đọc được hộp thư).
+    async resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
+        const res = await api.post<{ message: string }>('/auth/reset-password', data)
         return res.data
     },
 
