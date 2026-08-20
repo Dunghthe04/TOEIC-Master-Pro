@@ -70,10 +70,28 @@ public class AuthService : IAuthService
         var confirmLink = $"{_config["Frontend:BaseUrl"]}/confirm-email" +
             $"?userId={user.Id}&token={Uri.EscapeDataString(emailToken)}";
 
-        await _emailSender.SendAsync(
-            user.Email!,
-            "Xác nhận tài khoản TOEIC Master Pro",
-            $"Bấm vào link sau để xác nhận tài khoản:\n{confirmLink}");
+        // SMTP lỗi ở đây là trạng thái TẮC HOÀN TOÀN nếu bỏ qua: user đã nằm trong DB
+        // với EmailConfirmed=false → RequireConfirmedEmail chặn đăng nhập, mà mail xác
+        // nhận thì không bao giờ tới, và đăng ký lại thì vướng chính tài khoản vừa tạo.
+        // Trước đây không bọc try/catch nên exception bay ra thành 500 SAU KHI user đã
+        // được tạo — đúng cái trạng thái tắc đó, chỉ khác là user không biết vì sao.
+        // → Xoá user vừa tạo, trả DB về trạng thái sạch để họ đăng ký lại được ngay.
+        //   (Cách đúng về lâu dài là endpoint "gửi lại mail xác nhận"; khi có nó thì
+        //    đổi sang giữ user và để họ tự yêu cầu gửi lại.)
+        try
+        {
+            await _emailSender.SendAsync(
+                user.Email,
+                "Xác nhận tài khoản TOEIC Master Pro",
+                $"Bấm vào link sau để xác nhận tài khoản:\n{confirmLink}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Gửi mail xác nhận thất bại — đã rollback user vừa tạo. Email={Email}", user.Email);
+            await _userManager.DeleteAsync(user);
+            return Result.Failure("Không gửi được email xác nhận. Vui lòng thử lại sau.");
+        }
 
         return Result.Success();
     }
