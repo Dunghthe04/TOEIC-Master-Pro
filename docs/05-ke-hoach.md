@@ -2,8 +2,10 @@
 
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
-> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** (auth · khôi phục phiên thi khi F5 ·
-> ràng buộc thời gian phía server · vá 5 lỗ logic phá hoại nghiệp vụ) · **TIẾP THEO: Day 48 — Siết authentication**
+> 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 4/8 mục gốc
+> xong** (lockout · hash refresh token · reuse detection · logout [Authorize]) **+ 2 việc phát sinh
+> xong** (bắt buộc xác thực email · gửi email thật qua Gmail SMTP, đang chờ set App Password ở máy
+> khác) · **TIẾP THEO: mục 5 — Google login khóa theo `sub`** (đã phân tích kỹ, chưa code)
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -537,26 +539,87 @@ Kiểm chứng: build sạch (0 lỗi) + 30 test có sẵn vẫn pass (không c�
 cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ```
 
-## Day 48 — Siết authentication
+## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 4/8 xong — 2026-08-20
 
 ```
-□ Lockout khi sai mật khẩu:
-  □ Đổi CheckPasswordAsync → SignInManager.PasswordSignInAsync(..., lockoutOnFailure: true)
-  □ Cấu hình MaxFailedAccessAttempts = 5, DefaultLockoutTimeSpan = 15 phút
-  → hiện KHÔNG có lockout, chỉ rate limit theo IP (đổi IP là brute-force thoải mái)
+📍 ĐANG Ở: mục 1-4 đã vá + build sạch + 30 test pass. TIẾP THEO: mục 5 — Google
+   login khóa theo `sub` (mức nghiêm trọng nhất, đã phân tích kỹ, CHƯA code).
 
-□ Refresh token: lưu SHA-256 thay vì plaintext
-□ Refresh token: reuse detection — token đã thu hồi mà dùng lại → thu hồi CẢ HỌ
-□ /api/auth/logout: thêm [Authorize] + kiểm quyền sở hữu token (hiện ẩn danh)
+☑ Lockout khi sai mật khẩu — XONG 2026-08-20
+  ☑ LoginAsync đổi CheckPasswordAsync → SignInManager.CheckPasswordSignInAsync(
+    ..., lockoutOnFailure: true) — KHÔNG dùng PasswordSignInAsync vì hàm đó issue
+    thêm cookie đăng nhập của Identity, app chỉ dùng JWT tự cấp
+  ☑ Program.cs: options.Lockout.MaxFailedAccessAttempts=5, DefaultLockoutTimeSpan=15'
+  ☑ Kiểm chứng tay: sai 5 lần → khóa 15 phút, đúng mật khẩu trong lúc khóa vẫn bị chặn
 
-□ Google login (AuthService.cs:178): gộp tài khoản chỉ bằng email
-  → pre-hijack account takeover
-  □ Dùng AspNetUserLogins + Google `sub` làm khóa liên kết
-  □ Kiểm payload.EmailVerified
+☑ Refresh token: lưu SHA-256 thay vì plaintext — XONG 2026-08-20
+  ☑ TokenService.GenerateRefreshToken trả (Entity, RawToken) — Entity.Token = hash
+    (SHA-256, KHÔNG cần salt/chậm hoá vì input đã là 64 byte ngẫu nhiên thật),
+    RawToken mới là giá trị gửi client. Không cần migration (cột đã MaxLength 200).
+  ☑ RefreshTokenAsync/LogoutAsync: hash refreshToken nhận được rồi mới so với DB
+  ⚠️ Hệ quả 1 lần: mọi refresh token đang lưu hành TRƯỚC khi deploy tự vô hiệu
+    (giống rotate Jwt:SecretKey ở Day 40) — mọi người bị đá về login 1 lần
 
-□ Bỏ ex.Message của Google trả ra client (AuthService.cs:175)
-□ Register: bỏ "Email đã được sử dụng" → thống nhất chống user enumeration
-□ Thêm validation cho DTO auth (hiện null/rỗng đi thẳng vào Identity gây 500)
+☑ Refresh token: reuse detection — XONG 2026-08-20
+  ☑ RefreshTokenAsync: token có RevokedAt != null (đã bị revoke, KHÁC hết hạn tự
+    nhiên) mà vẫn bị dùng lại → thu hồi TOÀN BỘ token đang hoạt động của user đó
+    (không chỉ token vừa dùng) + log cảnh báo (ILogger, chỉ để audit, không phải
+    hàng phòng vệ chính — hàng phòng vệ chính là thu hồi cả họ)
+  ⚠️ Giới hạn đã biết: race 2 tab cùng lúc với token cũ CÓ THỂ bị nhận nhầm reuse
+    (đánh đổi có chủ ý của kỹ thuật rotation+reuse-detection)
+
+☑ /api/auth/logout: thêm [Authorize] + kiểm quyền sở hữu token — XONG 2026-08-20
+  ☑ [Authorize] đè [AllowAnonymous] cấp class — FE không cần sửa gì (Bearer
+    accessToken vẫn còn lúc gọi logout, state chỉ xóa ở finally SAU khi gọi API)
+  ☑ LogoutAsync nhận thêm userId (từ ICurrentUserService qua controller),
+    chỉ revoke nếu stored.UserId == userId — không tạo oracle (response giống
+    nhau dù token không tồn tại hay không thuộc user gọi)
+
+⬜ Google login (AuthService.cs:~219): gộp tài khoản chỉ bằng email
+  → pre-hijack account takeover — ĐÃ PHÂN TÍCH KỸ, chưa code:
+    kẻ tấn công đăng ký trước bằng email nạn nhân (mật khẩu tự đặt) → nạn nhân
+    "Đăng nhập bằng Google" sau đó → FindByEmailAsync tìm thấy tài khoản có sẵn
+    → login thẳng vào tài khoản kẻ tấn công kiểm soát
+  ⬜ Dùng AspNetUserLogins (đã có sẵn từ InitialCreate, KHÔNG cần migration) +
+    Google `sub` làm khóa liên kết — FindByLoginAsync("Google", sub) trước,
+    FindByEmailAsync chỉ dùng để phát hiện case trùng-email-chưa-liên-kết
+  ⬜ Case trùng email chưa liên kết → TỪ CHỐI thẳng (không tự gộp), báo
+    "Email này đã có tài khoản. Vui lòng đăng nhập bằng mật khẩu."
+
+⬜ Bỏ ex.Message của Google trả ra client (AuthService.cs:~237)
+⬜ Register: bỏ "Email đã được sử dụng" → thống nhất chống user enumeration
+⬜ Thêm validation cho DTO auth (hiện null/rỗng đi thẳng vào Identity gây 500)
+
+### Phát sinh ngoài 8 mục gốc — lộ ra khi test tay mục Google login
+
+☑ RequireConfirmedEmail=true — XONG 2026-08-20
+  → Test tay phát hiện: đăng ký bằng email KHÔNG PHẢI của mình vẫn được, dùng
+    ngay được luôn — đây chính là bước 1 của kịch bản pre-hijack ở trên (đăng ký
+    chiếm email người khác). Không xác thực email thì tài khoản chỉ chờ sẵn.
+  ☑ Program.cs: options.SignIn.RequireConfirmedEmail = true
+  ☑ LoginAsync: thêm nhánh signInResult.IsNotAllowed (mật khẩu đúng, email chưa
+    xác thực) — PHẢI kiểm trước Succeeded, không thì lọt xuống báo nhầm "sai mật khẩu"
+  ⚠️ Vá được lỗ hổng A (chiếm email bằng đăng ký tay) nhưng KHÔNG vá lỗ hổng B
+    (Google login) — GoogleLoginAsync gọi thẳng BuildAuthResponseAsync, không đi
+    qua CheckPasswordSignInAsync nên cờ này không chặn được đường Google. Vẫn
+    cần làm mục "Google login" ở trên để đóng nốt.
+
+☑ Link xác nhận qua email (thay vì bắt tự gọi API bằng Postman) — XONG 2026-08-20
+  ☑ appsettings.json: thêm "Frontend:BaseUrl"
+  ☑ RegisterAsync: build link `{BaseUrl}/confirm-email?userId=...&token=...`
+    (Uri.EscapeDataString token — token Identity chứa +/=, vỡ link nếu không encode)
+  ☑ Frontend: trang mới ConfirmEmailPage.tsx (route /confirm-email) đọc query
+    string, tự gọi authService.confirmEmail(), hiện kết quả
+
+☑ Gửi email THẬT qua Gmail SMTP (MailKit) — XONG 2026-08-20
+  ☑ AuthService giờ inject IEmailSender (trước đó RegisterAsync Console.WriteLine
+    thẳng, không qua abstraction — sửa luôn cho nhất quán)
+  ☑ SmtpSettings.cs + SmtpEmailSender.cs (MailKit, StartTls port 587)
+  ☑ Program.cs: đổi đăng ký IEmailSender từ ConsoleEmailSender → SmtpEmailSender
+  ⬜ CẦN BẠN LÀM Ở MÁY KHÁC: điền appsettings.json Smtp:FromEmail/Username +
+    dotnet user-secrets set "Smtp:Password" "<app-password-16-ký-tự>"
+    (tạo tại myaccount.google.com/apppasswords, cần bật 2-Step Verification trước)
+    → THIẾU BƯỚC NÀY thì gửi mail sẽ lỗi (chưa test end-to-end gửi mail thật)
 ☑ Rate limit policy "auth": tách riêng login, đừng bóp nghẹt cả refresh-token và logout
   → LÀM SỚM 2026-08-08 vì nó nổ ra khi test tay Day 44: F5 3 lần là bị đá về /login.
     Thêm policy "auth-refresh" 30/phút; refresh-token + logout đè ở CẤP ACTION,
