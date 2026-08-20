@@ -3,10 +3,11 @@
 > **Mở file này ra là biết hôm nay làm gì.** Mỗi ngày có danh sách việc cụ thể kèm file và lỗi cần sửa.
 >
 > 📍 **ĐANG Ở:** ✅ 8/8 lỗi chặn deploy · ✅ **Day 44–47 XONG** · 🟡 **Day 48 đang làm — 6/8 mục gốc
-> xong** (lockout · hash refresh token · reuse detection · logout [Authorize] · **Google login khóa
-> theo `sub`** · **bỏ ex.Message Google**) **+ 3 việc phát sinh xong** (bắt buộc xác thực email · gửi
-> email thật qua Gmail SMTP · **vá user enumeration ở LoginAsync**) · **TIẾP THEO: quên mật khẩu đang
-> hỏng hẳn** — `ForgotPasswordAsync` vẫn `Console.WriteLine`, việc "gửi mail thật" bỏ sót hàm này
+> xong** (lockout · hash refresh token · reuse detection · logout [Authorize] · Google login khóa
+> theo `sub` · bỏ ex.Message Google) **+ 5 việc phát sinh xong** (bắt buộc xác thực email · gửi email
+> thật qua Gmail SMTP · vá user enumeration ở LoginAsync · **quên mật khẩu chạy end-to-end** ·
+> **register rollback khi SMTP lỗi**) · **TIẾP THEO: mục 7 — Register còn tiết lộ "Email đã được sử
+> dụng"** (mục gốc cuối cùng còn giá trị bảo mật; mục 8 đã hạ xuống việc dọn dẹp)
 > 🕒 Nhịp: 3–5 tiếng/ngày, **6 ngày/tuần + 1 ngày nghỉ**
 > 📋 Chi tiết lỗi: [09](09-hien-trang-va-khuyen-nghi.md) · Công nghệ: [08](08-cam-nang-cong-nghe.md) · Phân quyền: [10](10-phan-quyen-endpoint.md) · **Máy mới: [11](11-thiet-lap-may-moi.md)**
 >
@@ -543,10 +544,10 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ## 🟡 Day 48 — Siết authentication — ĐANG LÀM, 6/8 xong — 2026-08-20
 
 ```
-📍 ĐANG Ở: mục 1-6 đã vá + build sạch + 30 test pass. Còn mục 7 (Register
-   enumeration) + mục 8 (validation DTO, mô tả gốc SAI — xem bên dưới).
-   TIẾP THEO ưu tiên hơn cả 2 mục đó: ForgotPasswordAsync vẫn Console.WriteLine
-   → chức năng quên mật khẩu HỎNG HẲN với user thật, mà UI vẫn báo thành công.
+📍 ĐANG Ở: mục 1-6 đã vá + 5 việc phát sinh xong + build sạch + 30 test pass.
+   CÒN LẠI: mục 7 (Register enumeration — làm tiếp theo) + mục 8 (validation DTO,
+   mô tả gốc SAI, đã hạ xuống việc dọn dẹp — xem bên dưới). Xong 2 mục đó là
+   đóng Day 48 → sang Day 49.
 
 ☑ Lockout khi sai mật khẩu — XONG 2026-08-20
   ☑ LoginAsync đổi CheckPasswordAsync → SignInManager.CheckPasswordSignInAsync(
@@ -656,6 +657,47 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
     vì tầng Identity. 7 DTO auth hiện không có một attribute nào.
 
 ### Phát sinh ngoài 8 mục gốc — lộ ra khi test tay + khi đọc lại code sau mục 5
+
+☑ Quên mật khẩu chạy được end-to-end — XONG 2026-08-20
+
+  VẤN ĐỀ: việc "gửi email thật qua SMTP" ở trên BỎ SÓT ForgotPasswordAsync — hàm
+  đó vẫn Console.WriteLine token ra console server. User bấm "Quên mật khẩu" nhận
+  "link đã được gửi" mà không có mail nào tới: chức năng CHẾT trong khi UI báo
+  thành công. Interviewer bấm thử là thấy ngay — tệ hơn lỗ hổng bảo mật lúc demo.
+  ⚠️ Và sửa backend một mình KHÔNG đủ: trang /reset-password không tồn tại,
+    authService.resetPassword() cũng không có → gửi mail xong thì user bấm link
+    vẫn rơi vào 404. Hỏng ở chỗ khác thôi. Bài học: trước khi ước lượng "sửa nhỏ",
+    đi hết đường mà user sẽ đi.
+
+  GIẢI QUYẾT: làm cả hai đầu.
+  ☑ Backend dựng link {Frontend:BaseUrl}/reset-password?email=&token=,
+    EscapeDataString CẢ HAI — token Identity chứa +/=; email dạng
+    abc+tag@gmail.com cũng vỡ nếu không encode (bài học từ RegisterAsync)
+  ☑ Frontend: ResetPasswordPage.tsx mới + route + service + type. Khác
+    ConfirmEmailPage ở chỗ KHÔNG tự gọi API lúc mount (cần user nhập mật khẩu
+    mới), và chặn sớm khi thiếu email/token thay vì để họ gõ xong mới báo lỗi.
+
+  ☑ try/catch quanh SendAsync — KHÔNG phải để cho đẹp: khối đó CHỈ chạy khi email
+    tồn tại, nên SMTP lỗi mà để exception bay ra sẽ thành 500, còn email không
+    tồn tại thì luôn 200 → chênh lệch đó là ORACLE cho phép dò email nào có tài
+    khoản, phá đúng cái mà "luôn trả Success" đang bảo vệ.
+  ☑ ResetPasswordAsync set EmailConfirmed=true — dùng được token gửi vào hộp thư
+    là ĐÃ chứng minh sở hữu email, mạnh ngang bấm link xác nhận. Không có dòng
+    này thì RequireConfirmedEmail tạo NGÕ CỤT: user chưa xác thực đặt lại mật
+    khẩu thành công nhưng đăng nhập vẫn bị chặn, không còn đường nào thoát.
+
+☑ RegisterAsync: SMTP lỗi không còn để lại tài khoản tắc vĩnh viễn — XONG 2026-08-20
+
+  VẤN ĐỀ: SendAsync không bọc try/catch, mà nó nằm SAU khi CreateAsync thành công
+  → SMTP chết là 500 trong khi user ĐÃ nằm trong DB với EmailConfirmed=false:
+  RequireConfirmedEmail chặn đăng nhập, mail xác nhận không bao giờ tới, đăng ký
+  lại thì vướng chính tài khoản vừa tạo. Tắc hoàn toàn mà user không biết vì sao.
+
+  GIẢI QUYẾT: try/catch + xoá user vừa tạo (DeleteAsync) → DB về trạng thái sạch,
+  họ bấm đăng ký lại được ngay. Chọn ROLLBACK thay vì chỉ nuốt lỗi vì nuốt lỗi
+  vẫn để lại đúng trạng thái tắc đó, chỉ im lặng hơn.
+  → Cách đúng lâu dài: endpoint "gửi lại mail xác nhận"; khi có thì đổi sang giữ
+    user và để họ tự yêu cầu gửi lại. Đã ghi trong comment code.
 
 ☑ LoginAsync để BẤT KỲ AI dò được email nào có tài khoản — XONG 2026-08-20
 
