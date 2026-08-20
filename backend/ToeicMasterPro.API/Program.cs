@@ -27,6 +27,7 @@ using ToeicMasterPro.API.Jobs;
 using Microsoft.AspNetCore.Authorization;
 using Hangfire.Dashboard;                    // LocalRequestsOnlyAuthorizationFilter, DashboardOptions
 using ToeicMasterPro.API.Authorization;      // HangfireDashboardAuthFilter (file mình vừa tạo)
+using Microsoft.AspNetCore.Mvc;              // ApiBehaviorOptions, BadRequestObjectResult
 
 
 
@@ -312,6 +313,34 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+
+// ── Lỗi validation trả về cùng KHUÔN với mọi lỗi khác của app ──────────
+// Mặc định [ApiController] trả ValidationProblemDetails: { type, title, status,
+// errors: { Email: ["..."] } }. Nhưng toàn bộ frontend đọc lỗi bằng
+// err.response?.data?.error (khuôn { error } mà các controller tự trả). Đã grep:
+// KHÔNG chỗ nào ở frontend đọc .errors hay .title của ProblemDetails.
+// → Không có dòng này thì mọi lỗi DataAnnotations hiện ra UI thành câu fallback
+//   vô nghĩa kiểu "Đăng ký thất bại, thử lại sau.", tức là thêm annotation xong
+//   vẫn không ai đọc được nó nói gì.
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var message = string.Join("; ", context.ModelState
+            .Where(kv => kv.Value is not null && kv.Value.Errors.Count > 0)
+            .SelectMany(kv => kv.Value!.Errors.Select(e => e.ErrorMessage))
+            .Where(m => !string.IsNullOrWhiteSpace(m)));
+
+        // Fallback khi ModelState lỗi nhưng không có message đọc được (VD JSON dị
+        // dạng, sai kiểu dữ liệu) — thông báo mặc định của .NET là tiếng Anh và có
+        // thể lộ tên kiểu nội bộ, nên thay bằng câu chung.
+        return new BadRequestObjectResult(new
+        {
+            error = string.IsNullOrWhiteSpace(message) ? "Dữ liệu gửi lên không hợp lệ." : message
+        });
+    };
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
