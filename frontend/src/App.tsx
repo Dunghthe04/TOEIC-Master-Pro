@@ -13,6 +13,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
+import ConfirmEmailPage from './pages/auth/ConfirmEmailPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
@@ -62,6 +63,7 @@ function App() {
           <Route path='/login' element={<LoginPage />} />
           <Route path='/register' element={<RegisterPage />} />
           <Route path='/forgot-password' element={<ForgotPasswordPage />} />
+          <Route path='/confirm-email' element={<ConfirmEmailPage />} />
 
           {/* CÔNG KHAI nhưng VẪN CÓ HEADER khi đã đăng nhập.
               Hai route này nằm ngoài <ProtectedRoute> để khách vãng lai xem được —

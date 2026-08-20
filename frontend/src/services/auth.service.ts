@@ -22,6 +22,14 @@ export const authService = {
         return res.data
     },
 
+    // Xác nhận email — userId/token lấy từ query string của link trong mail
+    async confirmEmail(userId: string, token: string): Promise<{ message: string }> {
+        const res = await api.get<{ message: string }>('/auth/confirm-email', {
+            params: { userId, token },
+        })
+        return res.data
+    },
+
     //Flow Google OAuth: Google → cấp idToken cho frontend 
     //→ frontend gửi idToken lên backend 
     //→ backend xác thực mã mã fe gửi với mã clientId trong appsetting 

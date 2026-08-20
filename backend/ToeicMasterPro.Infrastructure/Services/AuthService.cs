@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Auth;
 using ToeicMasterPro.Domain.Common;
@@ -14,20 +16,32 @@ namespace ToeicMasterPro.Infrastructure.Services;
 public class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly ApplicationDbContext _context;
     private readonly ITokenService _tokenService;
     private readonly GoogleAuthSettings _googleSettings;
+    private readonly ILogger<AuthService> _logger;
+    private readonly IEmailSender _emailSender;
+    private readonly IConfiguration _config;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
         ApplicationDbContext context,
         ITokenService tokenService,
-        IOptions<GoogleAuthSettings> googleSettings)
+        IOptions<GoogleAuthSettings> googleSettings,
+        ILogger<AuthService> logger,
+        IEmailSender emailSender,
+        IConfiguration config)
     {
         _userManager = userManager;
+        _signInManager = signInManager;
         _context = context;
         _tokenService = tokenService;
         _googleSettings = googleSettings.Value;
+        _logger = logger;
+        _emailSender = emailSender;
+        _config = config;
     }
 
     public async Task<Result> RegisterAsync(RegisterRequest req)
@@ -50,8 +64,16 @@ public class AuthService : IAuthService
         await _userManager.AddToRoleAsync(user, "User");
 
         var emailToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        Console.WriteLine($"[EMAIL VERIFY] userId = {user.Id}");
-        Console.WriteLine($"[EMAIL VERIFY] token  = {emailToken}");
+
+        // Token Identity chứa +, /, = (base64) — PHẢI url-encode, không thì link vỡ
+        // (browser/query-string hiểu sai các ký tự đó).
+        var confirmLink = $"{_config["Frontend:BaseUrl"]}/confirm-email" +
+            $"?userId={user.Id}&token={Uri.EscapeDataString(emailToken)}";
+
+        await _emailSender.SendAsync(
+            user.Email!,
+            "Xác nhận tài khoản TOEIC Master Pro",
+            $"Bấm vào link sau để xác nhận tài khoản:\n{confirmLink}");
 
         return Result.Success();
     }
@@ -62,8 +84,25 @@ public class AuthService : IAuthService
         if (user is null)
             return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
 
-        var passwordOk = await _userManager.CheckPasswordAsync(user, req.Password);
-        if (!passwordOk)
+        // CheckPasswordSignInAsync (KHÔNG phải PasswordSignInAsync — hàm đó issue thêm
+        // cookie đăng nhập của Identity, app này chỉ dùng JWT tự cấp) — lockoutOnFailure:
+        // true để SignInManager tự đếm AccessFailedCount / tự khóa khi chạm ngưỡng,
+        // đúng cấu hình Lockout đã thêm ở Program.cs.
+        var signInResult = await _signInManager.CheckPasswordSignInAsync(
+            user, req.Password, lockoutOnFailure: true);
+
+        if (signInResult.IsLockedOut)
+            return Result<AuthResponse>.Failure(
+                "Tài khoản tạm khóa do sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.");
+
+        // IsNotAllowed = mật khẩu ĐÚNG nhưng RequireConfirmedEmail chặn vì
+        // EmailConfirmed == false. Phải kiểm TRƯỚC signInResult.Succeeded — request
+        // này chưa từng Succeeded, nhưng cũng không phải "sai mật khẩu".
+        if (signInResult.IsNotAllowed)
+            return Result<AuthResponse>.Failure(
+                "Email chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.");
+
+        if (!signInResult.Succeeded)
             return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
 
         var response = await BuildAuthResponseAsync(user);
@@ -72,11 +111,38 @@ public class AuthService : IAuthService
 
     public async Task<Result<AuthResponse>> RefreshTokenAsync(string refreshToken)
     {
+        // Hash giá trị thô client gửi lên rồi mới so với DB — DB chỉ lưu hash,
+        // không bao giờ so trực tiếp refreshToken thô với cột Token.
+        var hashed = _tokenService.HashRefreshToken(refreshToken);
         var stored = await _context.RefreshTokens
         .Include(rt => rt.User)
-        .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+        .FirstOrDefaultAsync(rt => rt.Token == hashed);
 
-        if (stored is null || !stored.IsActive)
+        if (stored is null)
+            return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
+
+        // REUSE DETECTION: token này ĐÃ bị revoke từ trước (khác với hết hạn tự nhiên)
+        // mà vẫn bị mang ra dùng lại — bản hợp lệ đã rotate sang token MỚI rồi, nên
+        // đây chỉ có thể là ai đó cầm 1 bản copy của token cũ (dấu hiệu bị đánh cắp).
+        // Phản ứng: thu hồi TOÀN BỘ token đang hoạt động của user này (không chỉ token
+        // vừa dùng lại) — chặn đứng kẻ cầm token cũ dù có phải đăng xuất oan chủ tài khoản.
+        if (stored.RevokedAt is not null)
+        {
+            var activeTokens = await _context.RefreshTokens
+                .Where(rt => rt.UserId == stored.UserId && rt.RevokedAt == null)
+                .ToListAsync();
+            foreach (var t in activeTokens) t.RevokedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            _logger.LogWarning(
+                "Phát hiện refresh token đã revoke bị dùng lại (nghi bị đánh cắp) — " +
+                "UserId={UserId}, đã thu hồi {Count} token đang hoạt động",
+                stored.UserId, activeTokens.Count);
+
+            return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
+        }
+
+        if (stored.IsExpired)
             return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
 
         //Thu hoi token cu
@@ -85,12 +151,17 @@ public class AuthService : IAuthService
         return Result<AuthResponse>.Success(response);
     }
 
-    public async Task<Result> LogoutAsync(string refreshToken)
+    public async Task<Result> LogoutAsync(Guid userId, string refreshToken)
     {
+        var hashed = _tokenService.HashRefreshToken(refreshToken);
         var stored = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+            .FirstOrDefaultAsync(rt => rt.Token == hashed);
 
-        if (stored is not null && stored.IsActive)
+        // Kiểm quyền sở hữu: cookie refreshToken phải thuộc ĐÚNG user đang gọi (theo
+        // Bearer JWT, [Authorize] ở controller đã xác thực). Không khớp thì coi như
+        // "không có gì để revoke" — không báo lỗi khác biệt để không tạo oracle
+        // (kẻ tấn công dò được token của ai đó có tồn tại hay không qua response khác nhau).
+        if (stored is not null && stored.UserId == userId && stored.IsActive)
         {
             stored.RevokedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -203,12 +274,14 @@ public class AuthService : IAuthService
     {
         var roles = await _userManager.GetRolesAsync(user);
         var accessToken = _tokenService.GenerateAccessToken(user, roles);
-        var refresh = _tokenService.GenerateRefreshToken(user.Id);
+        var (refreshEntity, rawRefreshToken) = _tokenService.GenerateRefreshToken(user.Id);
 
-        _context.RefreshTokens.Add(refresh);
+        _context.RefreshTokens.Add(refreshEntity);
         await _context.SaveChangesAsync();   // lưu refresh token mới (và revoke cũ nếu có)
 
-        return new AuthResponse(accessToken, refresh.Token, refresh.ExpiresAt);
+        // Trả rawRefreshToken (giá trị thô) cho client — DB chỉ giữ refreshEntity.Token
+        // là bản HASH, không bao giờ trả bản hash ra ngoài.
+        return new AuthResponse(accessToken, rawRefreshToken, refreshEntity.ExpiresAt);
     }
 
 }

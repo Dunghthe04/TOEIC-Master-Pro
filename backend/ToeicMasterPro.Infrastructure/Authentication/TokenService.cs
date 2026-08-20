@@ -56,11 +56,28 @@ public class TokenService : ITokenService{
 
     }
 
-    //Tạo Refresh token
-     public RefreshToken GenerateRefreshToken(Guid userId) => new()
+    //Tạo Refresh token — sinh giá trị THÔ (rawToken) để gửi client, nhưng chỉ lưu
+    //HASH của nó vào DB (entity.Token). DB rò thì kẻ tấn công chỉ có hash, không dùng
+    //được để đăng nhập — phải có đúng rawToken gốc (client đang giữ) mới hash khớp.
+    public (RefreshToken Entity, string RawToken) GenerateRefreshToken(Guid userId)
     {
-        UserId = userId,
-        Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-        ExpiresAt = DateTime.UtcNow.AddDays(_settings.RefreshTokenExpiryDays),
-    };
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var entity = new RefreshToken
+        {
+            UserId = userId,
+            Token = HashRefreshToken(rawToken),
+            ExpiresAt = DateTime.UtcNow.AddDays(_settings.RefreshTokenExpiryDays),
+        };
+        return (entity, rawToken);
+    }
+
+    // SHA-256 thường (không salt, không chậm hoá kiểu bcrypt) — ĐỦ an toàn vì
+    // rawToken đã là 64 byte NGẪU NHIÊN THẬT (512 bit entropy), không phải mật khẩu
+    // con người chọn. Brute-force offline một giá trị 512-bit là bất khả thi dù
+    // dùng hash nhanh; bcrypt/PBKDF2 chỉ cần thiết khi input có entropy thấp.
+    public string HashRefreshToken(string rawToken)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        return Convert.ToBase64String(bytes);
+    }
 }

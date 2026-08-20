@@ -17,8 +17,10 @@ namespace ToeicMasterPro.API.Controllers;
 [AllowAnonymous]
 public class AuthController : ControllerBase{
     private IAuthService _auth;
-    public AuthController(IAuthService auth){
+    private readonly ICurrentUserService _currentUser;
+    public AuthController(IAuthService auth, ICurrentUserService currentUser){
         _auth=auth;
+        _currentUser = currentUser;
     }
 
     [HttpPost("register")]
@@ -66,14 +68,28 @@ public class AuthController : ControllerBase{
 
     // Logout bị 429 thì user KHÔNG đăng xuất được — refresh token sống tiếp trong DB.
     // Đây là hạn mức làm giảm an toàn chứ không tăng, nên nới cùng nhóm với refresh.
+    //
+    // [Authorize] đè lại [AllowAnonymous] cấp class — bắt buộc có Bearer accessToken
+    // hợp lệ mới gọi được, để LogoutAsync biết ĐÚNG userId nào đang gọi (kiểm quyền
+    // sở hữu refreshToken, xem AuthService.LogoutAsync). FE vẫn hoạt động bình thường
+    // không cần sửa gì: axios luôn gắn kèm Bearer accessToken hiện có trong lúc gọi
+    // logout (state chỉ bị xóa ở finally, SAU khi gọi API xong).
     [HttpPost("logout")]
+    [Authorize]
     [EnableRateLimiting("auth-refresh")]
     public async Task<IActionResult> Logout()
     {
+       var userId = _currentUser.UserId;
+       // Không thể null khi đã qua [Authorize] với JWT do chính hệ thống cấp (luôn
+       // có claim Sub) — nhưng vẫn kiểm để không NullReferenceException nếu có gì
+       // bất thường (VD JWT hợp lệ nhưng thiếu claim do sửa TokenService sai).
+       if (userId is null)
+            return Unauthorized();
+
        // Cũng đọc từ cookie, không cần body — bỏ tham số để không dính 400 như Refresh().
        var refreshToken = Request.GetRefreshTokenCookie();
-       if(refreshToken is not null) 
-            await _auth.LogoutAsync(refreshToken);
+       if(refreshToken is not null)
+            await _auth.LogoutAsync(userId.Value, refreshToken);
        Response.ClearRefreshTokenCookie();
        return Ok(new { message = "Đăng xuất thành công." });
     }

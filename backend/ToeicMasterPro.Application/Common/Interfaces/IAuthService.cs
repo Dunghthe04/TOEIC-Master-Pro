@@ -13,7 +13,9 @@ public interface IAuthService
     Task<Result<AuthResponse>> LoginAsync(LoginRequest req);
     // Làm mới token (lấy token mới bằng RefreshToken cũ)
     Task<Result<AuthResponse>> RefreshTokenAsync(string refreshToken);
-    Task<Result> LogoutAsync(string refreshToken);
+    // userId lấy từ JWT (Bearer) của request — kiểm refreshToken cookie có ĐÚNG
+    // thuộc user đang gọi không, trước khi cho revoke.
+    Task<Result> LogoutAsync(Guid userId, string refreshToken);
     Task<Result> ConfirmEmailAsync(Guid userId, string token);
     Task<Result> ForgotPasswordAsync(ForgotPasswordRequest req);
     Task<Result> ResetPasswordAsync(ResetPasswordRequest req);

@@ -64,6 +64,18 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
+
+    // Day 48 — lockout khi sai mật khẩu liên tiếp. AllowedForNewUsers mặc định đã
+    // là true (không cần set) — UserManager.CreateAsync tự đặt LockoutEnabled=true
+    // cho MỌI user tạo qua đó, kể cả user tạo trước khi thêm dòng config này.
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
+    // Day 48 — chặn đăng nhập bằng mật khẩu nếu email chưa xác thực. Vá lỗ hổng
+    // "đăng ký chiếm email người khác": tài khoản tạo bằng email không sở hữu sẽ
+    // KHÔNG đăng nhập được (kể cả người tạo nó) tới khi ai đó thật click link xác
+    // nhận gửi vào đúng hộp mail đó.
+    options.SignIn.RequireConfirmedEmail = true;
 })
 
 .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -82,6 +94,9 @@ builder.Services.Configure<IigOptions>(                              // MỚI
 //-----------gogle signin--------------
 builder.Services.Configure<GoogleAuthSettings>(
     builder.Configuration.GetSection(GoogleAuthSettings.SectionName));
+
+builder.Services.Configure<SmtpSettings>(
+    builder.Configuration.GetSection(SmtpSettings.SectionName));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -102,7 +117,7 @@ builder.Services.AddHttpClient("Iig", client =>            // MỚI
 {
     client.Timeout = TimeSpan.FromSeconds(15);
 });
-builder.Services.AddScoped<IEmailSender, ConsoleEmailSender>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ExamReminderJob>();
 builder.Services.AddScoped<IigExamScheduleSyncJob>();
 builder.Services.AddScoped<IIigExamScheduleSyncService, IigExamScheduleSyncService>();
