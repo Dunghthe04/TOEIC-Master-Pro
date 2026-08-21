@@ -19,6 +19,13 @@ interface AuthState {
     loginSuccess: (accessToken: string, user: User) => void
     /** Gọi khi silent-refresh lúc F5 thành công — CHỈ cập nhật accessToken, giữ nguyên user */
     setAccessToken: (accessToken: string) => void
+    /**
+     * Cập nhật thông tin user đang đăng nhập (sau khi sửa profile / đổi avatar).
+     * CHỈ đổi `user`, không đụng accessToken — không thì sửa tên xong lại rơi vào
+     * trạng thái chưa xác thực. Header (UserTopBar) đọc trực tiếp từ store nên tên,
+     * avatar, XP đổi ngay, không phải F5.
+     */
+    setUser: (user: User) => void
     //Hàm logout
     logout: () => void;
 }
@@ -36,6 +43,10 @@ export const useAuthStore = create<AuthState>()(
 
             setAccessToken: (accessToken: string) => {
                 set({ accessToken, isAuthenticated: true })
+            },
+
+            setUser: (user: User) => {
+                set({ user })
             },
 
             // Xóa token + reset store về trạng thái chưa login

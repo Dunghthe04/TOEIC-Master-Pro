@@ -1,4 +1,5 @@
-import { LogOut } from 'lucide-react'
+import { LogOut, User as UserIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/auth.store'
 import { authService } from '@/services/auth.service'
@@ -33,6 +34,14 @@ export default function Header() {
                 <span className="text-xs text-gray-400">
                     {user?.xpPoints} XP · {user?.streakDays} ngày streak
                 </span>
+                {/* CM/Admin cũng có trang cá nhân (đổi tên, ảnh) — /profile mở cho cả ba
+                    vai, khớp [Authorize] trần ở ProfileController. */}
+                <Button variant="ghost" size="sm" asChild className="gap-2">
+                    <Link to="/profile">
+                        <UserIcon size={16} />
+                        Trang cá nhân
+                    </Link>
+                </Button>
                 <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
                     <LogOut size={16} />
                     Đăng xuất

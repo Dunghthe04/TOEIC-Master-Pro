@@ -36,6 +36,7 @@ import TestHistoryDetailPage from '@/pages/TestHistoryDetailPage'
 import TestProgressPage from '@/pages/TestProgressPage'
 import CertificatePreviewPage from '@/pages/CertificatePreviewPage'
 import LandingPage from '@/pages/LandingPage'
+import ProfilePage from '@/pages/ProfilePage'
 import RoleLayout from '@/components/layout/RoleLayout'
 import PublicRoleLayout from '@/components/layout/PublicRoleLayout'
 import RequireRole from '@/components/auth/RequireRole'
@@ -87,7 +88,11 @@ function App() {
           <Route element={<ProtectedRoute />}>
             {/* RoleLayout tự chọn: User → header ngang · CM/Admin → sidebar dọc */}
             <Route element={<RoleLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+
+              {/* Trang cá nhân — KHÔNG bọc RequireRole: cả ba vai đều có profile của
+                  chính mình, khớp [Authorize] trần ở ProfileController. */}
+              <Route path="/profile" element={<ProfilePage />} />
 
               {/* /cm/* chỉ CM hoặc Admin (RequireRole) — chặn ở đây chỉ là UX, bảo mật
                   thật nằm ở [Authorize(Roles="ContentManager")] phía server (Day 35) */}

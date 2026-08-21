@@ -29,6 +29,18 @@ export interface AuthResponse {
     expiresAt: string
 }
 
+/**
+ * Khớp UpdateProfileRequest bên backend (PUT /api/profile/me).
+ * Backend validate: fullName ≤100 ký tự, targetScore 10–990 và là bội số của 5,
+ * examDate không được ở quá khứ.
+ */
+export interface UpdateProfileRequest {
+    fullName: string
+    targetScore: number
+    /** ISO date, hoặc null = chưa định ngày thi */
+    examDate: string | null
+}
+
 //Khớp với Profile response bên backend để gán vào zustand store
 export interface User {
     id: string

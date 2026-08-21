@@ -191,7 +191,13 @@ export default function UserTopBar() {
                                     <Flame size={12} className="text-orange-500" />{user?.streakDays ?? 0} ngày
                                 </p>
                             </div>
-                            <Link to="/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                            {/* Trước đây trỏ /dashboard (trang thống kê điểm) nên bấm vào
+                                không thấy thông tin cá nhân đâu. */}
+                            <Link
+                                to="/profile"
+                                onClick={() => setUserMenuOpen(false)}
+                                className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                            >
                                 <UserIcon size={16} /> Trang cá nhân
                             </Link>
                             <button
