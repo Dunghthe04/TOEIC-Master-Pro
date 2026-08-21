@@ -105,8 +105,15 @@ namespace ToeicMasterPro.Infrastructure.Services
                 catch (Exception ex)
                 {
                     failed++;
-                    // KHÔNG set EmailSent → lần chạy sau tự thử lại (nhờ cửa sổ 3 ngày
-                    // ở trên, không phải "đúng 3 ngày" như trước).
+
+                    // Trả EmailSent về false TRONG RAM. Cần thiết vì SaveChanges có thể
+                    // là chỗ ném lỗi — lúc đó r.EmailSent = true đã nằm trong change
+                    // tracker của EF, và lần SaveChanges của mail KẾ TIẾP sẽ ghi luôn nó
+                    // xuống DB → đánh dấu "đã gửi" cho một mail chưa chắc gửi được.
+                    r.EmailSent = false;
+
+                    // Không set EmailSent = true → lần chạy sau tự thử lại, nhờ cửa sổ
+                    // 3 ngày ở trên (không phải "đúng 3 ngày" như trước khi sửa).
                     _logger.LogError(ex,
                         "ExamReminder: gửi mail thất bại cho {Email}, kỳ thi {ExamTitle}",
                         r.User.Email, exam.Title);
