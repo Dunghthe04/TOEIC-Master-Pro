@@ -13,6 +13,5 @@ public interface IExamScheduleService
     Task<Result<Guid>> CreateAsync(CreateExamScheduleRequest req);
     Task<Result> UpdateAsync(Guid id, UpdateExamScheduleRequest req);
     Task<Result> DeleteAsync(Guid id);
-    Task<Result<(string FileName, string Content)>> GetIcalAsync(Guid id);
-
+    // GetIcalAsync đã bỏ — xem lý do ở ExamScheduleController (mã chết + iCal injection).
 }

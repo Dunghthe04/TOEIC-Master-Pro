@@ -72,13 +72,21 @@ namespace ToeicMasterPro.Infrastructure.Services
             foreach (var r in due)
             {
                 var exam = r.ExamSchedule;
-                var subject = $"[TOEIC Master Pro] Nhắc thi: {exam.Title}";
+
+                // SUBJECT phải bỏ CRLF — đây là HEADER SMTP. Title chứa "\r\nBcc: ..."
+                // là chèn được header mới (email header injection), gửi bản sao mail
+                // tới địa chỉ của kẻ tấn công. Nghiêm trọng hơn injection ở body.
+                var subject = SingleLine($"[TOEIC Master Pro] Nhắc thi: {exam.Title}");
+
+                // Các field trong BODY cũng bỏ CRLF: mail plaintext nên không có HTML
+                // injection, nhưng \r\n vẫn chèn được dòng mới — kẻ tấn công viết thêm
+                // "Đổi lịch thi! Chuyển tiền tới STK..." trông như do hệ thống gửi.
                 var body =
-                    $"Xin chào {r.User.FullName},\n\n" +
-                    $"Kỳ thi \"{exam.Title}\" sẽ diễn ra vào {exam.ExamDate:dd/MM/yyyy} " +
-                    $"lúc {exam.StartTime:hh\\:mm} tại {exam.Location} ({exam.City}).\n" +
+                    $"Xin chào {SingleLine(r.User.FullName)},\n\n" +
+                    $"Kỳ thi \"{SingleLine(exam.Title)}\" sẽ diễn ra vào {exam.ExamDate:dd/MM/yyyy} " +
+                    $"lúc {exam.StartTime:hh\\:mm} tại {SingleLine(exam.Location)} ({SingleLine(exam.City)}).\n" +
                     $"Hạn đăng ký: {exam.RegistrationDeadline:dd/MM/yyyy}.\n" +
-                    (string.IsNullOrEmpty(exam.RegisterUrl) ? "" : $"Link đăng ký: {exam.RegisterUrl}\n") +
+                    (string.IsNullOrEmpty(exam.RegisterUrl) ? "" : $"Link đăng ký: {SingleLine(exam.RegisterUrl)}\n") +
                     "\nChúc bạn thi tốt!\nTOEIC Master Pro";
 
                 // try/catch TỪNG mail: một địa chỉ lỗi (hộp thư đầy, domain sai, SMTP
@@ -127,6 +135,20 @@ namespace ToeicMasterPro.Infrastructure.Services
                 "Cửa sổ {From:yyyy-MM-dd} → {To:yyyy-MM-dd}",
                 sent, failed, due.Count, todayVn, windowEnd);
         }
+
+        /// <summary>
+        /// Ép chuỗi về MỘT dòng — bỏ CR/LF/tab, gộp khoảng trắng liên tiếp.
+        ///
+        /// Dùng cho mọi dữ liệu do người dùng nhập trước khi ghép vào subject/body email.
+        /// Subject là header SMTP: chèn được "\r\nBcc:" là gửi bản sao mail ra ngoài.
+        /// Body là plaintext: chèn "\r\n" là viết thêm nội dung trông như của hệ thống.
+        /// </summary>
+        private static string SingleLine(string? s) =>
+            string.IsNullOrEmpty(s)
+                ? string.Empty
+                : string.Join(' ', s.Split(['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(p => p.Trim()))
+                        .Trim();
 
         public async Task<Result> SubscribeAsync(Guid examScheduleId)
         {

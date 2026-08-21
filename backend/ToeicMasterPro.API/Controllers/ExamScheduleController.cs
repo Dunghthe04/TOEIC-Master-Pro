@@ -49,18 +49,16 @@ public class ExamScheduleController : ControllerBase
             ? Ok(new { message = "Đã hủy nhắc." })
             : BadRequest(new { error = result.Error });
     }
-    // Day 21: tải file .ics — public được (ai cũng export)
-    [HttpGet("{id:Guid}/ical")]
-    [AllowAnonymous]
-    public async Task<IActionResult> ExportIcal(Guid id)
-    {
-        var result = await _service.GetIcalAsync(id);
-        if (!result.IsSuccess)
-            return NotFound(new { error = result.Error });
-        var (fileName, content) = result.Value!;
-        // text/calendar — trình duyệt / Google Calendar nhận diện
-        return File(System.Text.Encoding.UTF8.GetBytes(content), "text/calendar", fileName);
-    }
+    // ĐÃ BỎ: GET {id}/ical — export file .ics.
+    //
+    // Vì sao bỏ thay vì vá: nút Download đã gỡ khỏi UI từ trước (docs 12), nên endpoint
+    // này là mã chết — không ai gọi, nhưng vẫn là bề mặt tấn công (iCal injection:
+    // RegisterUrl chứa CRLF chèn được dòng lệnh iCal giả vào file). Bỏ hẳn là cách vá
+    // rẻ nhất và chắc nhất: không có code thì không có lỗ hổng.
+    //
+    // Cần lại thì viết mới, nhớ escape MỌI field theo RFC 5545 (backslash trước, và
+    // xóa cả \r chứ không chỉ escape \n).
+
     // Ai cũng xem được — Day 20 User UI lọc theo tỉnh/tháng
     [HttpGet]
     [AllowAnonymous]

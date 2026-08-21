@@ -150,7 +150,7 @@ Ký hiệu: ✅ gọi được · ❌ 403 Forbidden · 🔓 không cần đăng 
 |---|---|---|---|---|---|
 | `GET /api/examschedule` | 🔓 | ✅ | ✅ | ✅ | Lịch thi TOEIC là thông tin công khai |
 | `GET /api/examschedule/{id}` | 🔓 | ✅ | ✅ | ✅ | |
-| `GET /api/examschedule/{id}/ical` | 🔓 | ✅ | ✅ | ✅ | Export .ics |
+| ~~`GET /api/examschedule/{id}/ical`~~ | — | — | — | — | **ĐÃ BỎ 2026-08-20** — xem ghi chú dưới |
 | `GET /api/examschedule/my-reminders` | ❌ 401 | ✅ | ✅ | ✅ | Gắn với user |
 | `POST /api/examschedule/{id}/reminder` | ❌ 401 | ✅ | ✅ | ✅ | |
 | `DELETE /api/examschedule/{id}/reminder` | ❌ 401 | ✅ | ✅ | ✅ | |
@@ -158,10 +158,20 @@ Ký hiệu: ✅ gọi được · ❌ 403 Forbidden · 🔓 không cần đăng 
 | `PUT /api/examschedule/{id}` | ❌ 401 | ❌ 403 | ✅ | ✅ | |
 | `DELETE /api/examschedule/{id}` | ❌ 401 | ❌ 403 | ✅ | ✅ | |
 
-> **Quyết định:** giữ 3 endpoint đọc công khai để landing page hiện được lịch thi khi chưa đăng nhập.
+> **Quyết định:** giữ 2 endpoint đọc công khai để landing page hiện được lịch thi khi chưa đăng nhập.
 >
-> ⚠️ **Nợ đã biết:** `ExportIcal` ẩn danh + `RegisterUrl` không escape khi sinh `.ics` = **iCal
-> injection** (`ExamScheduleService.cs:144`). Chấp nhận tạm, sửa ở Day 49.
+> ✅ **Đã xử lý 2026-08-20 (Day 49):** `ExportIcal` bị **BỎ HẲN**, không phải vá.
+>
+> Lỗ hổng gốc: `RegisterUrl` ghi thẳng vào file `.ics` không escape → URL chứa CRLF chèn được
+> dòng lệnh iCal giả (ghi đè `DESCRIPTION`, thêm `VEVENT`), user import vào Google Calendar thấy
+> nội dung lừa đảo trông như hệ thống gửi.
+>
+> **Vì sao bỏ thay vì vá:** nút Download đã gỡ khỏi UI từ trước (docs 12) → endpoint là **mã
+> chết**, không ai gọi nhưng vẫn là bề mặt tấn công. Xóa rẻ hơn và chắc hơn escape.
+>
+> Xóa 4 chỗ: `ExamScheduleController.ExportIcal` · `IExamScheduleService.GetIcalAsync` ·
+> `ExamScheduleService.GetIcalAsync/EscapeIcal/IsSafeHttpUrl` · `exam-schedule.service.ts
+> downloadIcal`.
 
 ### TestSessionController — `[Authorize]` cấp class
 

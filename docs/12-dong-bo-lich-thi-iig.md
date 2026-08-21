@@ -193,6 +193,10 @@
    → Bỏ nút Download (.ics) khỏi card — xóa luôn handleIcal() + import Download
      không dùng (service downloadIcal() vẫn giữ, backend GetIcalAsync vẫn còn,
      chỉ bỏ lối vào từ UI này)
+     ⚠️ CẬP NHẬT 2026-08-20 (Day 49): đã XÓA HẲN cả downloadIcal() và backend
+     GetIcalAsync. Chính vì "chỉ bỏ lối vào UI" mà endpoint thành mã chết nhưng
+     vẫn là bề mặt tấn công (iCal injection qua RegisterUrl không escape) —
+     xem docs 10 và 09 mục 3.3.
    → Nút "Đăng ký": trước đây LUÔN disabled với bản ghi IIG vì registerUrl sync
      về luôn null — thêm fallback sang IIG_REGISTER_URL khi organizer === "IIG"
      và không có registerUrl riêng; KHÔNG áp dụng fallback cho tổ chức khác

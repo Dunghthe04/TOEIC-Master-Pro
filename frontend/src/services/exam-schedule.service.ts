@@ -17,15 +17,4 @@ export const ExamScheduleService = {
 
     unsubscribeReminder: (id: string) =>
         api.delete(`/examschedule/${id}/reminder`).then(r => r.data),
-
-    // blob = file nhị phân (.ics), không phải JSON
-    downloadIcal: async (id: string, fileName?: string) => {
-        const res = await api.get(`/examschedule/${id}/ical`, { responseType: 'blob' })
-        const url = URL.createObjectURL(res.data)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName ?? `exam-${id}.ics`
-        a.click()
-        URL.revokeObjectURL(url)
-    },
 }

