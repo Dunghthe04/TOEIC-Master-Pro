@@ -12,6 +12,7 @@
 // "@/" là alias trỏ vào thư mục "src/" — thay thế cho "../../components/ui/button"
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
+import FloatingContact from '@/components/layout/FloatingContact'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import ConfirmEmailPage from './pages/auth/ConfirmEmailPage'
@@ -36,6 +37,7 @@ import TestHistoryDetailPage from '@/pages/TestHistoryDetailPage'
 import TestProgressPage from '@/pages/TestProgressPage'
 import CertificatePreviewPage from '@/pages/CertificatePreviewPage'
 import LandingPage from '@/pages/LandingPage'
+import ToeicGuidePage from '@/pages/ToeicGuidePage'
 import ProfilePage from '@/pages/ProfilePage'
 import RoleLayout from '@/components/layout/RoleLayout'
 import PublicRoleLayout from '@/components/layout/PublicRoleLayout'
@@ -87,6 +89,10 @@ function App() {
 
             {/* Lịch thi TOEIC — GET /api/examschedule đã [AllowAnonymous] từ Day 34. */}
             <Route path="/exam-schedule" element={<ExamSchedulePage />} />
+
+            {/* Giới thiệu TOEIC cho người chưa biết — nội dung tĩnh, không gọi API nào.
+                Khách vãng lai là đối tượng chính, nên phải nằm ngoài ProtectedRoute. */}
+            <Route path="/toeic-guide" element={<ToeicGuidePage />} />
           </Route>
 
           {/* Protected — phải login mới vào được, có layout sidebar+header */}
@@ -140,6 +146,10 @@ function App() {
           {/* Route sai / gõ nhầm URL — phải đặt CUỐI CÙNG, React Router khớp thứ tự trên xuống */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
+
+        {/* Widget liên hệ — nằm ngoài <Routes> nên không mount lại mỗi lần đổi trang.
+            Tự ẩn ở màn làm bài, xem EXAM_ROUTES trong FloatingContact. */}
+        <FloatingContact />
       </BrowserRouter>
       <Toaster richColors position="top-right" />
     </>

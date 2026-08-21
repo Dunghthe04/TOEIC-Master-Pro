@@ -11,7 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
     LayoutDashboard, ClipboardList, History, TrendingUp, BookOpen, BookMarked,
     Calendar, FileText, HelpCircle, Upload, Users, BarChart3, Home, Activity,
-    ScrollText,
+    ScrollText, GraduationCap,
 } from 'lucide-react'
 import type { User } from '@/types/auth.types'
 
@@ -71,6 +71,9 @@ export const USER_NAV: NavItem[] = [
         children: [
             { to: '/practice', label: 'Luyện nhanh', icon: BookOpen },
             { to: '/vocabulary', label: 'Từ vựng', icon: BookMarked },
+            // Người đã đăng nhập phần lớn đã biết TOEIC là gì, nên xếp vào dropdown
+            // thay vì chiếm một mục trên thanh ngang (7 mục phẳng đã chật ở 1366px).
+            { to: '/toeic-guide', label: 'TOEIC là gì?', icon: GraduationCap },
         ],
     },
     { to: '/exam-schedule', label: 'Lịch thi TOEIC', icon: Calendar },

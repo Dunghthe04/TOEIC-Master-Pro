@@ -68,6 +68,12 @@ function formatScore(score: number | null | undefined): string {
     return score != null ? String(score) : '—'
 }
 
+/**
+ * Màu cho ô chưa có số liệu. Làm nhạt để dấu "—" đọc ra là "chờ dữ liệu"
+ * chứ không bị nhìn thành một con số thật hoặc thành lỗi tải.
+ */
+const PLACEHOLDER_VALUE_CLASS = 'text-muted-foreground/60'
+
 type StatCardProps = {
     title: string
     value: string
@@ -321,47 +327,60 @@ export default function DashboardPage() {
                             </Button>
                         </CardContent>
                     </Card>
-                ) : !hasAttempts ? (
-                    <Card className="border-2 border-dashed border-[#1a4d7c]/25 shadow-sm">
-                        <CardContent className="space-y-4 py-12 text-center">
-                            <ClipboardList className="mx-auto h-12 w-12 text-[#1a4d7c]/50" />
-                            {fullOnly ? (
-                                <>
-                                    <p className="font-medium text-foreground">
-                                        Chưa có lần full test nào đã nộp
-                                    </p>
-                                    <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                                        Nếu bạn mới thi theo part (Part 1, 5, 6…), hãy chọn
-                                        「Tất cả lần thi」để xem thống kê.
-                                    </p>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setFullOnly(false)}
-                                    >
-                                        Xem tất cả lần thi
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <p className="font-medium text-foreground">
-                                        Bạn chưa có lần thi nào
-                                    </p>
-                                    <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                                        Làm đề thử đầu tiên để dashboard hiển thị điểm, tiến độ
-                                        và Part cần cải thiện.
-                                    </p>
-                                    <Button
-                                        className="bg-[#1a4d7c] hover:bg-[#1a4d7c]/90"
-                                        onClick={() => navigate('/mock-test')}
-                                    >
-                                        Thi thử ngay
-                                    </Button>
-                                </>
-                            )}
-                        </CardContent>
-                    </Card>
                 ) : (
                     <>
+                        {/* Chưa có lần thi: KHÔNG thay cả trang bằng một card trống — giữ nguyên
+                            bố cục dashboard để người dùng thấy trước mình sẽ nhận được gì, chỉ
+                            thêm một banner mảnh làm lời gọi hành động. */}
+                        {!hasAttempts && (
+                            <Card className="border-[#1a4d7c]/25 bg-[#1a4d7c]/[0.03] shadow-sm">
+                                <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-3 py-4">
+                                    <ClipboardList className="h-5 w-5 shrink-0 text-[#1a4d7c]" />
+                                    {fullOnly ? (
+                                        <>
+                                            {/* Đừng chỉ nói "chưa có" — người đã thi theo part mà thấy
+                                                trống trơn sẽ tưởng mất dữ liệu, nên chỉ luôn đường ra. */}
+                                            <p className="min-w-0 flex-1 text-sm">
+                                                <span className="font-medium text-foreground">
+                                                    Chưa có lần full test nào đã nộp.
+                                                </span>{' '}
+                                                <span className="text-muted-foreground">
+                                                    Nếu bạn mới thi theo part (Part 1, 5, 6…), chọn
+                                                    「Tất cả lần thi」để xem thống kê.
+                                                </span>
+                                            </p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setFullOnly(false)}
+                                            >
+                                                Xem tất cả lần thi
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="min-w-0 flex-1 text-sm">
+                                                <span className="font-medium text-foreground">
+                                                    Bạn chưa có lần thi nào.
+                                                </span>{' '}
+                                                <span className="text-muted-foreground">
+                                                    Làm đề thử đầu tiên để dashboard hiển thị điểm,
+                                                    tiến độ và Part cần cải thiện.
+                                                </span>
+                                            </p>
+                                            <Button
+                                                size="sm"
+                                                className="bg-[#1a4d7c] hover:bg-[#1a4d7c]/90"
+                                                onClick={() => navigate('/mock-test')}
+                                            >
+                                                Thi thử ngay
+                                            </Button>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <StatCard
                                 title="Mục tiêu TOEIC"
@@ -369,12 +388,18 @@ export default function DashboardPage() {
                                 description="Cập nhật trong hồ sơ cá nhân"
                                 icon={<Target className="h-4 w-4" />}
                             />
+                            {/* Số 0 là dữ liệu thật, không phải "thiếu dữ liệu" — vẫn hiện đậm.
+                                Chỉ bỏ onClick vì lịch sử trống, bấm vào là dẫn vào chỗ cụt. */}
                             <StatCard
                                 title="Lần thi"
                                 value={String(overview.totalAttempts)}
                                 description={`${overview.distinctTests} đề khác nhau`}
                                 icon={<History className="h-4 w-4" />}
-                                onClick={() => navigate('/mock-test/history')}
+                                onClick={
+                                    hasAttempts
+                                        ? () => navigate('/mock-test/history')
+                                        : undefined
+                                }
                             />
                             <StatCard
                                 title="Điểm cao nhất"
@@ -384,23 +409,41 @@ export default function DashboardPage() {
                                         ? `Còn ${gapToTarget} điểm tới mục tiêu`
                                         : gapToTarget != null && gapToTarget <= 0
                                           ? 'Đã đạt mục tiêu!'
-                                          : 'Bấm để xem chi tiết'
+                                          : 'Sau lần thi đầu tiên'
                                 }
                                 icon={<Trophy className="h-4 w-4" />}
                                 valueClassName={
-                                    overview.bestTotalScore != null &&
-                                    overview.bestTotalScore >= overview.targetScore
-                                        ? 'text-emerald-600'
+                                    overview.bestTotalScore == null
+                                        ? PLACEHOLDER_VALUE_CLASS
+                                        : overview.bestTotalScore >= overview.targetScore
+                                          ? 'text-emerald-600'
+                                          : undefined
+                                }
+                                onClick={
+                                    overview.bestSessionId
+                                        ? () => goToSession(overview.bestSessionId)
                                         : undefined
                                 }
-                                onClick={() => goToSession(overview.bestSessionId)}
                             />
                             <StatCard
                                 title="Lần gần nhất"
                                 value={formatScore(overview.latestTotalScore)}
-                                description={`Nộp ${formatCompletedAt(overview.lastCompletedAt)}`}
+                                description={
+                                    overview.lastCompletedAt != null
+                                        ? `Nộp ${formatCompletedAt(overview.lastCompletedAt)}`
+                                        : 'Sau lần thi đầu tiên'
+                                }
                                 icon={<TrendingUp className="h-4 w-4" />}
-                                onClick={() => goToSession(overview.latestSessionId)}
+                                valueClassName={
+                                    overview.latestTotalScore == null
+                                        ? PLACEHOLDER_VALUE_CLASS
+                                        : undefined
+                                }
+                                onClick={
+                                    overview.latestSessionId
+                                        ? () => goToSession(overview.latestSessionId)
+                                        : undefined
+                                }
                             />
                             <StatCard
                                 title="Điểm trung bình"
@@ -409,16 +452,28 @@ export default function DashboardPage() {
                                         ? overview.averageTotalScore.toFixed(1)
                                         : '—'
                                 }
-                                description="Trung bình các lần có điểm Total"
+                                description={
+                                    overview.averageTotalScore != null
+                                        ? 'Trung bình các lần có điểm Total'
+                                        : 'Sau lần thi đầu tiên'
+                                }
                                 icon={<BarChart3 className="h-4 w-4" />}
+                                valueClassName={
+                                    overview.averageTotalScore == null
+                                        ? PLACEHOLDER_VALUE_CLASS
+                                        : undefined
+                                }
                             />
-                            <StatCard
-                                title="Tiến độ theo đề"
-                                value="Xem"
-                                description="Best score từng đề thi"
-                                icon={<BarChart3 className="h-4 w-4" />}
-                                onClick={() => navigate('/mock-test/progress')}
-                            />
+                            {/* Ẩn khi chưa thi: trang tiến độ lúc đó trống, mở ra chỉ gây thất vọng */}
+                            {hasAttempts && (
+                                <StatCard
+                                    title="Tiến độ theo đề"
+                                    value="Xem"
+                                    description="Best score từng đề thi"
+                                    icon={<BarChart3 className="h-4 w-4" />}
+                                    onClick={() => navigate('/mock-test/progress')}
+                                />
+                            )}
                         </div>
 
                         {/* Line chart — Recharts (Day 32 Bước 6) */}

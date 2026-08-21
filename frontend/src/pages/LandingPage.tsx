@@ -78,6 +78,9 @@ const STEPS = [
 // export: PublicGuestHeader.tsx (header cho khách ở /exam-schedule, /mock-test/:id)
 // dùng lại đúng danh sách này, tránh 2 nơi giữ 2 bản nav lệch nhau.
 export const LANDING_NAV: { label: string; to: string; requireLogin: boolean }[] = [
+    // Đặt đầu tiên: khách chưa biết TOEIC là gì thì cần đọc cái này trước khi
+    // dám bấm vào "Thi thử" (một lần thi mất 2 tiếng).
+    { label: 'TOEIC là gì?', to: '/toeic-guide', requireLogin: false },
     { label: 'Thi thử', to: '/mock-test', requireLogin: true },
     { label: 'Luyện nhanh', to: '/practice', requireLogin: true },
     { label: 'Từ vựng', to: '/vocabulary', requireLogin: true },
@@ -266,8 +269,16 @@ export default function LandingPage() {
             </header>
 
             {/* ── Hero ─────────────────────────────────────────────── */}
-            <section className="bg-gradient-to-b from-blue-600 to-blue-700 text-white">
-                <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-2 lg:py-24">
+            <section className="relative overflow-hidden bg-gradient-to-b from-blue-600 to-blue-700 text-white">
+                {/* Ba khối màu mờ trôi chậm lệch pha nhau — làm nền gradient phẳng có chiều sâu.
+                    Thuần trang trí nên aria-hidden, và pointer-events-none để không chắn nút. */}
+                <div aria-hidden className="pointer-events-none absolute inset-0">
+                    <span className="animate-hero-blob absolute -left-16 -top-24 size-72 rounded-full bg-sky-300/25 blur-3xl" />
+                    <span className="animate-hero-blob absolute -right-20 top-1/3 size-80 rounded-full bg-orange-400/20 blur-3xl [animation-delay:-6s]" />
+                    <span className="animate-hero-blob absolute -bottom-28 left-1/3 size-72 rounded-full bg-blue-300/20 blur-3xl [animation-delay:-12s]" />
+                </div>
+
+                <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-2 lg:py-24">
                     {/* Hero hiện ngay khi vào trang (không chờ cuộn) — animate-in của tw-animate-css */}
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl lg:text-5xl">
@@ -495,7 +506,7 @@ export default function LandingPage() {
                 <div className="mx-auto max-w-6xl px-6">
                     <div className="grid items-center gap-12 lg:grid-cols-2">
                         {/* Biểu đồ đặt TRƯỚC text trên desktop (order-1) để xen kẽ với section trên */}
-                        <Reveal className="lg:order-1">
+                        <Reveal from="right" className="lg:order-1">
                             <div className="rounded-2xl border bg-white p-6 shadow-lg">
                                 <p className="font-semibold text-gray-900">Điểm theo thời gian</p>
                                 <p className="mt-0.5 text-xs text-gray-500">
@@ -529,16 +540,18 @@ export default function LandingPage() {
                                 <div className="mt-6 border-t pt-5">
                                     <p className="text-sm font-semibold text-gray-900">Độ chính xác từng Part</p>
                                     <div className="mt-3 space-y-2">
-                                        {DEMO_PARTS.map(p => {
+                                        {DEMO_PARTS.map((p, i) => {
                                             const pct = Math.round((p.correct / p.total) * 100)
                                             return (
                                                 <div key={p.part} className="flex items-center gap-3 text-xs">
                                                     <span className="w-14 shrink-0 text-gray-500">{p.part}</span>
                                                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                                                        {/* Mọc dần từ trái khi khối cha (Reveal) đã hiện, lệch nhau theo Part */}
                                                         <div
-                                                            className={`h-full rounded-full transition-all duration-1000
+                                                            className={`h-full origin-left scale-x-0 rounded-full transition-transform
+                                                                duration-1000 ease-out group-data-[visible=true]/reveal:scale-x-100
                                                                 ${pct < 60 ? 'bg-red-400' : 'bg-green-500'}`}
-                                                            style={{ width: `${pct}%` }}
+                                                            style={{ width: `${pct}%`, transitionDelay: `${300 + i * 110}ms` }}
                                                         />
                                                     </div>
                                                     <span className="w-14 shrink-0 text-right font-medium text-gray-700">
@@ -555,7 +568,7 @@ export default function LandingPage() {
                             </div>
                         </Reveal>
 
-                        <Reveal delay={120}>
+                        <Reveal from="left" delay={120}>
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1
                                              text-xs font-semibold text-blue-700">
                                 <TrendingUp size={14} /> Theo dõi tiến bộ
@@ -714,11 +727,7 @@ export default function LandingPage() {
             </section>
 
             <footer className="border-t bg-white py-8 text-center text-sm text-gray-500">
-                <p>TOEIC Master — dự án luyện thi TOEIC.</p>
-                <p className="mt-1 text-xs">
-                    TOEIC là nhãn hiệu đã đăng ký của ETS. Dự án không liên kết với ETS;
-                    nội dung dùng cho mục đích học tập.
-                </p>
+                <p>© {new Date().getFullYear()} TOEIC Master. Mọi quyền được bảo lưu.</p>
             </footer>
 
             {/* Popup đăng nhập/đăng ký — mở khi bấm chức năng cần auth, hoặc mở thẳng
@@ -734,22 +743,39 @@ export default function LandingPage() {
     )
 }
 
+/** Khối bắt đầu từ phía nào trước khi trượt về vị trí thật */
+type RevealDirection = 'bottom' | 'left' | 'right'
+
+const REVEAL_HIDDEN_OFFSET: Record<RevealDirection, string> = {
+    bottom: 'translate-y-10',
+    left: '-translate-x-12',
+    right: 'translate-x-12',
+}
+
 /**
- * Bọc một khối để nó "hiện dần" khi cuộn tới: mờ + dịch lên 16px → rõ + về vị trí.
+ * Bọc một khối để nó "hiện dần" khi cuộn tới: mờ + thu nhỏ + lệch vị trí
+ * → rõ + đúng cỡ + về chỗ, theo easing expo-out cho cảm giác mượt.
  *
  * `delay` để các thẻ trong cùng hàng xuất hiện lệch nhau (stagger) — nhìn có nhịp
  * hơn là cả 6 thẻ bật cùng lúc. Dùng inline style vì Tailwind không có class
  * delay động theo biến.
+ *
+ * `from` để hai cột trong section trượt vào từ hai phía đối nhau thay vì cùng đi lên.
  */
 function Reveal({
-    children, delay = 0, className = '',
-}: { children: React.ReactNode; delay?: number; className?: string }) {
+    children, delay = 0, from = 'bottom', className = '',
+}: { children: React.ReactNode; delay?: number; from?: RevealDirection; className?: string }) {
     const { ref, inView } = useInView<HTMLDivElement>()
     return (
         <div
             ref={ref}
-            className={`transition-all duration-700 ease-out ${
-                inView ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+            // data-visible + group/reveal: cho phần tử con tự bắt trạng thái "đã hiện"
+            // bằng Tailwind (group-data-[visible=true]/reveal:…) mà không cần truyền prop.
+            data-visible={inView}
+            className={`group/reveal transition-all duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                inView
+                    ? 'translate-x-0 translate-y-0 scale-100 opacity-100'
+                    : `${REVEAL_HIDDEN_OFFSET[from]} scale-[0.96] opacity-0`
             } ${className}`}
             style={{ transitionDelay: `${delay}ms` }}
         >
@@ -770,7 +796,10 @@ function ScoreBar({ label, score, icon: Icon }: { label: string; score: number; 
             </div>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
                 {/* 495 là điểm tối đa mỗi section theo thang TOEIC */}
-                <div className="h-full rounded-full bg-blue-500" style={{ width: `${(score / 495) * 100}%` }} />
+                <div
+                    className="animate-bar-grow h-full rounded-full bg-blue-500"
+                    style={{ width: `${(score / 495) * 100}%` }}
+                />
             </div>
         </div>
     )

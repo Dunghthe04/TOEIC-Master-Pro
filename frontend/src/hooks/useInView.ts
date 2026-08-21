@@ -21,13 +21,6 @@ export function useInView<T extends HTMLElement = HTMLDivElement>(
         const el = ref.current
         if (!el) return
 
-        // Tôn trọng prefers-reduced-motion: người dùng tắt animation trong OS thì
-        // hiện luôn, không chờ cuộn. Bỏ qua điều này là lỗi accessibility.
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            setInView(true)
-            return
-        }
-
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (entry.isIntersecting) {
