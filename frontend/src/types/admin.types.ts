@@ -1,4 +1,8 @@
 /** Khớp response của AdminController + AdminUsersController. */
+import type {
+    TestSessionHistoryResponse, TestStatsOverviewResponse,
+    TestStatsPartsResponse, TestStatsTimelineResponse,
+} from '@/types/test-session.types'
 
 /** GET /api/admin/overview */
 export interface AdminOverview {
@@ -60,6 +64,37 @@ export interface AdminUserQuery {
     lockedOnly?: boolean
     page?: number
     pageSize?: number
+}
+
+/**
+ * GET /api/admin/users/{id} — chi tiết một tài khoản.
+ *
+ * Các khối thống kê có thể null: backend trả null khi service báo lỗi (VD tài khoản
+ * chưa thi lần nào) để FE ẩn đúng khối đó, thay vì cả trang vỡ.
+ */
+export interface AdminUserDetail {
+    profile: {
+        id: string
+        email: string
+        fullName: string
+        avatarUrl: string | null
+        roles: string[]
+        emailConfirmed: boolean
+        isLockedOut: boolean
+        lockoutEnd: string | null
+        accessFailedCount: number
+        plan: string
+        targetScore: number
+        examDate: string | null
+        xpPoints: number
+        streakDays: number
+        lastStudyDate: string | null
+        createdAt: string
+    }
+    overview: TestStatsOverviewResponse | null
+    parts: TestStatsPartsResponse | null
+    timeline: TestStatsTimelineResponse | null
+    history: TestSessionHistoryResponse | null
 }
 
 export interface CreateUserRequest {

@@ -44,6 +44,7 @@ import CmHomePage from '@/pages/cm/CmHomePage'
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AdminContentPage from '@/pages/admin/AdminContentPage'
+import AdminUserDetailPage from '@/pages/admin/AdminUserDetailPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { useSilentRefresh } from './hooks/useSilentRefresh'
 
@@ -114,6 +115,7 @@ function App() {
               <Route element={<RequireRole allow={['Admin']} />}>
                 <Route path="/admin" element={<AdminOverviewPage />} />
                 <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
                 <Route path="/admin/content" element={<AdminContentPage />} />
               </Route>
 

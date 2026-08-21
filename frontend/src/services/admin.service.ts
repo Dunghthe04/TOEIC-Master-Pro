@@ -1,6 +1,6 @@
 import api from '@/api/axios'
 import type {
-    AdminOverview, AdminStats, AdminUser, AdminUserQuery,
+    AdminOverview, AdminStats, AdminUser, AdminUserDetail, AdminUserQuery,
     CreateUserRequest, PagedResult,
 } from '@/types/admin.types'
 
@@ -28,6 +28,10 @@ export const AdminService = {
                 pageSize: q.pageSize ?? 20,
             },
         }).then(r => r.data),
+
+    /** Chi tiết 1 tài khoản: thông tin + thống kê thi + lịch sử thi */
+    getUserDetail: (id: string) =>
+        api.get<AdminUserDetail>(`/admin/users/${id}`).then(r => r.data),
 
     createUser: (data: CreateUserRequest) =>
         api.post<{ id: string; message: string }>('/admin/users', data).then(r => r.data),

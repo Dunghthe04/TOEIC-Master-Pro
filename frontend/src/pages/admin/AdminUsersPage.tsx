@@ -16,8 +16,9 @@
  * Admin cuối cùng, không tự khoá mình).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-    Ban, CheckCircle2, KeyRound, Loader2, Lock, MailCheck, Plus, Search,
+    Ban, CheckCircle2, Eye, KeyRound, Loader2, Lock, MailCheck, Plus, Search,
     ShieldCheck, Unlock, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -239,14 +240,20 @@ export default function AdminUsersPage() {
                                                             </span>
                                                         )}
                                                         <div className="min-w-0">
-                                                            <p className="truncate text-sm font-medium text-gray-900">
+                                                            {/* Chỉ TÊN là link, không phải cả dòng: cột thao
+                                                                tác có nút, bấm nút mà dòng cũng là link thì
+                                                                vừa khoá tài khoản vừa nhảy sang trang khác. */}
+                                                            <Link
+                                                                to={`/admin/users/${u.id}`}
+                                                                className="block truncate text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                                                            >
                                                                 {u.fullName}
                                                                 {isSelf && (
                                                                     <span className="ml-1.5 text-xs font-normal text-blue-600">
                                                                         (bạn)
                                                                     </span>
                                                                 )}
-                                                            </p>
+                                                            </Link>
                                                             <p className="truncate text-xs text-gray-500">{u.email}</p>
                                                         </div>
                                                     </div>
@@ -294,6 +301,16 @@ export default function AdminUsersPage() {
 
                                                 <TableCell>
                                                     <div className="flex items-center justify-end gap-1">
+                                                        {/* Link ở tên có thể không ai để ý — nút này nói rõ
+                                                            là xem được chi tiết. */}
+                                                        <Link
+                                                            to={`/admin/users/${u.id}`}
+                                                            title="Xem chi tiết & lịch sử thi"
+                                                            aria-label="Xem chi tiết & lịch sử thi"
+                                                            className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-100"
+                                                        >
+                                                            <Eye size={15} />
+                                                        </Link>
                                                         <IconAction
                                                             title="Đổi vai"
                                                             onClick={() => setEditRolesFor(u)}

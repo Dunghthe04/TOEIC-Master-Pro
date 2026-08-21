@@ -33,9 +33,12 @@ export default function Sidebar() {
                         <NavLink
                             key={to}
                             to={to}
-                            // end: /admin không được sáng khi đang ở /admin/users — nếu
-                            // không, hai mục cùng highlight và không biết mình đang ở đâu.
-                            end
+                            // end CHỈ cho mục gốc "/admin": không có nó thì /admin sáng ở
+                            // mọi trang /admin/* và hai mục cùng highlight.
+                            // Các mục khác KHÔNG dùng end, để "Quản lý tài khoản" vẫn sáng
+                            // khi đang ở trang con /admin/users/:id — mất highlight thì
+                            // không biết mình đang ở nhánh nào của sidebar.
+                            end={to === '/admin' || to === '/cm'}
                             className={({ isActive }) =>
                                 `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive
                                     ? 'bg-blue-50 text-blue-600'
