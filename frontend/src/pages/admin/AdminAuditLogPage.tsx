@@ -68,6 +68,21 @@ function actionLabel(action: string) {
     return ACTION_LABELS[action] ?? action
 }
 
+/**
+ * Loopback = request đến từ CHÍNH máy chạy server.
+ *   "::1"       IPv6 loopback (Windows phân giải localhost ra cái này TRƯỚC 127.0.0.1)
+ *   "127.0.0.1" IPv4 loopback
+ *
+ * Ở dev thì bình thường — mình mở trình duyệt trên cùng máy.
+ *
+ * ⚠️ Nhưng trên PRODUCTION đây là DẤU HIỆU HỎNG: sau Nginx, mọi request phải mang IP
+ * thật lấy từ X-Forwarded-For (UseForwardedHeaders, Day 51). Thấy loopback nghĩa là
+ * cấu hình đó không còn tác dụng → CẢ CỘT IP thành vô dụng vì dòng nào cũng là IP của
+ * Nginx. Và nó hỏng âm thầm: không exception, không log lỗi, cột vẫn trông có dữ liệu.
+ * Nên đánh dấu để nhìn là thấy, thay vì hiện trơn rồi tin nhầm.
+ */
+const LOOPBACK_IPS = new Set(['::1', '127.0.0.1'])
+
 function actionStyle(action: string) {
     return ACTION_STYLES[action] ?? 'bg-gray-100 text-gray-700'
 }
@@ -356,7 +371,19 @@ export default function AdminAuditLogPage() {
                                                 {log.detail || '—'}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500">
-                                                {log.ipAddress || '—'}
+                                                {log.ipAddress ? (
+                                                    LOOPBACK_IPS.has(log.ipAddress) ? (
+                                                        <span
+                                                            className="text-amber-600"
+                                                            title="Loopback — request đến từ chính máy chạy server. Bình thường ở môi trường dev; trên production là dấu hiệu UseForwardedHeaders không còn tác dụng, cả cột IP sẽ vô dụng."
+                                                        >
+                                                            {log.ipAddress}
+                                                            <span className="ml-1 font-sans not-italic">(cùng máy)</span>
+                                                        </span>
+                                                    ) : (
+                                                        log.ipAddress
+                                                    )
+                                                ) : '—'}
                                             </TableCell>
                                         </TableRow>
                                     ))}

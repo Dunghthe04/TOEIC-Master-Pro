@@ -1228,6 +1228,16 @@ và `Sidebar` hardcode 9 mục cho **mọi vai** nên Admin thấy menu của Us
 > **Không có endpoint sửa/xoá log** — audit phải append-only, sửa được thì không còn là bằng
 > chứng cho câu "ai đã khoá tài khoản này".
 >
+> **Cột IP đánh dấu loopback (`::1`, `127.0.0.1`) bằng màu vàng + nhãn "(cùng máy)".** Ở dev thì
+> `::1` là bình thường — Windows phân giải `localhost` ra IPv6 loopback TRƯỚC `127.0.0.1` (đúng
+> quirk đã va 2 lần: connection string ở doc 11, và `LocalRequestsOnlyAuthorizationFilter` của
+> Hangfire). `ResolveIpAddress()` chỉ chuẩn hoá dạng **IPv4-mapped** (`::ffff:1.2.3.4`), còn `::1`
+> là địa chỉ IPv6 thật nên giữ nguyên — audit log phải lưu đúng thứ socket báo về.
+> 🔴 **Nhưng trên production loopback là DẤU HIỆU HỎNG:** sau Nginx mọi request phải mang IP thật
+> từ `X-Forwarded-For` (`UseForwardedHeaders`, Day 51). Thấy loopback nghĩa là cấu hình đó mất tác
+> dụng → **cả cột IP vô dụng** vì dòng nào cũng là IP của Nginx. Và nó hỏng **âm thầm**: không
+> exception, không log lỗi, cột vẫn trông có dữ liệu. Đánh dấu để nhìn là thấy ngay.
+>
 > **HM-5 — vì sao dùng `DELETE TOP (n)` raw SQL thay vì LINQ `ExecuteDelete().Take()`:** việc
 > EF dịch được `Take()` trong `ExecuteDelete` hay không phụ thuộc provider/phiên bản, mà đây là
 > job chạy **03:00 không ai ngồi xem** — lỗi dịch query là im lặng thất bại hàng đêm. Cách còn
