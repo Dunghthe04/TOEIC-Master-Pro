@@ -28,6 +28,7 @@ using Microsoft.AspNetCore.Authorization;
 using Hangfire.Dashboard;                    // LocalRequestsOnlyAuthorizationFilter, DashboardOptions
 using ToeicMasterPro.API.Authorization;      // HangfireDashboardAuthFilter (file mình vừa tạo)
 using Microsoft.AspNetCore.Mvc;              // ApiBehaviorOptions, BadRequestObjectResult
+using Microsoft.AspNetCore.HttpOverrides;    // ForwardedHeadersOptions — đọc IP thật sau Nginx
 
 
 
@@ -150,6 +151,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ISrsService, SrsService>();
 builder.Services.AddScoped<IPracticeService, PracticeService>();
 builder.Services.AddScoped<ITestSessionService, TestSessionService>();
+builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 
 var jwt = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException(
@@ -358,6 +360,31 @@ builder.Services.AddSwaggerGen(c =>
 
 
 var app = builder.Build();
+
+// ── Forwarded headers — PHẢI đứng TRƯỚC mọi middleware khác ─────────────
+//
+// Sau reverse proxy (Nginx ở Phase 3), Kestrel thấy IP của proxy chứ không phải của
+// client → Connection.RemoteIpAddress là 127.0.0.1 cho MỌI request, và cột IpAddress
+// trong AuditLogs thành vô dụng. UseHttpsRedirection cũng sai vì proxy nói chuyện HTTP
+// với Kestrel dù client đang dùng HTTPS.
+//
+// Middleware này đọc X-Forwarded-For / X-Forwarded-Proto do proxy đặt rồi ghi lại
+// RemoteIpAddress và Request.Scheme. Phải đứng đầu chuỗi: middleware nào chạy trước nó
+// vẫn thấy giá trị cũ.
+//
+// ⚠️ KnownNetworks/KnownProxies bị XOÁ SẠCH là CỐ Ý và chỉ an toàn vì Nginx là chặng
+// duy nhất trước Kestrel (cùng docker network, Kestrel không mở ra ngoài). Header này do
+// client gửi nên giả mạo được — nếu Kestrel nhận request trực tiếp từ Internet, kẻ tấn
+// công tự đặt X-Forwarded-For để ghi IP giả vào log. Mặc định .NET chỉ tin loopback, mà
+// trong Docker thì Nginx có IP khác nên phải mở; đánh đổi này chỉ đúng khi Kestrel KHÔNG
+// bao giờ nhận request trực tiếp.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,   // chỉ một chặng proxy (Nginx) — không nhận chuỗi X-Forwarded-For dài
+    KnownNetworks = { },
+    KnownProxies = { },
+});
 
 // ── Seed Data ─────────────────────────────────────────────
 await SeedAsync(app);

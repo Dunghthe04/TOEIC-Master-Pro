@@ -23,6 +23,7 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly IEmailSender _emailSender;
     private readonly IConfiguration _config;
+    private readonly IAuditLogger _audit;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
@@ -32,7 +33,8 @@ public class AuthService : IAuthService
         IOptions<GoogleAuthSettings> googleSettings,
         ILogger<AuthService> logger,
         IEmailSender emailSender,
-        IConfiguration config)
+        IConfiguration config,
+        IAuditLogger audit)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -42,7 +44,22 @@ public class AuthService : IAuthService
         _logger = logger;
         _emailSender = emailSender;
         _config = config;
+        _audit = audit;
     }
+
+    /// <summary>
+    /// Ghi log sự kiện bảo mật cho một email. Gói lại để 10 chỗ gọi bên dưới không phải
+    /// lặp cùng bộ tham số.
+    ///
+    /// actorEmailOverride = email đã gõ: ở luồng auth, người gọi CHƯA đăng nhập nên
+    /// HttpContext không biết họ là ai. Không truyền thì log đăng nhập thất bại mất chính
+    /// thứ đáng giá nhất — email nào đang bị dò.
+    /// </summary>
+    private Task AuditAuthAsync(
+        string action, string email, Guid? userId = null, string? detail = null)
+        => _audit.LogAsync(
+            AuditCategory.Security, action, "User", userId, email,
+            detail, actorEmailOverride: email);
 
     public async Task<Result> RegisterAsync(RegisterRequest req)
     {
@@ -133,6 +150,12 @@ public class AuthService : IAuthService
             return Result.Failure("Không gửi được email xác nhận. Vui lòng thử lại sau.");
         }
 
+        // Ghi log SAU cùng, chỉ khi tài khoản thật sự tồn tại và mail đã gửi được —
+        // nhánh rollback ở trên xoá user, ghi log trước đó là để lại dấu vết cho một
+        // tài khoản không tồn tại.
+        await AuditAuthAsync(AuditActions.Register, user.Email!, user.Id,
+            "Tự đăng ký qua form công khai.");
+
         return Result.Success();
     }
 
@@ -140,7 +163,15 @@ public class AuthService : IAuthService
     {
         var user = await _userManager.FindByEmailAsync(req.Email);
         if (user is null)
+        {
+            // Ghi log CẢ khi email không tồn tại: đây chính là dấu vết của việc dò email
+            // (nhiều dòng liên tiếp với email khác nhau từ cùng một IP).
+            // Log nội bộ ghi rõ lý do — KHÔNG mâu thuẫn với chống user enumeration, vì
+            // thông báo TRẢ VỀ CLIENT vẫn trung tính; chỉ Admin đọc được log này.
+            await AuditAuthAsync(AuditActions.LoginFailed, req.Email,
+                detail: "Email không tồn tại.");
             return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
+        }
 
         // CheckPasswordSignInAsync (KHÔNG phải PasswordSignInAsync — hàm đó issue thêm
         // cookie đăng nhập của Identity, app này chỉ dùng JWT tự cấp) — lockoutOnFailure:
@@ -155,8 +186,12 @@ public class AuthService : IAuthService
         // đi thì user thật bị khóa 15 phút mà không hiểu vì sao → đánh đổi ngược, mất
         // nhiều hơn được.
         if (signInResult.IsLockedOut)
+        {
+            await AuditAuthAsync(AuditActions.LoginLockedOut, req.Email, user.Id,
+                $"Bị khoá tạm sau {user.AccessFailedCount} lần sai mật khẩu.");
             return Result<AuthResponse>.Unauthorized(
                 "Tài khoản tạm khóa do sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.");
+        }
 
         // IsNotAllowed = RequireConfirmedEmail chặn vì EmailConfirmed == false. Phải
         // kiểm TRƯỚC signInResult.Succeeded — request này chưa từng Succeeded, nhưng
@@ -176,14 +211,26 @@ public class AuthService : IAuthService
         if (signInResult.IsNotAllowed)
         {
             if (await _userManager.CheckPasswordAsync(user, req.Password))
+            {
+                await AuditAuthAsync(AuditActions.LoginNotConfirmed, req.Email, user.Id,
+                    "Mật khẩu đúng nhưng email chưa xác thực.");
                 return Result<AuthResponse>.Unauthorized(
                     "Email chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.");
+            }
 
+            await AuditAuthAsync(AuditActions.LoginFailed, req.Email, user.Id,
+                "Sai mật khẩu (tài khoản cũng chưa xác thực email).");
             return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
         }
 
         if (!signInResult.Succeeded)
+        {
+            await AuditAuthAsync(AuditActions.LoginFailed, req.Email, user.Id,
+                $"Sai mật khẩu. Số lần sai liên tiếp: {user.AccessFailedCount}.");
             return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
+        }
+
+        await AuditAuthAsync(AuditActions.LoginSucceeded, req.Email, user.Id);
 
         var response = await BuildAuthResponseAsync(user);
         return Result<AuthResponse>.Success(response);
@@ -218,6 +265,13 @@ public class AuthService : IAuthService
                 "Phát hiện refresh token đã revoke bị dùng lại (nghi bị đánh cắp) — " +
                 "UserId={UserId}, đã thu hồi {Count} token đang hoạt động",
                 stored.UserId, activeTokens.Count);
+
+            // Sự kiện đáng chú ý nhất trong nhóm bảo mật: logic phát hiện đã có từ trước
+            // nhưng chỉ ghi vào log file nên không ai đọc được. Có IP đi kèm mới lần được
+            // token bị dùng lại từ đâu.
+            await AuditAuthAsync(AuditActions.RefreshTokenReused,
+                stored.User.Email ?? stored.UserId.ToString(), stored.UserId,
+                $"Token đã revoke bị dùng lại. Đã thu hồi {activeTokens.Count} token đang hoạt động.");
 
             return Result<AuthResponse>.Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
         }
@@ -257,9 +311,12 @@ public class AuthService : IAuthService
             return Result.Failure("Người dùng không tồn tại.");
 
         var result = await _userManager.ConfirmEmailAsync(user, token);
-        return result.Succeeded
-            ? Result.Success()
-            : Result.Failure("Xác thực email thất bại.");
+        if (!result.Succeeded)
+            return Result.Failure("Xác thực email thất bại.");
+
+        await AuditAuthAsync(AuditActions.EmailConfirmed, user.Email!, user.Id,
+            "Tự xác thực qua link trong email.");
+        return Result.Success();
     }
 
     public async Task<Result> ForgotPasswordAsync(ForgotPasswordRequest req)
@@ -304,6 +361,11 @@ public class AuthService : IAuthService
             {
                 _logger.LogError(ex, "Gửi mail đặt lại mật khẩu thất bại — UserId={UserId}", user.Id);
             }
+
+            // CHỈ ghi log khi email tồn tại. Email lạ thì không có gì đáng ghi, và ghi
+            // vào cũng là tự tạo một bảng liệt kê những email người ta đã thử.
+            await AuditAuthAsync(AuditActions.PasswordResetRequested, user.Email!, user.Id,
+                "Người dùng tự yêu cầu qua form Quên mật khẩu.");
         }
         return Result.Success();
     }
@@ -367,6 +429,12 @@ public class AuthService : IAuthService
             t.RevokedAt = DateTime.UtcNow;
         }
         await _context.SaveChangesAsync();
+
+        // Đây là dòng log trả lời câu "mật khẩu tôi bị đổi lúc nào, từ IP nào" — câu hỏi
+        // đầu tiên khi ai đó nghi bị chiếm tài khoản.
+        await AuditAuthAsync(AuditActions.PasswordResetCompleted, user.Email!, user.Id,
+            $"Đổi mật khẩu thành công. Thu hồi {activeTokens.Count} refresh token.");
+
         return Result.Success();
     }
 
@@ -506,6 +574,8 @@ public class AuthService : IAuthService
         }
 
         //5. cấp jwt hệ thống (cho cả user cũ lẫn user mới tạo/mới liên kết)
+        await AuditAuthAsync(AuditActions.LoginGoogle, user.Email!, user.Id);
+
         var response = await BuildAuthResponseAsync(user);
         return Result<AuthResponse>.Success(response);
     }

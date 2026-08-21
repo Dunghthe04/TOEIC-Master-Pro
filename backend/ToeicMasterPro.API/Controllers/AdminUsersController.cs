@@ -38,6 +38,7 @@ public class AdminUsersController : ControllerBase
     private readonly IEmailSender _email;
     private readonly IConfiguration _config;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAuditLogger _audit;
     private readonly ILogger<AdminUsersController> _logger;
 
     public AdminUsersController(
@@ -46,6 +47,7 @@ public class AdminUsersController : ControllerBase
         IEmailSender email,
         IConfiguration config,
         ICurrentUserService currentUser,
+        IAuditLogger audit,
         ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
@@ -53,6 +55,7 @@ public class AdminUsersController : ControllerBase
         _email = email;
         _config = config;
         _currentUser = currentUser;
+        _audit = audit;
         _logger = logger;
     }
 
@@ -212,6 +215,13 @@ public class AdminUsersController : ControllerBase
 
         var mailSent = await TrySendSetPasswordMailAsync(user, isNewAccount: true);
 
+        await _audit.LogAsync(
+            AuditCategory.Administrative, AuditActions.UserCreated,
+            "User", user.Id, email,
+            $"Vai: {string.Join(", ", roles)}. "
+            + (mailSent ? "Đã gửi mail đặt mật khẩu." : "GỬI MAIL THẤT BẠI."),
+            ct: ct);
+
         _logger.LogInformation(
             "Admin {AdminId} tạo tài khoản {Email} với vai {Roles}",
             _currentUser.UserId, email, string.Join(",", roles));
@@ -272,6 +282,14 @@ public class AdminUsersController : ControllerBase
                 return BadRequest(new { error = string.Join("; ", added.Errors.Select(e => e.Description)) });
         }
 
+        await _audit.LogAsync(
+            AuditCategory.Administrative, AuditActions.UserRolesUpdated,
+            "User", id, user.Email ?? id.ToString(),
+            // Ghi CẢ vai cũ: "đổi thành Admin" một mình không cho biết người đó vừa được
+            // nâng lên hay vừa bị hạ từ đâu.
+            $"{string.Join(", ", current)} → {string.Join(", ", roles)}",
+            ct: ct);
+
         _logger.LogInformation(
             "Admin {AdminId} đổi vai của {UserId}: {Old} → {New}",
             SelfId, id, string.Join(",", current), string.Join(",", roles));
@@ -319,6 +337,13 @@ public class AdminUsersController : ControllerBase
             foreach (var t in revoked) t.RevokedAt = DateTime.UtcNow;
             if (revoked.Count > 0) await _db.SaveChangesAsync(ct);
 
+            await _audit.LogAsync(
+                AuditCategory.Administrative, AuditActions.UserLocked,
+                "User", id, user.Email ?? id.ToString(),
+                (req.Days is null ? "Khoá vô thời hạn" : $"Khoá {req.Days} ngày")
+                + $". Thu hồi {revoked.Count} refresh token.",
+                ct: ct);
+
             _logger.LogWarning(
                 "Admin {AdminId} khoá tài khoản {UserId} đến {Until}, thu hồi {Count} refresh token",
                 SelfId, id, until, revoked.Count);
@@ -337,6 +362,11 @@ public class AdminUsersController : ControllerBase
         if (!unlock.Succeeded)
             return BadRequest(new { error = string.Join("; ", unlock.Errors.Select(e => e.Description)) });
         await _userManager.ResetAccessFailedCountAsync(user);
+
+        await _audit.LogAsync(
+            AuditCategory.Administrative, AuditActions.UserUnlocked,
+            "User", id, user.Email ?? id.ToString(),
+            "Mở khoá và đặt lại bộ đếm sai mật khẩu.", ct: ct);
 
         _logger.LogInformation("Admin {AdminId} mở khoá tài khoản {UserId}", SelfId, id);
         return Ok(new { message = "Đã mở khoá tài khoản." });
@@ -363,6 +393,10 @@ public class AdminUsersController : ControllerBase
             return StatusCode(StatusCodes.Status502BadGateway,
                 new { error = "Không gửi được email. Kiểm tra cấu hình SMTP rồi thử lại." });
 
+        await _audit.LogAsync(
+            AuditCategory.Administrative, AuditActions.UserPasswordResetSent,
+            "User", id, user.Email ?? id.ToString(), ct: ct);
+
         _logger.LogInformation(
             "Admin {AdminId} gửi mail đặt lại mật khẩu cho {UserId}", SelfId, id);
         return Ok(new { message = $"Đã gửi mail đặt lại mật khẩu tới {user.Email}." });
@@ -386,6 +420,11 @@ public class AdminUsersController : ControllerBase
         var res = await _userManager.UpdateAsync(user);
         if (!res.Succeeded)
             return BadRequest(new { error = string.Join("; ", res.Errors.Select(e => e.Description)) });
+
+        await _audit.LogAsync(
+            AuditCategory.Administrative, AuditActions.UserEmailConfirmed,
+            "User", id, user.Email ?? id.ToString(),
+            "Xác thực email thủ công (bỏ qua bước bấm link).", ct: ct);
 
         _logger.LogInformation("Admin {AdminId} xác thực email thủ công cho {UserId}", SelfId, id);
         return Ok(new { message = "Đã xác thực email." });

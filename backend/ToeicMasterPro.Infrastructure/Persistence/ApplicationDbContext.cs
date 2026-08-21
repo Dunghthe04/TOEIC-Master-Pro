@@ -25,6 +25,7 @@ public class ApplicationDbContext
     public DbSet<UserExamReminder> UserExamReminders => Set<UserExamReminder>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PracticeSession> PracticeSessions => Set<PracticeSession>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
 
     protected override void OnModelCreating(ModelBuilder builder)
