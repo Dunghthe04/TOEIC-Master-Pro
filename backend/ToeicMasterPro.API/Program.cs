@@ -122,6 +122,7 @@ builder.Services.AddHttpClient("Iig", client =>            // MỚI
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ExamReminderJob>();
 builder.Services.AddScoped<IigExamScheduleSyncJob>();
+builder.Services.AddScoped<AuditLogCleanupJob>();
 builder.Services.AddScoped<IIigExamScheduleSyncService, IigExamScheduleSyncService>();
 // Đăng ký Hangfire vào DI và lưu job ở cũng SQLServer, rồi bật worker chạy job
 builder.Services.AddHangfire(config => config
@@ -508,6 +509,15 @@ using (var jobScope = app.Services.CreateScope())
         "iig-exam-schedule-sync",
         job => job.RunAsync(),
         "0 */3 * * *",   // phút 0 của các giờ chia hết cho 3 — theo giờ VN
+        jobOptions);
+
+    // 03:00 giờ VN — giờ ít người dùng nhất. Job này xoá theo lô nên vẫn nhường chỗ cho
+    // nghiệp vụ chính giữa các lô, nhưng vẫn nên đặt vào lúc vắng: DELETE giữ lock, mà
+    // trang nhật ký của Admin và mọi lần đăng nhập đều đụng đúng bảng này.
+    recurringJobs.AddOrUpdate<AuditLogCleanupJob>(
+        "audit-log-cleanup",
+        job => job.RunAsync(),
+        "0 3 * * *",
         jobOptions);
 }
 

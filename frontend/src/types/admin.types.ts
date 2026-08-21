@@ -129,3 +129,38 @@ export interface CreateUserRequest {
     fullName: string
     roles: string[]
 }
+
+// ── Nhật ký hành động (HM-4) ───────────────────────────────────────────
+
+/** Hai nhóm log, khớp enum AuditCategory ở backend. Backend trả về dạng CHUỖI. */
+export type AuditCategory = 'Security' | 'Administrative'
+
+export interface AuditLogItem {
+    id: string
+    /** Mốc UTC. Hiển thị phải đổi sang giờ máy — xem formatDateTime ở AdminAuditLogPage. */
+    createdAt: string
+    category: AuditCategory
+    /** Giá trị trong AuditActions, vd "auth.login.failed". */
+    action: string
+    /** null khi hành động do người CHƯA đăng nhập gây ra (đăng nhập thất bại). */
+    actorId: string | null
+    actorEmail: string
+    targetType: string
+    targetId: string | null
+    targetLabel: string
+    detail: string | null
+    ipAddress: string | null
+}
+
+export interface AuditLogQuery {
+    category?: AuditCategory
+    action?: string
+    actorEmail?: string
+    /** Lọc "tài khoản này đã bị làm những gì" — dùng cho lối tắt từ trang chi tiết. */
+    targetId?: string
+    /** ISO UTC. FE tự đổi từ ngày giờ địa phương sang UTC trước khi gửi. */
+    from?: string
+    to?: string
+    page?: number
+    pageSize?: number
+}

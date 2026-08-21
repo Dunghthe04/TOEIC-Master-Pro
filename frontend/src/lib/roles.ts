@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
     LayoutDashboard, ClipboardList, History, TrendingUp, BookOpen, BookMarked,
     Calendar, FileText, HelpCircle, Upload, Users, BarChart3, Home, Activity,
+    ScrollText,
 } from 'lucide-react'
 import type { User } from '@/types/auth.types'
 
@@ -102,6 +103,7 @@ export const ADMIN_NAV: NavItem[] = [
     // đó đầy nút tạo/sửa/xoá mà Admin bấm vào chỉ nhận 403.
     { to: '/admin/content', label: 'Nội dung hệ thống', icon: FileText },
     { to: '/admin/monitor', label: 'Theo dõi hoạt động', icon: Activity },
+    { to: '/admin/audit-logs', label: 'Nhật ký hành động', icon: ScrollText },
 ]
 
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {

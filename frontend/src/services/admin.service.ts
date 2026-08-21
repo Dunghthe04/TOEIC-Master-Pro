@@ -1,7 +1,8 @@
 import api from '@/api/axios'
 import type {
     AdminActiveSessionsResponse, AdminOverview, AdminStats, AdminUser,
-    AdminUserDetail, AdminUserQuery, CreateUserRequest, PagedResult,
+    AdminUserDetail, AdminUserQuery, AuditCategory, AuditLogItem, AuditLogQuery,
+    CreateUserRequest, PagedResult,
 } from '@/types/admin.types'
 
 export const AdminService = {
@@ -61,4 +62,31 @@ export const AdminService = {
 
     confirmEmail: (id: string) =>
         api.post<{ message: string }>(`/admin/users/${id}/confirm-email`).then(r => r.data),
+
+    /**
+     * Nhật ký hành động — phân trang phía SERVER.
+     *
+     * from/to phải là ISO UTC. Backend so sánh trên trục UTC vì AuditLog.CreatedAt lưu
+     * UtcNow; việc quy đổi từ ngày địa phương do FE làm vì chỉ trình duyệt biết múi giờ
+     * của người đang xem.
+     */
+    getAuditLogs: (q: AuditLogQuery = {}) =>
+        api.get<PagedResult<AuditLogItem>>('/admin/audit-logs', {
+            params: {
+                category: q.category || undefined,
+                action: q.action || undefined,
+                actorEmail: q.actorEmail || undefined,
+                targetId: q.targetId || undefined,
+                from: q.from || undefined,
+                to: q.to || undefined,
+                page: q.page ?? 1,
+                pageSize: q.pageSize ?? 50,
+            },
+        }).then(r => r.data),
+
+    /** Các loại hành động ĐANG CÓ trong log (distinct từ DB) — nguồn cho dropdown lọc. */
+    getAuditActions: (category?: AuditCategory) =>
+        api.get<string[]>('/admin/audit-logs/actions', {
+            params: { category: category || undefined },
+        }).then(r => r.data),
 }

