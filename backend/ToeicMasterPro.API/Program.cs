@@ -455,26 +455,61 @@ else if (!string.IsNullOrWhiteSpace(hangfireUser) && !string.IsNullOrWhiteSpace(
 //
 // Tức là việc đăng ký job đang phụ thuộc vào việc dashboard có được mount hay không.
 // Đó là coupling sai: job nhắc lịch thi phải chạy độc lập với trang quản trị.
+
+// Cron của Hangfire mặc định hiểu theo UTC (RecurringJobOptions.TimeZone = Utc).
+// Không truyền TimeZone thì "30 0 * * *" là 00:30 UTC = 07:30 giờ VN — lệch 7 tiếng
+// so với ý định "gửi mail lúc đêm để sáng user mở hộp thư đã thấy".
+var vietnamTimeZone = ResolveVietnamTimeZone();
+var jobOptions = new RecurringJobOptions { TimeZone = vietnamTimeZone };
+
 using (var jobScope = app.Services.CreateScope())
 {
-    jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>()
-        .AddOrUpdate<ExamReminderJob>(
-            "exam-reminder-email",
-            job => job.RunAsync(),
-            "30 0 * * *",   // cron 5 phần: phút giờ ngày tháng thứ
-            new RecurringJobOptions());
+    var recurringJobs = jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
 
-    jobScope.ServiceProvider.GetRequiredService<IRecurringJobManager>()   // MỚI
-        .AddOrUpdate<IigExamScheduleSyncJob>(
-            "iig-exam-schedule-sync",
-            job => job.RunAsync(),
-            "0 */6 * * *",   // mỗi 6 giờ, phút 0
-            new RecurringJobOptions());
+    // 07:00 giờ VN — mail nằm gần đầu hộp thư khi user mở điện thoại buổi sáng.
+    // Trước đó là 00:30: lúc đó user đang ngủ, sáng ra mail đã bị đẩy xuống dưới
+    // bởi mail đêm khác, mất tác dụng "nhắc".
+    recurringJobs.AddOrUpdate<ExamReminderJob>(
+        "exam-reminder-email",
+        job => job.RunAsync(),
+        "0 7 * * *",   // cron 5 phần: PHÚT giờ ngày tháng thứ → phút 0, giờ 7
+        jobOptions);
+
+    // Mỗi 3 giờ (0,3,6,...,21) — lịch thi là dữ liệu BÊN NGOÀI, IIG cập nhật bất kỳ
+    // lúc nào nên quét dày hơn để kỳ thi mới xuất hiện sớm. 8 lần/ngày thay vì 4.
+    recurringJobs.AddOrUpdate<IigExamScheduleSyncJob>(
+        "iig-exam-schedule-sync",
+        job => job.RunAsync(),
+        "0 */3 * * *",   // phút 0 của các giờ chia hết cho 3 — theo giờ VN
+        jobOptions);
 }
-// ⚠️ Cron trên hiểu theo UTC → thực tế chạy 07:30 giờ VN, không phải 00:30.
-//    Sửa bằng RecurringJobOptions.TimeZone ở Day 49.
+
 
 app.Run();
+
+/// <summary>
+/// Múi giờ VN có HAI ID khác nhau tùy hệ điều hành, hardcode một cái là vỡ ở phía kia:
+///   Windows (máy dev)     → "SE Asia Standard Time"
+///   Linux   (Docker prod) → "Asia/Ho_Chi_Minh"
+///
+/// .NET 8 dùng ICU nên thường nhận cả hai ID trên mọi nền tảng, NHƯNG chỉ khi ICU có
+/// mặt — image Alpine hoặc app bật InvariantGlobalization thì không. Nên thử lần lượt
+/// thay vì tin vào một ID duy nhất.
+///
+/// Không tìm được cả hai: fallback UTC+7 tự dựng. VN không có giờ mùa hè (DST) nên
+/// offset cố định, cách này an toàn — với múi giờ CÓ DST thì tự dựng sẽ sai.
+/// </summary>
+static TimeZoneInfo ResolveVietnamTimeZone()
+{
+    foreach (var id in new[] { "SE Asia Standard Time", "Asia/Ho_Chi_Minh" })
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+        catch (TimeZoneNotFoundException) { }
+        catch (InvalidTimeZoneException) { }
+    }
+
+    return TimeZoneInfo.CreateCustomTimeZone("VN+7", TimeSpan.FromHours(7), "Vietnam (UTC+7)", "ICT");
+}
 
 // ── Seed Method ───────────────────────────────────────────
 static async Task SeedAsync(WebApplication app)
