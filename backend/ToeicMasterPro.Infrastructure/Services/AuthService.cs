@@ -276,8 +276,15 @@ public class AuthService : IAuthService
             // Token Identity chứa +, /, = (base64) — PHẢI url-encode, không thì link vỡ
             // (bài học đã va ở RegisterAsync). Email cũng phải encode: địa chỉ dạng
             // abc+tag@gmail.com có dấu + bị query string hiểu thành dấu cách.
-            var resetLink = $"{_config["Frontend:BaseUrl"]}/reset-password" +
-                $"?email={Uri.EscapeDataString(user.Email!)}" +
+            // Trỏ về LANDING PAGE ("/") kèm ?reset=1, không phải /reset-password nữa:
+            // người bấm link là khách chưa đăng nhập, nơi họ thuộc về là landing page.
+            // Landing đọc query này rồi tự mở popup ở màn "Đặt lại mật khẩu", đặt lại
+            // xong chuyển ngay sang tab Đăng nhập trong cùng popup — không phải nhảy
+            // qua hai trang trơ trọi mới đăng nhập được.
+            // Route /reset-password VẪN CÒN (App.tsx) để link trong các mail đã gửi
+            // trước đây không chết.
+            var resetLink = $"{_config["Frontend:BaseUrl"]}/?reset=1" +
+                $"&email={Uri.EscapeDataString(user.Email!)}" +
                 $"&token={Uri.EscapeDataString(resetToken)}";
 
             // try/catch KHÔNG phải để cho đẹp: khối này CHỈ chạy khi email tồn tại, nên

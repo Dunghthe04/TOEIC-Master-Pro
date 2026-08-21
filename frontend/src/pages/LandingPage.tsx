@@ -9,7 +9,7 @@
  *   GET /api/test/published   — danh sách đề (metadata, KHÔNG có câu hỏi/đáp án)
  *   GET /api/examschedule     — lịch thi TOEIC
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
     ArrowRight, Award, BarChart3, Bell, BookMarked, CalendarDays, CheckCircle2,
@@ -111,7 +111,7 @@ const DEMO_PARTS = [
 
 export default function LandingPage() {
     const navigate = useNavigate()
-    const [searchParams] = useSearchParams()
+    const [searchParams, setSearchParams] = useSearchParams()
     const { user, isAuthenticated } = useAuthStore()
 
     const [tests, setTests] = useState<TestSummary[]>([])
@@ -121,10 +121,33 @@ export default function LandingPage() {
     /** Đích đến sau khi đăng nhập xong — null = popup đang đóng */
     const [authTarget, setAuthTarget] = useState<string | null>(null)
 
-    // Đã đăng nhập mà vào "/" thì đưa về trang chủ theo vai — không xem landing nữa
+    /**
+     * Link đặt lại mật khẩu trong email trỏ về "/?reset=1&email=…&token=…"
+     * (xem AuthService.ForgotPasswordAsync) → popup mở thẳng màn Đặt lại mật khẩu.
+     *
+     * Đọc bằng useMemo chứ không useState+useEffect: giá trị này suy ra được hoàn toàn
+     * từ URL, không có trạng thái riêng nào cần giữ.
+     */
+    const resetCredentials = useMemo(() => {
+        if (searchParams.get('reset') !== '1') return null
+        const email = searchParams.get('email')
+        const token = searchParams.get('token')
+        // Thiếu tham số vẫn trả object rỗng-hoá null → popup hiện "Link không hợp lệ"
+        // thay vì im lặng bỏ qua, user biết là link hỏng chứ không tưởng web lỗi.
+        return email && token ? { email, token } : null
+    }, [searchParams])
+
+    const isResetFlow = searchParams.get('reset') === '1'
+
+    // Đã đăng nhập mà vào "/" thì đưa về trang chủ theo vai — không xem landing nữa.
+    //
+    // TRỪ luồng đặt lại mật khẩu: user có thể đang đăng nhập ở tab khác (phiên cũ) rồi
+    // bấm link trong mail. Đẩy họ về dashboard là popup không kịp mở và họ mất luôn
+    // đường đổi mật khẩu — mà đây đúng là lúc họ CẦN đổi nhất (VD nghi bị chiếm tài khoản).
     useEffect(() => {
+        if (isResetFlow) return
         if (isAuthenticated && user) navigate(homeFor(user), { replace: true })
-    }, [isAuthenticated, user, navigate])
+    }, [isAuthenticated, user, navigate, isResetFlow])
 
     // Khách bấm mục cần login trên PublicGuestHeader (VD khi đang ở /exam-schedule)
     // → được đưa về "/?next=/mock-test" → tự mở đúng popup login nhắm tới route đó,
@@ -133,6 +156,12 @@ export default function LandingPage() {
         const next = searchParams.get('next')
         if (next) setAuthTarget(next)
     }, [searchParams])
+
+    // Mở popup ngay khi vào bằng link reset — không cần user bấm gì thêm.
+    // authTarget = '/dashboard' để sau khi đổi mật khẩu + đăng nhập lại thì vào dashboard.
+    useEffect(() => {
+        if (isResetFlow) setAuthTarget('/dashboard')
+    }, [isResetFlow])
 
     useEffect(() => {
         TestService.getPublished()
@@ -156,6 +185,24 @@ export default function LandingPage() {
 
     /** Mở popup đăng nhập, ghi nhớ nơi cần tới sau khi xong */
     const requireAuth = (target: string) => setAuthTarget(target)
+
+    /**
+     * Xoá ?reset=1&email=…&token=… khỏi URL. Cần thiết vì:
+     *   1. Còn reset=1 thì useEffect ở trên mở lại popup ngay — đóng không được, và
+     *      sau khi đổi xong sẽ rơi lại vào màn reset với token đã dùng (token chết).
+     *   2. Token nằm trong thanh địa chỉ: xoá để nó không dính vào history, không bị
+     *      copy nguyên URL đưa cho người khác, không lọt vào Referer khi bấm link ngoài.
+     * replace: true để nút Back không quay về đúng URL vừa xoá.
+     */
+    const clearResetQuery = () => {
+        if (isResetFlow) setSearchParams({}, { replace: true })
+    }
+
+    /** Đóng popup — kèm dọn query nếu đang ở luồng đặt lại mật khẩu */
+    const closeAuth = () => {
+        setAuthTarget(null)
+        clearResetQuery()
+    }
 
     return (
         // scroll-smooth: anchor link (#features, #tests) cuộn mượt thay vì nhảy giật.
@@ -674,11 +721,14 @@ export default function LandingPage() {
                 </p>
             </footer>
 
-            {/* Popup đăng nhập/đăng ký — mở khi bấm chức năng cần auth */}
+            {/* Popup đăng nhập/đăng ký — mở khi bấm chức năng cần auth, hoặc mở thẳng
+                màn "Đặt lại mật khẩu" khi vào bằng link trong email (?reset=1). */}
             <AuthDialog
                 open={authTarget !== null}
                 returnTo={authTarget ?? '/dashboard'}
-                onClose={() => setAuthTarget(null)}
+                resetCredentials={resetCredentials}
+                onResetDone={clearResetQuery}
+                onClose={closeAuth}
             />
         </div>
     )

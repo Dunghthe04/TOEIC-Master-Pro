@@ -27,6 +27,22 @@ const loginSchema = z.object({
     email: z.string().min(1, 'Vui lòng nhập email').email('Email không hợp lệ'),
     password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 })
+const forgotSchema = z.object({
+    email: z.string().min(1, 'Vui lòng nhập email').email('Email không hợp lệ'),
+})
+// Cùng bộ luật với tab Đăng ký — và phải khớp Identity ở Program.cs. Lệch thì form
+// báo hợp lệ xong server vẫn từ chối.
+const resetSchema = z.object({
+    newPassword: z.string()
+        .min(8, 'Mật khẩu tối thiểu 8 ký tự')
+        .regex(/[A-Z]/, 'Cần ít nhất 1 chữ in hoa')
+        .regex(/[0-9]/, 'Cần ít nhất 1 chữ số')
+        .regex(/[^A-Za-z0-9]/, 'Cần ít nhất 1 ký tự đặc biệt'),
+    confirmPassword: z.string(),
+}).refine(d => d.newPassword === d.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp',
+    path: ['confirmPassword'],
+})
 const registerSchema = z.object({
     fullName: z.string().min(2, 'Họ tên tối thiểu 2 ký tự'),
     email: z.string().min(1, 'Vui lòng nhập email').email('Email không hợp lệ'),
@@ -41,16 +57,41 @@ const registerSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 type RegisterForm = z.infer<typeof registerSchema>
+type ForgotForm = z.infer<typeof forgotSchema>
+type ResetForm = z.infer<typeof resetSchema>
 
 type Props = {
     open: boolean
     /** Nơi điều hướng tới sau khi đăng nhập xong — chức năng khách vừa bấm */
     returnTo: string
     onClose: () => void
+    /**
+     * Có giá trị khi user vừa bấm link đặt lại mật khẩu trong email
+     * ("/?reset=1&email=…&token=…" — xem AuthService.ForgotPasswordAsync).
+     * Popup mở thẳng ở màn "Đặt lại mật khẩu" thay vì tab Đăng nhập.
+     */
+    resetCredentials?: { email: string; token: string } | null
+    /**
+     * Gọi khi đổi mật khẩu xong — trang cha xoá ?reset=1&token=… khỏi URL.
+     * Không xoá thì token đã dùng còn trong thanh địa chỉ, đóng/mở lại popup sẽ rơi
+     * về màn reset với token chết.
+     */
+    onResetDone?: () => void
 }
 
-export default function AuthDialog({ open, returnTo, onClose }: Props) {
-    const [tab, setTab] = useState<'login' | 'register'>('login')
+export default function AuthDialog({ open, returnTo, onClose, resetCredentials, onResetDone }: Props) {
+    // 'forgot' và 'reset' KHÔNG phải tab ngang hàng với hai tab kia — chúng là màn phụ
+    // của luồng đăng nhập ('forgot' mở từ link dưới ô mật khẩu, 'reset' mở từ link trong
+    // email). Gộp vào cùng một state để popup chỉ hiện đúng một màn tại một thời điểm.
+    const [tab, setTab] = useState<'login' | 'register' | 'forgot' | 'reset'>('login')
+
+    // Mở popup luôn về đúng màn khởi đầu. Không reset thì lần trước bỏ dở ở màn "Quên
+    // mật khẩu" sẽ hiện lại lần sau — user bấm "Bắt đầu thi" mà ra form nhập email lấy
+    // link đặt lại mật khẩu thì không hiểu chuyện gì đang xảy ra.
+    // Có resetCredentials (vừa bấm link trong email) → vào thẳng màn Đặt lại mật khẩu.
+    useEffect(() => {
+        if (open) setTab(resetCredentials ? 'reset' : 'login')
+    }, [open, resetCredentials])
 
     // Esc để đóng + chặn cuộn trang phía sau khi popup mở
     useEffect(() => {
@@ -93,7 +134,8 @@ export default function AuthDialog({ open, returnTo, onClose }: Props) {
                             key={t}
                             onClick={() => setTab(t)}
                             className={`py-3.5 text-sm font-semibold transition-colors ${
-                                tab === t
+                                // 'forgot'/'reset' là màn con của luồng đăng nhập → vẫn tô nút Đăng nhập.
+                                (tab === t) || (t === 'login' && (tab === 'forgot' || tab === 'reset'))
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                             }`}
@@ -104,9 +146,24 @@ export default function AuthDialog({ open, returnTo, onClose }: Props) {
                 </div>
 
                 <div className="p-6">
-                    {tab === 'login'
-                        ? <LoginForm returnTo={returnTo} onClose={onClose} />
-                        : <RegisterForm onDone={() => setTab('login')} />}
+                    {tab === 'login' && (
+                        <LoginForm
+                            returnTo={returnTo}
+                            onClose={onClose}
+                            onForgot={() => setTab('forgot')}
+                        />
+                    )}
+                    {tab === 'register' && <RegisterForm onDone={() => setTab('login')} />}
+                    {tab === 'forgot' && <ForgotPasswordForm onBack={() => setTab('login')} />}
+                    {tab === 'reset' && (
+                        <ResetPasswordForm
+                            credentials={resetCredentials ?? null}
+                            onDone={() => {
+                                setTab('login')
+                                onResetDone?.()
+                            }}
+                        />
+                    )}
                 </div>
             </div>
         </div>
@@ -114,7 +171,13 @@ export default function AuthDialog({ open, returnTo, onClose }: Props) {
 }
 
 /** Sau khi login: lưu token → lấy profile (có roles) → vào returnTo */
-function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => void }) {
+function LoginForm({ returnTo, onClose, onForgot }: {
+    returnTo: string
+    onClose: () => void
+    /** Chuyển sang màn "Quên mật khẩu" NGAY TRONG popup — không điều hướng sang
+     *  /forgot-password, vì rời trang là mất luôn returnTo (chức năng khách vừa bấm). */
+    onForgot: () => void
+}) {
     const navigate = useNavigate()
     const loginSuccess = useAuthStore(s => s.loginSuccess)
     const setAccessToken = useAuthStore(s => s.setAccessToken)
@@ -194,6 +257,17 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
                     {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
                 </div>
 
+                {/* type="button": nằm trong <form> nên không có nó là bấm sẽ submit form */}
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={onForgot}
+                        className="text-sm text-blue-600 hover:underline"
+                    >
+                        Quên mật khẩu?
+                    </button>
+                </div>
+
                 {serverError && (
                     <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-600">
                         {serverError}
@@ -240,6 +314,235 @@ function LoginForm({ returnTo, onClose }: { returnTo: string; onClose: () => voi
                     {googleError}
                 </p>
             )}
+        </>
+    )
+}
+
+/**
+ * Quên mật khẩu — gửi email chứa link đặt lại.
+ *
+ * Backend LUÔN trả 200 với thông báo trung tính ("Nếu email tồn tại…") kể cả khi email
+ * không có trong hệ thống — chống user enumeration. Nên ở đây KHÔNG có nhánh "email
+ * không tồn tại": hiện đúng câu server trả về, không diễn giải thêm.
+ */
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+    const [successMsg, setSuccessMsg] = useState('')
+    const [serverError, setServerError] = useState('')
+
+    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ForgotForm>({
+        resolver: zodResolver(forgotSchema),
+    })
+
+    const onSubmit = async (data: ForgotForm) => {
+        setServerError('')
+        try {
+            const res = await authService.forgotPassword(data)
+            setSuccessMsg(res.message)
+        } catch (err: any) {
+            setServerError(
+                err.response?.data?.error
+                ?? (err.request && !err.response
+                    ? 'Không kết nối được server. Thử lại sau.'
+                    // /auth/forgot-password dùng chung rate limit "auth" (5 req/phút/IP).
+                    : err.response?.status === 429
+                        ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                        : 'Có lỗi xảy ra, thử lại sau.')
+            )
+        }
+    }
+
+    return (
+        <>
+            <div className="mb-4">
+                <h3 className="font-semibold text-gray-900">Quên mật khẩu</h3>
+                <p className="mt-0.5 text-sm text-gray-500">
+                    Nhập email đã đăng ký để nhận link đặt lại mật khẩu.
+                </p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="space-y-1.5">
+                    <Label htmlFor="fg-email">Email</Label>
+                    <Input id="fg-email" type="email" placeholder="you@example.com" autoFocus {...register('email')} />
+                    {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+                </div>
+
+                {successMsg && (
+                    <p className="rounded-lg border border-green-200 bg-green-50 p-2.5 text-sm text-green-700">
+                        {successMsg}
+                    </p>
+                )}
+
+                {serverError && (
+                    <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-600">
+                        {serverError}
+                    </p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang gửi…' : 'Gửi link đặt lại mật khẩu'}
+                </Button>
+
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="block w-full text-center text-sm text-blue-600 hover:underline"
+                >
+                    Quay lại đăng nhập
+                </button>
+            </form>
+        </>
+    )
+}
+
+/**
+ * Đặt lại mật khẩu — màn đích của link trong email ("/?reset=1&email=…&token=…").
+ *
+ * email + token KHÔNG cho người dùng sửa: chúng là bằng chứng "người này mở được hộp
+ * thư của email đó". Chỉ hiện email ra để họ biết đang đổi mật khẩu cho tài khoản nào.
+ */
+function ResetPasswordForm({ credentials, onDone }: {
+    credentials: { email: string; token: string } | null
+    /** Đổi xong → về tab Đăng nhập để dùng luôn mật khẩu mới */
+    onDone: () => void
+}) {
+    const [serverError, setServerError] = useState('')
+    const [done, setDone] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
+    const [showConfirm, setShowConfirm] = useState(false)
+
+    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ResetForm>({
+        resolver: zodResolver(resetSchema),
+    })
+
+    const onSubmit = async (data: ResetForm) => {
+        if (!credentials) return
+        setServerError('')
+        try {
+            await authService.resetPassword({
+                email: credentials.email,
+                token: credentials.token,
+                newPassword: data.newPassword,
+            })
+            setDone(true)
+            setTimeout(onDone, 1800)   // để user đọc được thông báo rồi mới đổi màn
+        } catch (err: any) {
+            setServerError(
+                err.response?.data?.error
+                ?? (err.request && !err.response
+                    ? 'Không kết nối được server. Thử lại sau.'
+                    : err.response?.status === 429
+                        ? 'Bạn thao tác quá nhanh. Vui lòng chờ khoảng một phút rồi thử lại.'
+                        : 'Đặt lại mật khẩu thất bại, thử lại sau.')
+            )
+        }
+    }
+
+    // Vào màn này mà thiếu email/token thì không có gì để gửi lên — nói ngay, đừng để
+    // user gõ xong mật khẩu mới báo lỗi.
+    if (!credentials) {
+        return (
+            <div className="py-4 text-center">
+                <p className="font-semibold text-gray-900">Link không hợp lệ</p>
+                <p className="mt-1.5 text-sm text-gray-600">
+                    Link đặt lại mật khẩu thiếu thông tin. Hãy mở lại link trong email,
+                    hoặc yêu cầu gửi link mới.
+                </p>
+                <button
+                    type="button"
+                    onClick={onDone}
+                    className="mt-4 text-sm text-blue-600 hover:underline"
+                >
+                    Quay lại đăng nhập
+                </button>
+            </div>
+        )
+    }
+
+    if (done) {
+        return (
+            <div className="py-6 text-center">
+                <p className="font-semibold text-green-700">Đã đổi mật khẩu</p>
+                <p className="mt-1.5 text-sm text-gray-600">
+                    Đang chuyển sang đăng nhập…
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <>
+            <div className="mb-4">
+                <h3 className="font-semibold text-gray-900">Đặt lại mật khẩu</h3>
+                <p className="mt-0.5 text-sm text-gray-500">
+                    Nhập mật khẩu mới cho <span className="font-medium">{credentials.email}</span>
+                </p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="space-y-1.5">
+                    <Label htmlFor="rs-pass">Mật khẩu mới</Label>
+                    <div className="relative">
+                        <Input
+                            id="rs-pass"
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Tối thiểu 8 ký tự"
+                            autoFocus
+                            {...register('newPassword')}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                    </div>
+                    {errors.newPassword
+                        ? <p className="text-sm text-red-500">{errors.newPassword.message}</p>
+                        : <p className="text-xs text-gray-400">Cần chữ in hoa, chữ số và ký tự đặc biệt.</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                    <Label htmlFor="rs-confirm">Xác nhận mật khẩu</Label>
+                    <div className="relative">
+                        <Input
+                            id="rs-confirm"
+                            type={showConfirm ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            {...register('confirmPassword')}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirm(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                    </div>
+                    {errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
+                    )}
+                </div>
+
+                {serverError && (
+                    <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-600">
+                        {serverError}
+                    </p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}
+                </Button>
+
+                <button
+                    type="button"
+                    onClick={onDone}
+                    className="block w-full text-center text-sm text-blue-600 hover:underline"
+                >
+                    Quay lại đăng nhập
+                </button>
+            </form>
         </>
     )
 }
