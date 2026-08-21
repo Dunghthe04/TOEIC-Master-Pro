@@ -10,7 +10,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
     LayoutDashboard, ClipboardList, History, TrendingUp, BookOpen, BookMarked,
-    Calendar, FileText, HelpCircle, Upload, Users, BarChart3, Home,
+    Calendar, FileText, HelpCircle, Upload, Users, BarChart3, Home, Activity,
 } from 'lucide-react'
 import type { User } from '@/types/auth.types'
 
@@ -101,6 +101,7 @@ export const ADMIN_NAV: NavItem[] = [
     // trang /admin/content không có nút CRUD nào. Không trỏ sang /cm/* vì những trang
     // đó đầy nút tạo/sửa/xoá mà Admin bấm vào chỉ nhận 403.
     { to: '/admin/content', label: 'Nội dung hệ thống', icon: FileText },
+    { to: '/admin/monitor', label: 'Theo dõi hoạt động', icon: Activity },
 ]
 
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {

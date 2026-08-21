@@ -1,7 +1,7 @@
 import api from '@/api/axios'
 import type {
-    AdminOverview, AdminStats, AdminUser, AdminUserDetail, AdminUserQuery,
-    CreateUserRequest, PagedResult,
+    AdminActiveSessionsResponse, AdminOverview, AdminStats, AdminUser,
+    AdminUserDetail, AdminUserQuery, CreateUserRequest, PagedResult,
 } from '@/types/admin.types'
 
 export const AdminService = {
@@ -27,6 +27,15 @@ export const AdminService = {
                 page: q.page ?? 1,
                 pageSize: q.pageSize ?? 20,
             },
+        }).then(r => r.data),
+
+    /**
+     * Phiên thi đang diễn ra. staleHours = ngưỡng coi là "treo" (backend kẹp 1–72).
+     * Đọc trực tiếp từ TestSessions Status=InProgress, không phải bảng log.
+     */
+    getActiveSessions: (staleHours = 4) =>
+        api.get<AdminActiveSessionsResponse>('/admin/active-sessions', {
+            params: { staleHours },
         }).then(r => r.data),
 
     /** Chi tiết 1 tài khoản: thông tin + thống kê thi + lịch sử thi */

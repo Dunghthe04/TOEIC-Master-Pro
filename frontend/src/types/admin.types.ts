@@ -31,6 +31,33 @@ export interface AdminStats {
     roles: { role: string; count: number }[]
 }
 
+/** GET /api/admin/active-sessions — một phiên thi đang diễn ra */
+export interface AdminActiveSession {
+    sessionId: string
+    userId: string
+    userEmail: string | null
+    userFullName: string
+    testId: string
+    testTitle: string
+    startedAt: string
+    readingStartedAt: string | null
+    /** "1,2,5" hoặc null = full đề */
+    partsFilter: string | null
+    /** Số câu đã chọn đáp án */
+    answeredCount: number
+    /** Tổng bản ghi answer, kể cả câu đã lưu nhưng bỏ trống */
+    totalAnswers: number
+    /** true = quá staleHours giờ chưa nộp → gần như chắc là bỏ dở */
+    isStale: boolean
+}
+
+export interface AdminActiveSessionsResponse {
+    staleHours: number
+    activeCount: number
+    staleCount: number
+    sessions: AdminActiveSession[]
+}
+
 /** Một dòng trong bảng quản lý tài khoản */
 export interface AdminUser {
     id: string

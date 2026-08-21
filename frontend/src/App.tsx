@@ -45,6 +45,7 @@ import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AdminContentPage from '@/pages/admin/AdminContentPage'
 import AdminUserDetailPage from '@/pages/admin/AdminUserDetailPage'
+import AdminMonitorPage from '@/pages/admin/AdminMonitorPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { useSilentRefresh } from './hooks/useSilentRefresh'
 
@@ -117,6 +118,7 @@ function App() {
                 <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
                 <Route path="/admin/content" element={<AdminContentPage />} />
+                <Route path="/admin/monitor" element={<AdminMonitorPage />} />
               </Route>
 
               {/* /exam-schedule đã khai CÔNG KHAI ở trên — không đặt lại trong ProtectedRoute */}

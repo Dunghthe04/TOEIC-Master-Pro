@@ -174,4 +174,56 @@ public class AdminController : ControllerBase
 
         return Ok(new { days, daily, scoreBands, roles });
     }
+
+    /// <summary>
+    /// Phiên thi ĐANG diễn ra — ai đang làm bài ngay lúc này.
+    ///
+    /// VÌ SAO KHÔNG PHẢI LOG: đây là TRẠNG THÁI hiện tại, không phải sự kiện đã xảy ra —
+    /// đã nằm sẵn trong TestSessions với Status = InProgress. Ghi thêm bảng log cho việc
+    /// này là tạo nguồn sự thật thứ hai rồi phải đồng bộ hai bên.
+    ///
+    /// Trả kèm phiên TREO (quá staleHours giờ chưa nộp): học viên mất mạng giữa bài, đóng
+    /// tab, hoặc gặp lỗi — đúng loại việc họ gọi lên khiếu nại, mà Admin chưa hề thấy được.
+    /// </summary>
+    [HttpGet("active-sessions")]
+    public async Task<IActionResult> GetActiveSessions(
+        [FromQuery] int staleHours = 4, CancellationToken ct = default)
+    {
+        // 4 giờ là mặc định hợp lý: full test 2 tiếng, cộng dư cho người làm chậm hoặc
+        // nghỉ giữa giờ. Quá 4 tiếng thì gần như chắc là bỏ dở, không phải đang làm.
+        // Kẹp khoảng để ?staleHours=999999 không thành số vô nghĩa.
+        staleHours = Math.Clamp(staleHours, 1, 72);
+        var staleBefore = DateTime.UtcNow.AddHours(-staleHours);
+
+        var rows = await _db.TestSessions
+            .AsNoTracking()
+            .Where(s => s.Status == TestSessionStatus.InProgress)
+            .OrderBy(s => s.StartedAt)   // treo lâu nhất lên đầu — cần chú ý nhất
+            .Select(s => new
+            {
+                sessionId = s.Id,
+                userId = s.UserId,
+                userEmail = s.User.Email,
+                userFullName = s.User.FullName,
+                testId = s.TestId,
+                testTitle = s.Test.Title,
+                s.StartedAt,
+                s.ReadingStartedAt,
+                s.PartsFilter,
+                // Đếm câu đã chọn đáp án DƯỚI SQL. Không nạp Answers về rồi đếm bằng C#:
+                // mỗi phiên tới 200 câu, 20 phiên là 4000 bản ghi kéo về vô ích.
+                answeredCount = s.Answers.Count(a => a.SelectedOptionId != null),
+                totalAnswers = s.Answers.Count(),
+                isStale = s.StartedAt < staleBefore,
+            })
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            staleHours,
+            activeCount = rows.Count(r => !r.isStale),
+            staleCount = rows.Count(r => r.isStale),
+            sessions = rows,
+        });
+    }
 }
