@@ -42,6 +42,8 @@ import PublicRoleLayout from '@/components/layout/PublicRoleLayout'
 import RequireRole from '@/components/auth/RequireRole'
 import CmHomePage from '@/pages/cm/CmHomePage'
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage'
+import AdminUsersPage from '@/pages/admin/AdminUsersPage'
+import AdminContentPage from '@/pages/admin/AdminContentPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { useSilentRefresh } from './hooks/useSilentRefresh'
 
@@ -111,6 +113,8 @@ function App() {
               {/* /admin/* chỉ Admin — trang chủ Admin, chỉ xem không CRUD nội dung */}
               <Route element={<RequireRole allow={['Admin']} />}>
                 <Route path="/admin" element={<AdminOverviewPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/content" element={<AdminContentPage />} />
               </Route>
 
               {/* /exam-schedule đã khai CÔNG KHAI ở trên — không đặt lại trong ProtectedRoute */}

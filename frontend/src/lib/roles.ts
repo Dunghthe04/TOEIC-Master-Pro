@@ -86,13 +86,21 @@ export const CM_NAV: NavItem[] = [
 ]
 
 /**
- * Menu DỌC cho Admin — chỉ 2 mục.
+ * Menu DỌC cho Admin.
  * Admin là "sếp": xem tổng quan + quản account. KHÔNG soạn nội dung, KHÔNG thi.
  * Backend chặn thật: DELETE /api/question với token Admin → 403.
+ *
+ * ⚠️ KHÔNG thêm các mục của User (Thi thử, Luyện nhanh, Tiến độ) vào đây: những
+ * endpoint đó là [Authorize(Roles="User")] nên Admin bấm vào chỉ nhận 403. Menu không
+ * được hứa thứ tài khoản đó không dùng được.
  */
 export const ADMIN_NAV: NavItem[] = [
     { to: '/admin', label: 'Tổng quan hệ thống', icon: BarChart3 },
     { to: '/admin/users', label: 'Quản lý tài khoản', icon: Users },
+    // Nội dung: Admin XEM được (GET đã mở "ContentManager,Admin"), nhưng KHÔNG sửa —
+    // trang /admin/content không có nút CRUD nào. Không trỏ sang /cm/* vì những trang
+    // đó đầy nút tạo/sửa/xoá mà Admin bấm vào chỉ nhận 403.
+    { to: '/admin/content', label: 'Nội dung hệ thống', icon: FileText },
 ]
 
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
