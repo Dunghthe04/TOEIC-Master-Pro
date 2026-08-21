@@ -640,13 +640,19 @@ export default function MockTestPlayPage() {
                     'Không lưu được đáp án tạm — kiểm tra mạng.',
                 )
 
-                // 400 = server từ chối vì lý do nghiệp vụ, gần như luôn là hết giờ.
-                // Nghĩa là đồng hồ client đang LỆCH so với server — xảy ra thật khi
-                // Chrome bóp setInterval lúc tab chạy nền, client tưởng còn 5 phút
-                // trong khi server đã đóng cửa.
+                // Server từ chối vì lý do nghiệp vụ, gần như luôn là hết giờ. Nghĩa là
+                // đồng hồ client đang LỆCH so với server — xảy ra thật khi Chrome bóp
+                // setInterval lúc tab chạy nền, client tưởng còn 5 phút trong khi server
+                // đã đóng cửa.
                 // Hỏi lại server số giây thật (endpoint idempotent nên gọi thoải mái);
                 // về 0 thì effect tự-nộp sẽ chạy và bài được chốt đúng lúc.
-                if (err?.response?.status === 400) {
+                //
+                // 409 (phiên đã kết thúc) là trường hợp CHÍNH kể từ khi backend phân
+                // biệt mã lỗi; giữ 400 cho các lỗi validation còn lại (VD câu hỏi không
+                // thuộc phiên) — đồng bộ lại đồng hồ trong cả hai đều vô hại vì
+                // reading-start là idempotent.
+                const status = err?.response?.status
+                if (status === 409 || status === 400) {
                     try {
                         const { readingSecondsLeft } =
                             await TestSessionService.markReadingStarted(sid)

@@ -58,7 +58,7 @@ public class QuestionService : IQuestionService
     public async Task<Result<QuestionResponse>> GetByIdAsync(Guid id)
     {
         var q = await _uow.Repository<Question>().GetByIdAsync(id);
-        if (q is null) return Result<QuestionResponse>.Failure("Không tìm thấy câu hỏi.");
+        if (q is null) return Result<QuestionResponse>.NotFound("Không tìm thấy câu hỏi.");
 
         var options = await _uow.Repository<QuestionOption>().FindAsync(o => o.QuestionId == id);
         return Result<QuestionResponse>.Success(MapToResponse(q, options.ToList()));
@@ -97,7 +97,7 @@ public class QuestionService : IQuestionService
         if (error is not null) return Result.Failure(error);
 
         var q = await _uow.Repository<Question>().GetByIdAsync(id);
-        if (q is null) return Result.Failure("Không tìm thấy câu hỏi.");
+        if (q is null) return Result.NotFound("Không tìm thấy câu hỏi.");
 
         // Cập nhật field
         q.Part = req.Part;
@@ -134,7 +134,9 @@ public class QuestionService : IQuestionService
             // (TestSessionAnswerConfiguration.cs): xóa option cũ khi đã có người CHỌN
             // nó (kể cả phiên đang làm dở/bỏ dở) bị SQL Server chặn. Không bắt ở đây
             // thì rơi thẳng vào GlobalExceptionHandler → 500 chung, CM không biết vì sao.
-            return Result.Failure(
+            // 409: dữ liệu gửi lên hợp lệ, nhưng trạng thái hiện tại (đã có người trả lời)
+            // không cho phép thao tác này.
+            return Result.Conflict(
                 "Không thể sửa đáp án — câu hỏi này đã có người trả lời. " +
                 "Xóa/sửa đáp án lúc này sẽ làm hỏng dữ liệu bài thi đã nộp.");
         }
@@ -144,7 +146,7 @@ public class QuestionService : IQuestionService
     public async Task<Result> DeleteAsync(Guid id)
     {
         var q = await _uow.Repository<Question>().GetByIdAsync(id);
-        if (q is null) return Result.Failure("Không tìm thấy câu hỏi.");
+        if (q is null) return Result.NotFound("Không tìm thấy câu hỏi.");
 
         _uow.Repository<Question>().Remove(q);   // Options tự xóa theo (cascade)
         try
@@ -155,8 +157,8 @@ public class QuestionService : IQuestionService
         {
             // FK Restrict giữa TestSessionAnswer → Question / QuestionOption: đã có
             // người trả lời (kể cả phiên bỏ dở) thì không xóa được. Bắt ở đây để trả
-            // 400 rõ ràng thay vì 500 chung từ GlobalExceptionHandler.
-            return Result.Failure(
+            // 409 rõ ràng thay vì 500 chung từ GlobalExceptionHandler.
+            return Result.Conflict(
                 "Không thể xóa — câu hỏi này đã có người trả lời. " +
                 "Xóa lúc này sẽ làm hỏng dữ liệu bài thi đã nộp.");
         }

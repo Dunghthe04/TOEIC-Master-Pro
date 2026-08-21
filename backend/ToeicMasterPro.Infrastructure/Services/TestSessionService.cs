@@ -103,7 +103,7 @@ public class TestSessionService : ITestSessionService
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(req.TestId);
         if (test is null || !test.IsPublished)
-            return Result<TestSessionStartedResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+            return Result<TestSessionStartedResponse>.NotFound("Không tìm thấy đề thi hoặc chưa publish.");
 
         // Chuẩn hóa parts: chỉ giữ số 1–7, bỏ trùng
         var partsArr = NormalizeParts(req.Parts);
@@ -192,12 +192,18 @@ public class TestSessionService : ITestSessionService
     public async Task<Result<int?>> MarkReadingStartedAsync(Guid userId, Guid sessionId)
     {
         var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
-        if (session is null)
-            return Result<int?>.Failure("Không tìm thấy phiên thi.");
-        if (session.UserId != userId)
-            return Result<int?>.Failure("Phiên thi không thuộc tài khoản này.");
+
+        // Gộp "không tồn tại" và "của người khác" thành CÙNG MỘT phản hồi 404 với CÙNG
+        // MỘT thông báo. Trước đây hai trường hợp trả hai message khác nhau (cùng 400)
+        // → kẻ tấn công dò sessionId biết được id nào tồn tại, và message còn xác nhận
+        // thẳng "phiên này của người khác" (IDOR information disclosure).
+        if (session is null || session.UserId != userId)
+            return Result<int?>.NotFound("Không tìm thấy phiên thi.");
+
+        // 409 chứ không 400: phiên thi TỒN TẠI và bạn CÓ quyền, chỉ là trạng thái hiện
+        // tại không cho phép hành động này. 400 nghĩa là "dữ liệu bạn gửi sai" — không đúng.
         if (session.Status != TestSessionStatus.InProgress)
-            return Result<int?>.Failure("Phiên thi đã kết thúc.");
+            return Result<int?>.Conflict("Phiên thi đã kết thúc.");
 
         if (session.ReadingStartedAt is null)
         {
@@ -260,12 +266,12 @@ public class TestSessionService : ITestSessionService
     public async Task<Result> AbandonAsync(Guid userId, Guid sessionId)
     {
         var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
-        if (session is null)
-            return Result.Failure("Không tìm thấy phiên thi.");
-        if (session.UserId != userId)
-            return Result.Failure("Phiên thi không thuộc tài khoản này.");
+
+        // 404 chung cho "không tồn tại" và "của người khác" — xem lý do ở MarkReadingStartedAsync.
+        if (session is null || session.UserId != userId)
+            return Result.NotFound("Không tìm thấy phiên thi.");
         if (session.Status != TestSessionStatus.InProgress)
-            return Result.Failure("Phiên thi đã kết thúc.");
+            return Result.Conflict("Phiên thi đã kết thúc.");
 
         session.Status = TestSessionStatus.Abandoned;
         session.SetUpdatedAt();
@@ -288,18 +294,17 @@ public class TestSessionService : ITestSessionService
 
         // ── Kiểm tra session hợp lệ ──
         var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
-        if (session is null)
-            return Result<int>.Failure("Không tìm thấy phiên thi.");
-        if (session.UserId != userId)
-            return Result<int>.Failure("Phiên thi không thuộc tài khoản này.");
+        // 404 chung cho "không tồn tại" và "của người khác" — xem MarkReadingStartedAsync.
+        if (session is null || session.UserId != userId)
+            return Result<int>.NotFound("Không tìm thấy phiên thi.");
         if (session.Status != TestSessionStatus.InProgress)
-            return Result<int>.Failure("Phiên thi đã kết thúc — không thể sửa đáp án.");
+            return Result<int>.Conflict("Phiên thi đã kết thúc — không thể sửa đáp án.");
         // ── Hết giờ thì không cho ghi thêm ──
         // Kiểm Status là CHƯA ĐỦ: phiên hết giờ vẫn đang InProgress. Không chặn ở
         // đây thì user thi hôm nay, mai mở lại trả lời tiếp rồi nộp — và chặn ở
         // Submit cũng vô ích, vì lúc đó đáp án đã nằm sẵn trong DB rồi.
         if (DateTime.UtcNow > ComputeDeadline(session))
-            return Result<int>.Failure("Đã hết giờ làm bài — không thể lưu thêm đáp án.");
+            return Result<int>.Conflict("Đã hết giờ làm bài — không thể lưu thêm đáp án.");
         // Tập QuestionId hợp lệ trong phạm vi session (đề + parts filter)
         var partsArr = ParsePartsFilter(session.PartsFilter);
         var allowedIds = await GetQuestionIdsInScopeAsync(session.TestId, partsArr);
@@ -377,12 +382,12 @@ public class TestSessionService : ITestSessionService
     public async Task<Result<TestSessionSubmitResponse>> SubmitAsync(Guid userId, Guid sessionId)
     {
         var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
-        if (session is null)
-            return Result<TestSessionSubmitResponse>.Failure("Không tìm thấy phiên thi.");
-        if (session.UserId != userId)
-            return Result<TestSessionSubmitResponse>.Failure("Phiên thi không thuộc tài khoản này.");
+        // 404 chung cho "không tồn tại" và "của người khác" — xem MarkReadingStartedAsync.
+        if (session is null || session.UserId != userId)
+            return Result<TestSessionSubmitResponse>.NotFound("Không tìm thấy phiên thi.");
+        // 409: nộp lại phiên đã nộp là XUNG ĐỘT TRẠNG THÁI, không phải dữ liệu sai.
         if (session.Status != TestSessionStatus.InProgress)
-            return Result<TestSessionSubmitResponse>.Failure("Phiên thi đã được nộp trước đó.");
+            return Result<TestSessionSubmitResponse>.Conflict("Phiên thi đã được nộp trước đó.");
         // ── Quá hạn thì VẪN CHẤM ──
         // Từ chối sẽ phạt oan người mất mạng đúng lúc hết giờ, và làm phiên kẹt
         // InProgress vĩnh viễn — không nộp được, cũng không xem lại được.
@@ -772,16 +777,16 @@ public class TestSessionService : ITestSessionService
     public async Task<Result<TestSessionDetailResponse>> GetDetailAsync(Guid userId, Guid sessionId)
     {
         var session = await _uow.Repository<TestSession>().GetByIdAsync(sessionId);
-        if (session is null)
-            return Result<TestSessionDetailResponse>.Failure("Không tìm thấy phiên thi.");
-        if (session.UserId != userId)
-            return Result<TestSessionDetailResponse>.Failure("Phiên thi không thuộc tài khoản này.");
+        // 404 chung cho "không tồn tại" và "của người khác" — endpoint này là chỗ dễ
+        // bị dò nhất (user chỉ cần đổi sessionId trên URL xem lại kết quả người khác).
+        if (session is null || session.UserId != userId)
+            return Result<TestSessionDetailResponse>.NotFound("Không tìm thấy phiên thi.");
         if (session.Status != TestSessionStatus.Completed)
-            return Result<TestSessionDetailResponse>.Failure("Chỉ xem được phiên đã nộp bài.");
+            return Result<TestSessionDetailResponse>.Conflict("Chỉ xem được phiên đã nộp bài.");
 
         var test = await _uow.Repository<Test>().GetByIdAsync(session.TestId);
         if (test is null)
-            return Result<TestSessionDetailResponse>.Failure("Không tìm thấy đề thi.");
+            return Result<TestSessionDetailResponse>.NotFound("Không tìm thấy đề thi.");
 
         var partsArr = ParsePartsFilter(session.PartsFilter);
         var scopeQuestions = await GetScopedQuestionsAsync(session.TestId, partsArr);
@@ -938,7 +943,7 @@ public class TestSessionService : ITestSessionService
     {
         var user = await _uow.Repository<ApplicationUser>().GetByIdAsync(userId);
         if (user is null)
-            return Result<TestScoreStatsResponse>.Failure("Không tìm thấy tài khoản.");
+            return Result<TestScoreStatsResponse>.NotFound("Không tìm thấy tài khoản.");
 
         var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
                 s.UserId == userId && s.Status == TestSessionStatus.Completed))
@@ -998,7 +1003,7 @@ public class TestSessionService : ITestSessionService
     {
         var user = await _uow.Repository<ApplicationUser>().GetByIdAsync(userId);
         if (user is null)
-            return Result<TestStatsOverviewResponse>.Failure("Không tìm thấy tài khoản.");
+            return Result<TestStatsOverviewResponse>.NotFound("Không tìm thấy tài khoản.");
 
         var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
                 s.UserId == userId && s.Status == TestSessionStatus.Completed))
@@ -1064,7 +1069,7 @@ public class TestSessionService : ITestSessionService
     {
         var user = await _uow.Repository<ApplicationUser>().GetByIdAsync(userId);
         if (user is null)
-            return Result<TestStatsTimelineResponse>.Failure("Không tìm thấy tài khoản.");
+            return Result<TestStatsTimelineResponse>.NotFound("Không tìm thấy tài khoản.");
 
         var sessions = (await _uow.Repository<TestSession>().FindAsync(s =>
                 s.UserId == userId && s.Status == TestSessionStatus.Completed))

@@ -140,7 +140,7 @@ public class AuthService : IAuthService
     {
         var user = await _userManager.FindByEmailAsync(req.Email);
         if (user is null)
-            return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
+            return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
 
         // CheckPasswordSignInAsync (KHÔNG phải PasswordSignInAsync — hàm đó issue thêm
         // cookie đăng nhập của Identity, app này chỉ dùng JWT tự cấp) — lockoutOnFailure:
@@ -155,7 +155,7 @@ public class AuthService : IAuthService
         // đi thì user thật bị khóa 15 phút mà không hiểu vì sao → đánh đổi ngược, mất
         // nhiều hơn được.
         if (signInResult.IsLockedOut)
-            return Result<AuthResponse>.Failure(
+            return Result<AuthResponse>.Unauthorized(
                 "Tài khoản tạm khóa do sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.");
 
         // IsNotAllowed = RequireConfirmedEmail chặn vì EmailConfirmed == false. Phải
@@ -176,14 +176,14 @@ public class AuthService : IAuthService
         if (signInResult.IsNotAllowed)
         {
             if (await _userManager.CheckPasswordAsync(user, req.Password))
-                return Result<AuthResponse>.Failure(
+                return Result<AuthResponse>.Unauthorized(
                     "Email chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.");
 
-            return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
+            return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
         }
 
         if (!signInResult.Succeeded)
-            return Result<AuthResponse>.Failure("Email hoặc mật khẩu không đúng.");
+            return Result<AuthResponse>.Unauthorized("Email hoặc mật khẩu không đúng.");
 
         var response = await BuildAuthResponseAsync(user);
         return Result<AuthResponse>.Success(response);
@@ -199,7 +199,7 @@ public class AuthService : IAuthService
         .FirstOrDefaultAsync(rt => rt.Token == hashed);
 
         if (stored is null)
-            return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
+            return Result<AuthResponse>.Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
 
         // REUSE DETECTION: token này ĐÃ bị revoke từ trước (khác với hết hạn tự nhiên)
         // mà vẫn bị mang ra dùng lại — bản hợp lệ đã rotate sang token MỚI rồi, nên
@@ -219,11 +219,11 @@ public class AuthService : IAuthService
                 "UserId={UserId}, đã thu hồi {Count} token đang hoạt động",
                 stored.UserId, activeTokens.Count);
 
-            return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
+            return Result<AuthResponse>.Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
         }
 
         if (stored.IsExpired)
-            return Result<AuthResponse>.Failure("Refresh token không hợp lệ hoặc đã hết hạn.");
+            return Result<AuthResponse>.Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
 
         //Thu hoi token cu
         stored.RevokedAt = DateTime.UtcNow;
@@ -391,7 +391,7 @@ public class AuthService : IAuthService
             // ex.Message của Google chứa audience/issuer/thời điểm hết hạn — trả ra ngoài
             // là chỉ cho kẻ tấn công token của họ sai ở ĐÂU để sửa cho đúng.
             _logger.LogWarning(ex, "Xác minh Google ID token thất bại");
-            return Result<AuthResponse>.Failure("Token Google không hợp lệ.");
+            return Result<AuthResponse>.Unauthorized("Token Google không hợp lệ.");
         }
 
         // 1b. Google đã ký, nhưng ký KHÔNG có nghĩa là email đã được xác minh.
@@ -399,12 +399,12 @@ public class AuthService : IAuthService
         //     quyền sở hữu. Mọi logic bên dưới dựa vào "Google bảo đảm người này sở hữu
         //     email này", nên cờ này sai là toàn bộ bên dưới sụp.
         if (!payload.EmailVerified || string.IsNullOrEmpty(payload.Email))
-            return Result<AuthResponse>.Failure("Tài khoản Google chưa xác thực email.");
+            return Result<AuthResponse>.Unauthorized("Tài khoản Google chưa xác thực email.");
 
         // Token không có `sub` là token dị dạng — mà `sub` chính là khoá liên kết ở bước 2,
         // để null lọt xuống sẽ ghi ProviderKey = null và nổ ở tầng DB.
         if (string.IsNullOrEmpty(payload.Subject))
-            return Result<AuthResponse>.Failure("Token Google không hợp lệ.");
+            return Result<AuthResponse>.Unauthorized("Token Google không hợp lệ.");
 
         // 2. ĐƯỜNG TÌM CHÍNH: theo `sub`, KHÔNG theo email.
         //    Email đổi được (Workspace đổi địa chỉ chính, hoặc admin cấp lại địa chỉ của
@@ -448,7 +448,8 @@ public class AuthService : IAuthService
                 //     là lỗ hổng cũ → TỪ CHỐI. (Muốn dùng Google thì đăng nhập bằng mật
                 //     khẩu rồi liên kết trong phần cài đặt — luồng đó để sau.)
                 if (hasPassword && user.EmailConfirmed)
-                    return Result<AuthResponse>.Failure(
+                    // 409: không phải token sai, mà xung đột với tài khoản đang tồn tại.
+                    return Result<AuthResponse>.Conflict(
                         "Email này đã có tài khoản đăng nhập bằng mật khẩu. Vui lòng đăng nhập bằng mật khẩu.");
 
                 // 3c. TÀI KHOẢN SQUAT (pre-hijack): có mật khẩu nhưng CHƯA TỪNG xác thực

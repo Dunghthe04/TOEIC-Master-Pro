@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Profile;
 
@@ -34,14 +35,18 @@ public class ProfileController : ControllerBase
     public async Task<IActionResult> GetMe()
     {
         var result = await _profile.GetMyProfileAsync();
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        // Trước hardcode 404 cho mọi lỗi. "Không tìm thấy người dùng" ở đây là token
+        // không còn ứng với account nào → service trả Unauthorized, FE cho login lại.
+        return result.ToActionResult(this);
     }
 
     [HttpPut("me")]
     public async Task<IActionResult> UpdateMe(UpdateProfileRequest req)
     {
         var result = await _profile.UpdateMyProfileAsync(req);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        // Trước hardcode 404 kể cả khi lỗi là Identity validation (VD FullName quá dài)
+        // — người dùng thấy "không tìm thấy" trong khi thật ra dữ liệu gửi lên sai.
+        return result.ToActionResult(this);
     }
     [HttpPost("me/avatar")]
     public async Task<IActionResult> UploadAvatar(IFormFile file)
@@ -72,7 +77,7 @@ public class ProfileController : ControllerBase
         var url = $"/uploads/avatars/{fileName}";
         var result = await _profile.UpdateAvatarAsync(url);
 
-        return result.IsSuccess ? Ok(new { message = "Đã cập nhật ảnh đại diện." }) : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã cập nhật ảnh đại diện.");
     }
 
 

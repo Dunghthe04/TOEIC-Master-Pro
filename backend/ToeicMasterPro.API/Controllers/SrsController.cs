@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Srs;
 
@@ -19,9 +20,7 @@ public class SrsController : ControllerBase
     public async Task<IActionResult> Learn(Guid vocabularyId)
     {
         var result = await _srs.LearnAsync(vocabularyId);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // Thẻ đến hạn ôn hôm nay (Day 24 flashcard gọi API này)
@@ -37,9 +36,7 @@ public class SrsController : ControllerBase
     public async Task<IActionResult> Review(ReviewRequest req)
     {
         var result = await _srs.ReviewAsync(req);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // Thanh tiến độ
@@ -47,8 +44,6 @@ public class SrsController : ControllerBase
     public async Task<IActionResult> GetProgress()
     {
         var result = await _srs.GetProgressAsync();
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 }

@@ -30,7 +30,7 @@ public class ExamScheduleService : IExamScheduleService
     {
         var entity = await _uow.Repository<ExamSchedule>().GetByIdAsync(id);
         if (entity is null)
-            return Result<ExamScheduleResponse>.Failure("Không tìm thấy lịch thi.");
+            return Result<ExamScheduleResponse>.NotFound("Không tìm thấy lịch thi.");
         return Result<ExamScheduleResponse>.Success(Map(entity));
     }
 
@@ -70,7 +70,7 @@ public class ExamScheduleService : IExamScheduleService
 
         var entity = await _uow.Repository<ExamSchedule>().GetByIdAsync(id);
         if (entity is null)
-            return Result.Failure("Không tìm thấy lịch thi.");
+            return Result.NotFound("Không tìm thấy lịch thi.");
 
         entity.Title = req.Title.Trim();
         entity.Organizer = req.Organizer.Trim();
@@ -94,7 +94,7 @@ public class ExamScheduleService : IExamScheduleService
     {
         var entity = await _uow.Repository<ExamSchedule>().GetByIdAsync(id);
         if (entity is null)
-            return Result.Failure("Không tìm thấy lịch thi.");
+            return Result.NotFound("Không tìm thấy lịch thi.");
 
         // Cascade: xóa lịch → xóa UserExamReminders liên quan (Fluent API)
         _uow.Repository<ExamSchedule>().Remove(entity);

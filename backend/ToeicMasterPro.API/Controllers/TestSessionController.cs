@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.TestSessions;
 
@@ -42,9 +43,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.StartAsync(userId.Value, req);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
 
@@ -61,9 +62,7 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.MarkReadingStartedAsync(userId.Value, id);
-        return result.IsSuccess
-            ? Ok(new { readingSecondsLeft = result.Value })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, new { readingSecondsLeft = result.Value });
     }
     /// <summary>
     /// Lưu / cập nhật đáp án tạm (chưa chấm điểm).
@@ -78,9 +77,7 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.SaveAnswersAsync(userId.Value, id, req);
-        return result.IsSuccess
-            ? Ok(new { saved = result.Value })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, new { saved = result.Value });
     }
 
     /// <summary>
@@ -95,9 +92,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.SubmitAsync(userId.Value, id);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -117,9 +114,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetHistoryAsync(userId.Value, testId, page, pageSize);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -135,9 +132,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetStatsOverviewAsync(userId.Value, fullOnly);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -153,9 +150,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetStatsTimelineAsync(userId.Value, fullOnly);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -171,9 +168,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetStatsPartsAsync(userId.Value, fullOnly);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -188,9 +185,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetScoreStatsByTestAsync(userId.Value, fullOnly);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -204,9 +201,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetDetailAsync(userId.Value, id);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status (404/403/409/400) thay vì 400 cho
+        // mọi lỗi. Xem ResultExtensions + Result.ErrorType.
+        return result.ToActionResult(this);
     }
 
     /// <summary>Lấy UserId từ JWT — null nếu token không hợp lệ.</summary>
@@ -223,7 +220,9 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.GetActiveAsync(userId.Value, testId);
-        if (!result.IsSuccess) return BadRequest(new { error = result.Error });
+        // Không dùng ToActionResult ở đây: thành công mà Value null phải trả 204 NoContent
+        // (FE phân biệt "có bài dở" với "không có"), không phải 200 kèm null.
+        if (!result.IsSuccess) return result.ToActionResult(this);
         return result.Value is null ? NoContent() : Ok(result.Value);
     }
 
@@ -235,8 +234,6 @@ public class TestSessionController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.AbandonAsync(userId.Value, id);
-        return result.IsSuccess
-            ? Ok(new { message = "Đã bỏ phiên thi." })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã bỏ phiên thi.");
     }
 }

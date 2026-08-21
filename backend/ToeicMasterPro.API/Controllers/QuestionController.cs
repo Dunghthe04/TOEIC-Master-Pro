@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Questions;
 using ToeicMasterPro.Domain.Enums;
@@ -43,7 +44,7 @@ public class QuestionController : ControllerBase
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     //Tạo câu hỏi -> chỉ CM (Admin không soạn nội dung)
@@ -52,9 +53,8 @@ public class QuestionController : ControllerBase
     public async Task<IActionResult> Create(CreateQuestionRequest req)
     {
         var result = await _service.CreateAsync(req);
-        return result.IsSuccess
-                ? CreatedAtAction(nameof(GetDetail), new { id = result.Value }, new { id = result.Value })
-                : BadRequest(new { error = result.Error });
+        return result.ToCreatedResult(
+            this, nameof(GetDetail), new { id = result.Value }, new { id = result.Value });
     }
 
     [HttpPut("{id:Guid}")]
@@ -62,7 +62,7 @@ public class QuestionController : ControllerBase
     public async Task<IActionResult> Update(Guid id, UpdateQuestionRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
-        return result.IsSuccess ? Ok(new { message = "Đã cập nhật." }) : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã cập nhật.");
     }
 
     [HttpDelete("{id:Guid}")]
@@ -70,7 +70,7 @@ public class QuestionController : ControllerBase
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
-        return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // POST /api/question/import

@@ -50,7 +50,7 @@ namespace ToeicMasterPro.Infrastructure.Services
         public async Task<Result<SrsProgressResponse>> GetProgressAsync()
         {
             if (_currentUser.UserId is null)
-                return Result<SrsProgressResponse>.Failure("Chưa đăng nhập.");
+                return Result<SrsProgressResponse>.Unauthorized("Chưa đăng nhập.");
             var userId = _currentUser.UserId.Value;
             var today = DateTime.UtcNow.Date;
             var all = await _db.UserVocabularies
@@ -69,7 +69,7 @@ namespace ToeicMasterPro.Infrastructure.Services
         public async Task<Result<SrsCardResponse>> LearnAsync(Guid vocabularyId)
         {
             if (_currentUser.UserId is null)
-                return Result<SrsCardResponse>.Failure("Chưa đăng nhập.");
+                return Result<SrsCardResponse>.Unauthorized("Chưa đăng nhập.");
             var userId = _currentUser.UserId.Value;
             var vocab = await _uow.Repository<Vocabulary>().GetByIdAsync(vocabularyId);
             if (vocab is null)
@@ -99,7 +99,7 @@ namespace ToeicMasterPro.Infrastructure.Services
         public async Task<Result<SrsCardResponse>> ReviewAsync(ReviewRequest req)
         {
             if (_currentUser.UserId is null)
-                return Result<SrsCardResponse>.Failure("Chưa đăng nhập.");
+                return Result<SrsCardResponse>.Unauthorized("Chưa đăng nhập.");
             if (req.Quality < 0 || req.Quality > 5)
                 return Result<SrsCardResponse>.Failure("Quality phải từ 0 đến 5.");
             var userId = _currentUser.UserId.Value;
@@ -108,7 +108,7 @@ namespace ToeicMasterPro.Infrastructure.Services
                 .FirstOrDefaultAsync(x =>
                     x.UserId == userId && x.VocabularyId == req.VocabularyId);
             if (uv is null)
-                return Result<SrsCardResponse>.Failure("Bạn chưa bắt đầu học từ này. Gọi learn trước.");
+                return Result<SrsCardResponse>.NotFound("Bạn chưa bắt đầu học từ này. Gọi learn trước.");
             ApplySm2(uv, req.Quality);
             uv.SetUpdatedAt();
             await _db.SaveChangesAsync();

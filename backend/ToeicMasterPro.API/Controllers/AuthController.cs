@@ -39,7 +39,11 @@ public class AuthController : ControllerBase{
     [HttpPost("login")]
     public async Task<IActionResult>Login(LoginRequest req){
         var result= await _auth.LoginAsync(req);
-        if(!result.IsSuccess) return BadRequest(new {error = result.Error});
+        // Sai mật khẩu / chưa xác thực email / bị lockout đều là lỗi XÁC THỰC → 401,
+        // không phải 400 (request hợp lệ về cú pháp). ToActionResult map theo ErrorType,
+        // xem ResultExtensions. FE không phải sửa: nó đọc data.error bất kể status, và
+        // axios interceptor đã loại /auth/* khỏi luồng auto-refresh.
+        if(!result.IsSuccess) return result.ToActionResult(this);
 
         //refreshToken đi qua httpOnly cookie, không còn trong body JSON 
         //Js bên Fe sẽ k thấy giá trị này
@@ -125,7 +129,7 @@ public class AuthController : ControllerBase{
     [HttpPost("google-login")]
     public async Task<IActionResult> GoogleLogin(GoogleLoginRequest req){
         var result= await _auth.GoogleLoginAsync(req.IdToken);
-        if(!result.IsSuccess) return BadRequest(new {error = result.Error});
+        if(!result.IsSuccess) return result.ToActionResult(this);
         Response.SetRefreshTokenCookie(result.Value!.RefreshToken, result.Value.ExpiresAt);
         return Ok(new { accessToken = result.Value.AccessToken, expiresAt = result.Value.ExpiresAt });
     }

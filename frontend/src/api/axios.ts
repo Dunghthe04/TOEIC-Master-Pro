@@ -27,6 +27,21 @@ api.interceptors.request.use((config) => {
 let refreshPromise: Promise<string> | null = null
 
 /**
+ * Endpoint KHÔNG dùng accessToken → 401 ở đây nghĩa là "sai mật khẩu / token reset
+ * không hợp lệ", KHÔNG phải "accessToken hết hạn".
+ *
+ * Vì sao cần: từ khi backend trả 401 (thay vì 400) cho sai credential, interceptor
+ * dưới đây coi mọi 401 là token hết hạn → gõ sai mật khẩu ở form login sẽ kích một
+ * lần gọi /refresh-token vô nghĩa, và vì lần đó cũng 401 nên nó chạy logout(), xóa
+ * luôn phiên đang đăng nhập của người dùng. Tất cả endpoint auth công khai đều nằm
+ * dưới /auth/ — trừ /auth/logout, cái duy nhất cần Bearer.
+ */
+function isPublicAuthEndpoint(url?: string): boolean {
+    if (!url) return false
+    return url.includes('/auth/') && !url.includes('/auth/logout')
+}
+
+/**
  * EXPORT (không còn private): useSilentRefresh phải gọi ĐÚNG hàm này thay vì tự
  * `axios.post` thô. Gọi thô là đi vòng qua lớp gộp promise ngay dưới — hai lời gọi
  * song song mang CÙNG một cookie sẽ cùng rotate refresh token ở server, sinh race.
@@ -52,9 +67,10 @@ api.interceptors.response.use(
     async (error) => {
         const original = error.config
 
-        // 401 lần đầu (chưa retry) và không phải chính request refresh-token bị lỗi
-        // (tránh vòng lặp vô hạn nếu refresh cũng trả 401)
-        if (error.response?.status === 401 && !original._retry && !original.url?.includes('/auth/refresh-token')) {
+        // 401 lần đầu (chưa retry) và không phải endpoint auth công khai —
+        // isPublicAuthEndpoint đã loại luôn cả /auth/refresh-token nên không còn nguy
+        // cơ lặp vô hạn khi refresh cũng trả 401.
+        if (error.response?.status === 401 && !original._retry && !isPublicAuthEndpoint(original.url)) {
             original._retry = true
             try {
                 

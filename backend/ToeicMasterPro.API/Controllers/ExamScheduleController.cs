@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.ExamSchedules;
 
@@ -36,18 +37,14 @@ public class ExamScheduleController : ControllerBase
     public async Task<IActionResult> SubscribeReminder(Guid id)
     {
         var result = await _reminders.SubscribeAsync(id);
-        return result.IsSuccess
-            ? Ok(new { message = "Đã đặt nhắc email (gửi trước ~3 ngày)." })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã đặt nhắc email (gửi trước ~3 ngày).");
     }
     [HttpDelete("{id:Guid}/reminder")]
     [Authorize(Roles = "User")]
     public async Task<IActionResult> UnsubscribeReminder(Guid id)
     {
         var result = await _reminders.UnsubscribeAsync(id);
-        return result.IsSuccess
-            ? Ok(new { message = "Đã hủy nhắc." })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã hủy nhắc.");
     }
     // ĐÃ BỎ: GET {id}/ical — export file .ics.
     //
@@ -79,7 +76,7 @@ public class ExamScheduleController : ControllerBase
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // Chỉ Admin / ContentManager nhập lịch thủ công từ IIG/BC
@@ -88,9 +85,8 @@ public class ExamScheduleController : ControllerBase
     public async Task<IActionResult> Create(CreateExamScheduleRequest req)
     {
         var result = await _service.CreateAsync(req);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetDetail), new { id = result.Value }, new { id = result.Value })
-            : BadRequest(new { error = result.Error });
+        return result.ToCreatedResult(
+            this, nameof(GetDetail), new { id = result.Value }, new { id = result.Value });
     }
 
     [HttpPut("{id:Guid}")]
@@ -98,9 +94,7 @@ public class ExamScheduleController : ControllerBase
     public async Task<IActionResult> Update(Guid id, UpdateExamScheduleRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
-        return result.IsSuccess
-            ? Ok(new { message = "Đã cập nhật." })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã cập nhật.");
     }
 
     [HttpDelete("{id:Guid}")]
@@ -108,6 +102,6 @@ public class ExamScheduleController : ControllerBase
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
-        return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 }

@@ -153,7 +153,7 @@ namespace ToeicMasterPro.Infrastructure.Services
         public async Task<Result> SubscribeAsync(Guid examScheduleId)
         {
             if (_currentUser.UserId is null)
-                return Result.Failure("Chưa đăng nhập.");
+                return Result.Unauthorized("Chưa đăng nhập.");
 
             var exam = await _uow.Repository<ExamSchedule>().GetByIdAsync(examScheduleId);
             if (exam is null || !exam.IsActive)
@@ -164,7 +164,8 @@ namespace ToeicMasterPro.Infrastructure.Services
             var exists = await _uow.Repository<UserExamReminder>()
                 .FindAsync(r => r.UserId == userId && r.ExamScheduleId == examScheduleId);
             if (exists.Count > 0)
-                return Result.Failure("Bạn đã đặt nhắc cho kỳ thi này.");
+                // Trùng bản ghi = xung đột trạng thái hiện có, không phải dữ liệu gửi sai → 409.
+                return Result.Conflict("Bạn đã đặt nhắc cho kỳ thi này.");
             await _uow.Repository<UserExamReminder>().AddAsync(new UserExamReminder
             {
                 UserId = userId,
@@ -179,13 +180,13 @@ namespace ToeicMasterPro.Infrastructure.Services
         public async Task<Result> UnsubscribeAsync(Guid examScheduleId)
         {
             if(_currentUser.UserId is null)
-                return Result.Failure("Chưa đăng nhập.");
+                return Result.Unauthorized("Chưa đăng nhập.");
             var userId = _currentUser.UserId.Value;
             var list = await _uow.Repository<UserExamReminder>()
                 .FindAsync(r=>r.UserId == userId && r.ExamScheduleId == examScheduleId);
             var entity = list.FirstOrDefault();
             if(entity is null)
-                return Result.Failure("Bạn chưa đặt nhắc cho kỳ thi này.");
+                return Result.NotFound("Bạn chưa đặt nhắc cho kỳ thi này.");
 
             _uow.Repository<UserExamReminder>().Remove(entity);
             await _uow.SaveChangesAsync();

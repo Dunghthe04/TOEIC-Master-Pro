@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ToeicMasterPro.API.Extensions;
 using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Practice;
 using ToeicMasterPro.Domain.Enums;
@@ -59,8 +60,9 @@ public class PracticeController : ControllerBase
         if (userId is null) return Unauthorized();
 
         var result = await _service.SubmitAsync(userId.Value, req);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : BadRequest(new { error = result.Error });
+        // ToActionResult map ErrorType → HTTP status. Đáng chú ý: phiên không tồn tại
+        // HOẶC của người khác đều trả 404 CÙNG một message (chống dò sessionId), phiên
+        // đã nộp trả 409. Xem PracticeService.SubmitAsync.
+        return result.ToActionResult(this);
     }
 }

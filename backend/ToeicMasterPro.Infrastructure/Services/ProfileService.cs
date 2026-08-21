@@ -20,7 +20,10 @@ public class ProfileService : IProfileService
     public async Task<Result<ProfileResponse>> GetMyProfileAsync()
     {
         var user = await GetCurrentUserAsync();
-        return user is null ? Result<ProfileResponse>.Failure("Không tìm thấy người dùng") 
+        // 401 chứ không 404: đây là chính user đang gọi, "không tìm thấy" nghĩa là token
+        // không có UserId hoặc account đã bị xóa → FE phải cho đăng nhập lại, chứ không
+        // phải báo "không có dữ liệu".
+        return user is null ? Result<ProfileResponse>.Unauthorized("Không tìm thấy người dùng")
         : Result<ProfileResponse>.Success(await MaptoResponse(user));
     }
 
@@ -28,7 +31,7 @@ public class ProfileService : IProfileService
     {
         var user = await GetCurrentUserAsync();
         if (user is null)
-            return Result<ProfileResponse>.Failure("Không tìm thấy người dùng");
+            return Result<ProfileResponse>.Unauthorized("Không tìm thấy người dùng");
         user.FullName = req.FullName;
         user.TargetScore = req.TargetScore;
         user.ExamDate = req.ExamDate;
@@ -44,7 +47,7 @@ public class ProfileService : IProfileService
     {
         var user = await GetCurrentUserAsync();
         if (user is null)
-            return Result.Failure("Không tìm thấy người dùng");
+            return Result.Unauthorized("Không tìm thấy người dùng");
         user.AvatarUrl = avatarUrl;
         var result = await _userManager.UpdateAsync(user);
         return result.Succeeded

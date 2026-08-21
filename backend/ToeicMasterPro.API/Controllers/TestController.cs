@@ -6,6 +6,7 @@ using ToeicMasterPro.Application.Common.Interfaces;
 using ToeicMasterPro.Application.DTOs.Questions;
 using ToeicMasterPro.Application.DTOs.Tests;
 using ToeicMasterPro.API.Services;
+using ToeicMasterPro.API.Extensions;
 
 namespace ToeicMasterPro.API.Controllers;
 
@@ -52,7 +53,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> GetDetail(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // POST /api/test
@@ -61,9 +62,8 @@ public class TestController : ControllerBase
     public async Task<IActionResult> Create(CreateTestRequest req)
     {
         var result = await _service.CreateAsync(req);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetDetail), new { id = result.Value }, new { id = result.Value })
-            : BadRequest(new { error = result.Error });
+        return result.ToCreatedResult(
+            this, nameof(GetDetail), new { id = result.Value }, new { id = result.Value });
     }
     // PUT /api/test/{id}
     [HttpPut("{id:Guid}")]
@@ -71,7 +71,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> Update(Guid id, UpdateTestRequest req)
     {
         var result = await _service.UpdateAsync(id, req);
-        return result.IsSuccess ? Ok(new { message = "Đã cập nhật." }) : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã cập nhật.");
     }
 
     // DELETE /api/test/{id}
@@ -80,7 +80,8 @@ public class TestController : ControllerBase
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _service.DeleteAsync(id);
-        return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
+        // 409 khi đề đã có lượt thi (FK Restrict), 404 khi không có đề — xem TestService.
+        return result.ToActionResult(this);
     }
 
     // POST /api/test/{id}/questions
@@ -89,7 +90,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> AddQuestions(Guid id, AddQuestionsRequest req)
     {
         var result = await _service.AddQuestionsAsync(id, req);
-        return result.IsSuccess ? Ok(new { message = "Đã gán câu hỏi." }) : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, "Đã gán câu hỏi.");
     }
 
     // DELETE /api/test/{id}/questions/{questionId}
@@ -98,7 +99,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> RemoveQuestion(Guid id, Guid questionId)
     {
         var result = await _service.RemoveQuestionAsync(id, questionId);
-        return result.IsSuccess ? Ok() : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this);
     }
     // Day 26: User — chỉ đề published; ?series=ETS%202026
     //
@@ -122,7 +123,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> GetStructure(Guid id)
     {
         var result = await _service.GetStructureAsync(id);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
+        return result.ToActionResult(this);
     }
 
     // Gói câu thi — ?parts=1,2,5 (bỏ trống = full)
@@ -144,7 +145,9 @@ public class TestController : ControllerBase
         }
 
         var result = await _service.GetPlayAsync(id, partArr);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(new { error = result.Error });
+        // Đề không tồn tại HOẶC chưa publish → cùng một 404 (không tiết lộ đề nháp nào
+        // đang tồn tại). Filter Part không khớp câu nào vẫn là 400. Xem TestService.
+        return result.ToActionResult(this);
     }
 
     /// <summary>
@@ -276,9 +279,7 @@ public class TestController : ControllerBase
     public async Task<IActionResult> AssignListening(Guid id)
     {
         var result = await _service.AssignListeningQuestionsAsync(id);
-        return result.IsSuccess
-            ? Ok(new { assigned = result.Value })
-            : BadRequest(new { error = result.Error });
+        return result.ToActionResult(this, new { assigned = result.Value });
     }
 
     /// <summary>

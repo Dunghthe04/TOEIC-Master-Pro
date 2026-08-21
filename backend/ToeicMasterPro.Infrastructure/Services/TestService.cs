@@ -48,7 +48,7 @@ public class TestService : ITestService
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
         if (test == null)
         {
-            return Result<TestDetailResponse>.Failure("Không tìm thấy đề thi!");
+            return Result<TestDetailResponse>.NotFound("Không tìm thấy đề thi!");
         }
 
         //lấy ra question của test
@@ -111,7 +111,7 @@ public class TestService : ITestService
             return Result.Failure("Tiêu đề đề thi không được trống.");
 
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
-        if (test is null) return Result.Failure("Không tìm thấy đề thi.");
+        if (test is null) return Result.NotFound("Không tìm thấy đề thi.");
 
         test.Title = req.Title;
         test.Series = req.Series?.Trim() ?? "";
@@ -126,14 +126,16 @@ public class TestService : ITestService
     public async Task<Result> DeleteAsync(Guid id)
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
-        if (test is null) return Result.Failure("Không tìm thấy đề thi.");
+        if (test is null) return Result.NotFound("Không tìm thấy đề thi.");
 
         // Không xóa đề nếu đã có lịch sử thi — FK TestSessions.TestId (Restrict)
         var sessions = await _uow.Repository<TestSession>().FindAsync(s => s.TestId == id);
         var sessionCount = sessions.Count;
         if (sessionCount > 0)
         {
-            return Result.Failure(
+            // 409: request đúng cú pháp, nhưng trạng thái hiện tại của tài nguyên không
+            // cho phép xóa (đã có lượt thi tham chiếu). Không phải lỗi dữ liệu gửi lên.
+            return Result.Conflict(
                 $"Không thể xóa đề \"{test.Title}\" vì đã có {sessionCount} lượt thi được ghi nhận. " +
                 "Hãy chuyển sang nháp (bỏ xuất bản) để user không thấy đề này nữa.");
         }
@@ -146,7 +148,7 @@ public class TestService : ITestService
     public async Task<Result> AddQuestionsAsync(Guid testId, AddQuestionsRequest req)
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(testId);
-        if (test is null) return Result.Failure("Không tìm thấy đề thi.");
+        if (test is null) return Result.NotFound("Không tìm thấy đề thi.");
 
         // Lấy các câu đã có trong đề để tránh trùng
         var existing = await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == testId);
@@ -162,7 +164,7 @@ public class TestService : ITestService
             }).ToList();
 
         if (toAdd.Count == 0)
-            return Result.Failure("Tất cả câu hỏi đã tồn tại trong đề thi.");
+            return Result.Conflict("Tất cả câu hỏi đã tồn tại trong đề thi.");
 
         foreach (var tq in toAdd)
             await _uow.Repository<TestQuestion>().AddAsync(tq);
@@ -191,7 +193,7 @@ public class TestService : ITestService
         // ── Bước 0: Kiểm tra đề thi tồn tại ──────────────────────────────────
         // testId đến từ URL /api/test/{id}/import-listening hoặc AssignImportedToTestAsync
         var test = await _uow.Repository<Test>().GetByIdAsync(testId);
-        if (test is null) return Result.Failure("Không tìm thấy đề thi.");
+        if (test is null) return Result.NotFound("Không tìm thấy đề thi.");
 
         // ── Bước 1: Lấy danh sách câu ĐÃ gán trong đề này ───────────────────
         // Ví dụ đề đã có: OrderIndex 7 → QuestionId AAA, OrderIndex 8 → QuestionId BBB
@@ -233,7 +235,7 @@ public class TestService : ITestService
             .FindAsync(tq => tq.TestId == testId && tq.QuestionId == questionId))
             .FirstOrDefault();
 
-        if (tq is null) return Result.Failure("Câu hỏi không tồn tại trong đề thi này.");
+        if (tq is null) return Result.NotFound("Câu hỏi không tồn tại trong đề thi này.");
 
         _uow.Repository<TestQuestion>().Remove(tq);
         await _uow.SaveChangesAsync();
@@ -282,7 +284,7 @@ public class TestService : ITestService
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
         if (test is null || !test.IsPublished)
-            return Result<TestStructureResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+            return Result<TestStructureResponse>.NotFound("Không tìm thấy đề thi hoặc chưa publish.");
         var tqs = await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == id);
         var qIds = tqs.Select(tq => tq.QuestionId).ToList();
         var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
@@ -307,7 +309,7 @@ public class TestService : ITestService
     {
         var test = await _uow.Repository<Test>().GetByIdAsync(id);
         if (test is null || !test.IsPublished)
-            return Result<TestPlayResponse>.Failure("Không tìm thấy đề thi hoặc chưa publish.");
+            return Result<TestPlayResponse>.NotFound("Không tìm thấy đề thi hoặc chưa publish.");
         //Lấy ra các test question của đề 
         var tqs = (await _uow.Repository<TestQuestion>().FindAsync(tq => tq.TestId == id))
             .OrderBy(tq => tq.OrderIndex)
@@ -384,7 +386,7 @@ public class TestService : ITestService
     {
         // ── Bước 0: Kiểm tra đề thi tồn tại ──────────────────────────────────
         var test = await _uow.Repository<Test>().GetByIdAsync(testId);
-        if (test is null) return Result<int>.Failure("Không tìm thấy đề thi.");
+        if (test is null) return Result<int>.NotFound("Không tìm thấy đề thi.");
 
         // ── Bước 1: Xem đề đã có những câu nào ─────────────────────────────
         // existing = tất cả dòng TestQuestion của đề này

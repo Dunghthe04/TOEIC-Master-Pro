@@ -87,12 +87,14 @@ namespace ToeicMasterPro.Infrastructure.Services
 
             // ── Phiên phải tồn tại, thuộc CHÍNH user này, và chưa nộp ──
             var session = await _uow.Repository<PracticeSession>().GetByIdAsync(req.SessionId);
-            if (session is null)
-                return Result<PracticeResultResponse>.Failure("Không tìm thấy phiên luyện tập.");
-            if (session.UserId != userId)
-                return Result<PracticeResultResponse>.Failure("Phiên luyện tập không thuộc tài khoản này.");
+            // Gộp "không tồn tại" và "của người khác" thành CÙNG MỘT 404 với CÙNG MỘT
+            // thông báo. Trước đây hai trường hợp trả hai message khác nhau (cùng 400)
+            // → kẻ tấn công dò sessionId biết được id nào tồn tại (IDOR info disclosure).
+            if (session is null || session.UserId != userId)
+                return Result<PracticeResultResponse>.NotFound("Không tìm thấy phiên luyện tập.");
+            // Đã nộp = xung đột trạng thái, không phải sai dữ liệu gửi lên → 409.
             if (session.SubmittedAt is not null)
-                return Result<PracticeResultResponse>.Failure("Phiên luyện tập đã nộp trước đó.");
+                return Result<PracticeResultResponse>.Conflict("Phiên luyện tập đã nộp trước đó.");
 
             // Chống trùng questionId trong 1 lần nộp
             var questionIds = req.Answers.Select(a => a.QuestionId).Distinct().ToList();

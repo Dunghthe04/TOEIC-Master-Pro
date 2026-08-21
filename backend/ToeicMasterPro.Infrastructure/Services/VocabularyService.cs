@@ -28,7 +28,7 @@ public class VocabularyService : IVocabularyService
     {
         var entity = await _uow.Repository<Vocabulary>().GetByIdAsync(id);
         if (entity is null)
-            return Result<VocabularyResponse>.Failure("Không tìm thấy từ vựng.");
+            return Result<VocabularyResponse>.NotFound("Không tìm thấy từ vựng.");
         return Result<VocabularyResponse>.Success(Map(entity));
     }
 
@@ -43,7 +43,8 @@ public class VocabularyService : IVocabularyService
         var dup = await _uow.Repository<Vocabulary>()
             .FindAsync(v => v.Word.ToLower() == word.ToLower());
         if (dup.Count > 0)
-            return Result<Guid>.Failure("Từ này đã tồn tại trong kho.");
+            // Trùng unique key = xung đột với dữ liệu đang có → 409, không phải 400.
+            return Result<Guid>.Conflict("Từ này đã tồn tại trong kho.");
 
         var entity = new Vocabulary
         {
@@ -70,13 +71,13 @@ public class VocabularyService : IVocabularyService
 
         var entity = await _uow.Repository<Vocabulary>().GetByIdAsync(id);
         if (entity is null)
-            return Result.Failure("Không tìm thấy từ vựng.");
+            return Result.NotFound("Không tìm thấy từ vựng.");
 
         var word = req.Word.Trim();
         var dup = await _uow.Repository<Vocabulary>()
             .FindAsync(v => v.Id != id && v.Word.ToLower() == word.ToLower());
         if (dup.Count > 0)
-            return Result.Failure("Từ này đã tồn tại trong kho.");
+            return Result.Conflict("Từ này đã tồn tại trong kho.");
 
         entity.Word = word;
         entity.Phonetic = req.Phonetic?.Trim() ?? "";
@@ -97,7 +98,7 @@ public class VocabularyService : IVocabularyService
     {
         var entity = await _uow.Repository<Vocabulary>().GetByIdAsync(id);
         if (entity is null)
-            return Result.Failure("Không tìm thấy từ vựng.");
+            return Result.NotFound("Không tìm thấy từ vựng.");
 
         // Cascade: xóa từ → xóa UserVocabularies (Fluent API)
         _uow.Repository<Vocabulary>().Remove(entity);
