@@ -884,32 +884,42 @@ Frontend logout chỉ **xóa localStorage**. Backend **có** endpoint `/api/auth
 → Refresh token vẫn sống **30 ngày** trong DB sau khi user đã "đăng xuất". Ai có refresh token đó vẫn
 lấy được access token mới.
 
-## 2.7 · 🟠 📋 Không có khóa tài khoản khi sai mật khẩu
+## 2.7 · ✅ ĐÃ VÁ (Day 44) — Không có khóa tài khoản khi sai mật khẩu
 
-**Vị trí:** [AuthService.cs:65](../backend/ToeicMasterPro.Infrastructure/Services/AuthService.cs#L65)
+Trước đây dùng `CheckPasswordAsync` → **bỏ qua hoàn toàn cơ chế lockout** của Identity, và
+`Program.cs` cũng không cấu hình `options.Lockout.*`. Chỉ còn rate limit 5 req/phút **theo IP** —
+đổi IP là brute-force thoải mái.
 
-Dùng `CheckPasswordAsync` thay vì `SignInManager.PasswordSignInAsync` → **bỏ qua hoàn toàn cơ chế
-lockout** của Identity. `Program.cs:39-46` cũng không cấu hình `options.Lockout.*`.
+**Đã sửa:** `SignInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: true)` +
+`MaxFailedAccessAttempts = 5`, `DefaultLockoutTimeSpan = 15 phút`.
 
-Chỉ còn rate limit 5 req/phút **theo IP** chặn — đổi IP là brute-force thoải mái.
+Dùng `CheckPasswordSignInAsync` **chứ không** `PasswordSignInAsync`: hàm sau còn issue thêm cookie
+đăng nhập của Identity, mà app này chỉ dùng JWT tự cấp.
 
-**Cách sửa:** chuyển sang `SignInManager.PasswordSignInAsync(user, password, false, lockoutOnFailure: true)`
-và cấu hình `MaxFailedAccessAttempts = 5`, `DefaultLockoutTimeSpan = 15 phút`.
+Thông báo lockout **có** rò rỉ "email này tồn tại" — chấp nhận **có chủ ý**: muốn khoá được một tài
+khoản thì phải sai mật khẩu 5 lần, mà email không tồn tại đã bị chặn ở nhánh trên nên không bao giờ
+vào được trạng thái khoá. Che đi thì user thật bị khoá 15 phút mà không hiểu vì sao.
 
-## 2.8 · 🟡 📋 Job nhắc lịch thi chạy sai giờ
+**Từ Day 51:** mỗi lần sai mật khẩu và mỗi lần bị khoá đều ghi một dòng `AuditLogs` kèm IP →
+Admin thấy được ai đang bị dò mật khẩu, thay vì chỉ có server im lặng biết.
 
-**Vị trí:** [Program.cs:223-226](../backend/ToeicMasterPro.API/Program.cs#L223)
+## 2.8 · ✅ ĐÃ VÁ (Day 49) — Job nhắc lịch thi chạy sai giờ
 
 Cron `"30 0 * * *"` — Hangfire mặc định hiểu theo **UTC**. Comment ghi "00:30 mỗi ngày" nhưng thực tế
 chạy **07:30 giờ Việt Nam**.
 
-Kèm theo ([ExamReminderService.cs:41-67](../backend/ToeicMasterPro.Infrastructure/Services/ExamReminderService.cs#L41)):
-gửi mail **trước khi** commit `EmailSent = true` → `SaveChanges` lỗi sau khi mail đã gửi thì lần sau
-**gửi trùng**. Và so khớp ngày **tuyệt đối** (`ExamDate.Date == hôm nay + 3`) → job lỡ một ngày là
-**mất hẳn** lượt nhắc đó.
+Kèm hai lỗi trong `ExamReminderService`: gửi mail **trước khi** commit `EmailSent = true` →
+`SaveChanges` lỗi sau khi mail đã gửi thì lần sau **gửi trùng**; và so khớp ngày **tuyệt đối**
+(`ExamDate.Date == hôm nay + 3`) → job lỡ một ngày là **mất hẳn** lượt nhắc đó.
 
-**Cách sửa:** truyền `TimeZoneInfo` vào `RecurringJobOptions`; commit `EmailSent` trước khi gửi (hoặc
-dùng outbox pattern); đổi điều kiện thành khoảng `<= hôm nay + 3` thay vì bằng đúng.
+**Đã sửa cả ba:**
+- `RecurringJobOptions { TimeZone = ResolveVietnamTimeZone() }` — thử `SE Asia Standard Time`
+  (Windows) rồi `Asia/Ho_Chi_Minh` (Linux), fallback custom UTC+7. **Timezone ID khác nhau theo OS**
+  nên hardcode một cái là vỡ khi deploy Docker.
+- Cron đổi thành `"0 7 * * *"` (07:00 VN) cho mail nhắc, `"0 */3 * * *"` (mỗi 3 tiếng) cho sync IIG.
+- `SaveChanges` **sau từng mail** + try/catch từng mail. Mail lỗi thì đặt lại `EmailSent = false`
+  ngay — không làm vậy thì EF change tracker sẽ ghi `true` ở `SaveChanges` của mail **kế tiếp**.
+- Điều kiện đổi thành khoảng `>= hôm nay && <= hôm nay + 3`.
 
 ## 2.9 · ✅ ĐÃ SỬA 2026-08-08 (kiểm chứng end-to-end 08-08) — F5 vài lần là bị đá về `/login`
 
@@ -1098,8 +1108,10 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 | ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Lỗi verify Google trả nguyên `ex.Message` ra client → giờ `LogWarning` cho mình, client chỉ nhận "Token Google không hợp lệ." | `AuthService.cs` GoogleLoginAsync |
 | ✅ **ĐÃ VÁ 2026-08-20 (Day 48)** — Token xác thực email và reset mật khẩu **in ra stdout** → cả hai gửi mail thật qua Gmail SMTP (MailKit), kèm trang `/reset-password` ở frontend (trước đó không tồn tại) | `AuthService.cs` Register/ForgotPassword |
 | ✅ **ĐÃ VÁ 2026-08-21 (Day 48)** — DTO auth **không có validation nào**. ⚠️ Mô tả cũ "null/rỗng đi thẳng vào Identity gây 500" **SAI** — đã kiểm: `<Nullable>enable</Nullable>` làm string non-nullable thành `[Required]` ngầm nên null bị `[ApiController]` chặn thành 400 tự động, và `RequireUniqueEmail=true` khiến Identity có kiểm định dạng email. Giá trị thật của việc vá: thông báo tiếng Việt, `[MaxLength]` chống CPU DoS khi băm PBKDF2, và `InvalidModelStateResponseFactory` để lỗi validation trả đúng khuôn `{ error }` mà frontend đọc được | `DTOs/Auth/*.cs`, `Program.cs` |
-| Rate limit chỉ theo IP, chưa đọc `X-Forwarded-For`, và chỉ áp cho `AuthController`. 🟡 *Đã tách policy 2026-08-08:* `login`/`register`/`reset-password` giữ 5/phút, `refresh-token`/`logout` sang `"auth-refresh"` 30/phút — xem mục 2.9 | `Program.cs:202-253` |
+| Rate limit chỉ theo IP và chỉ áp cho `AuthController`. 🟡 *Đã tách policy 2026-08-08:* `login`/`register`/`reset-password` giữ 5/phút, `refresh-token`/`logout` sang `"auth-refresh"` 30/phút — xem mục 2.9. ✅ *Phần `X-Forwarded-For` đã xử lý Day 51:* `UseForwardedHeaders` đặt **đầu chuỗi middleware** → rate limit, `HttpsRedirection` và `AuditLogs.IpAddress` đều thấy IP thật thay vì IP của Nginx | `Program.cs` |
 | Thiếu `UseHsts`, security headers, `AllowedHosts = "*"` | `Program.cs:211-216` |
+| ✅ **ĐÃ VÁ (Day 51)** — **Không có audit trail**: khoá tài khoản, đổi vai, đăng nhập thất bại, refresh token bị dùng lại chỉ ghi vào Serilog → không truy vấn được, bị xoay vòng rồi mất, chỉ đọc qua terminal server. Nay có bảng `AuditLogs` + `IAuditLogger` ghi 16 loại sự kiện kèm IP. ⚠️ **Bẫy gặp khi vá:** bản đầu inject thẳng `ApplicationDbContext` (cùng instance scoped với `AuthService`) — ghi log lỗi thì `try/catch` bắt được nhưng entity **kẹt trong ChangeTracker**, làm vỡ `SaveChanges` tiếp theo của nghiệp vụ chính → **đăng nhập chết**. Phải dùng `IServiceScopeFactory` tạo DbContext riêng: `try/catch` một mình KHÔNG cách ly được lỗi khi DbContext dùng chung | `AuditLogger.cs`, `AuthService.cs`, `AdminUsersController.cs` |
+| ⏳ **Chưa làm** — job dọn `AuditLogs` cũ. Log `Security` sinh mỗi lần login nên bảng phình vô hạn nếu không dọn. Kế hoạch: Hangfire job 03:00 hàng ngày, xoá `Security` quá 30 ngày theo lô 5.000 dòng; `Administrative` giữ mãi | (HM-5) |
 | ✅ **ĐÃ XỬ LÝ 2026-08-20 (Day 49)** — iCal injection: `RegisterUrl` ghi thẳng vào `.ics` không escape → URL chứa CRLF chèn được dòng lệnh iCal giả, user import vào Google Calendar thấy nội dung lừa đảo trông như hệ thống gửi. **Bỏ HẲN endpoint** thay vì vá: nút Download đã gỡ khỏi UI từ trước (docs 12) nên đây là **mã chết** — xóa rẻ hơn và chắc hơn escape. ⚠️ Phát hiện thêm khi vá: `EscapeIcal` cũ chỉ xử lý `\n`, **bỏ sót `\r`** (nhiều parser coi `\r` đơn lẻ cũng là hết dòng) → vá nửa vời | ~~`ExamScheduleService.cs:144-145`~~ đã xóa |
 | ✅ **ĐÃ VÁ 2026-08-20 (Day 49)** — **email header injection** (không có trong audit gốc, tìm ra khi vá iCal): `subject` mail nhắc lịch thi ghép `exam.Title` thô. Title chứa `\r\nBcc: attacker@evil.com` là chèn được header SMTP → gửi bản sao mail ra ngoài. Vá bằng `SingleLine()` áp cho subject + mọi field trong body | `ExamReminderService.cs:75-88` |
 
@@ -1109,13 +1121,13 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 |---|---|
 | **0 test cho exam engine** | 30 test hiện có chỉ phủ `ToeicScoreHelper` + `PartBreakdownBuilder`. `TestSessionService` — phần phức tạp nhất, đã từng có bug — không có test nào. `UnitTest1.cs` rỗng |
 | **Không có CI** | `.github/workflows/` rỗng → 30 test không bao giờ chạy tự động |
-| Mọi lỗi nghiệp vụ trả 400 | Không phân biệt 401/403/404 → lộ sự tồn tại của tài nguyên người khác |
+| ✅ **ĐÃ VÁ (Day 49)** — Mọi lỗi nghiệp vụ trả 400 | `Result` thêm `ErrorType` (Validation/NotFound/Forbidden/Conflict/Unauthorized) + `ResultExtensions.ToActionResult` map sang HTTP status. Sửa 26 chỗ ở 9 controller. **Chỗ nghiêm trọng nhất:** "phiên thi không thuộc tài khoản này" và "không tìm thấy phiên thi" trả hai message khác nhau (cùng 400) → dò được `sessionId` nào tồn tại. Nay gộp thành **cùng một 404 với cùng một thông báo** ở cả `TestSessionService` (5 chỗ) và `PracticeService`. ⚠️ *Hồi quy phải vá kèm ở frontend:* axios interceptor coi **mọi** 401 là "token hết hạn" → login sai mật khẩu (nay 401) sẽ kích refresh rồi **logout xoá phiên đang đăng nhập**; và `MockTestPlayPage` chỉ bắt `status === 400` để đồng bộ đồng hồ, nay "phiên đã kết thúc" là 409 nên nhánh đó chết → client không bao giờ tự nộp bài |
 | `AddHttpContextAccessor()` gọi hai lần | `Program.cs:92` và `:169` |
 | Không có health check, không auto-migrate | DB chưa migrate → app crash lúc startup, không có endpoint chẩn đoán |
 | Code chết | `IApplicationDbContext` (không đăng ký DI), `ListAllAsync`, trạng thái `Abandoned`, `package.json` ở thư mục gốc. ✅ *Đã xoá 2026-08-21:* `RefreshTokenRequest.cs` (chết từ khi `Refresh()` đọc cookie httpOnly) |
 | Frontend: không có route 404 | URL sai → trang trắng hoàn toàn |
 | Frontend: chỉ 1/8 trang CM xử lý lỗi 403 | Các trang còn lại nuốt lỗi phân quyền |
-| **Doc lệch code** | `02-cong-nghe.md:72` ghi SQL Server ở `localhost:1433` (thực tế `1434`); `06-database.md` thiếu hẳn bảng `RefreshTokens` |
+| **Doc lệch code** | `02-cong-nghe.md:72` ghi SQL Server ở `localhost:1433` (thực tế `1434`). 🟡 *Day 51:* `06-database.md` đã thêm `AuditLogs` và ghi chú rõ 2 bảng còn thiếu (`RefreshTokens`, `PracticeSessions`) — nhưng **vẫn chưa viết mô tả** cho hai bảng đó |
 
 ---
 
@@ -1169,22 +1181,54 @@ lên **ngay trên nút "Đăng nhập"** của form mật khẩu, dù user chưa
 > `ConnectionStrings__DefaultConnection` · `Redis__ConnectionStrings` · `Jwt__SecretKey` ·
 > `Jwt__Issuer` · `Jwt__Audience` · `Cors__AllowedOrigins__0`
 
-## Giai đoạn 2 — Trải nghiệm người dùng (~2–3 ngày)
+## Giai đoạn 2 — Trải nghiệm người dùng ✅ XONG
 
 ```
-□ 1. Auto-refresh token trong axios interceptor (kèm chống refresh race)      ← quan trọng nhất
-□ 2. Khôi phục phiên thi khi F5 (sessionStorage + endpoint lấy phiên InProgress)
-□ 3. Ràng buộc thời gian làm bài phía server
-□ 4. Frontend biết role: backend trả roles → Sidebar lọc menu → RequireRole
-□ 5. Logout gọi API thật
-□ 6. Bật lockout khi sai mật khẩu (SignInManager)
-□ 7. Validate import Excel dùng chung Validate()
-□ 8. Sửa múi giờ cron + thứ tự commit/gửi mail
+✅ 1. Auto-refresh token trong axios interceptor (kèm chống refresh race)      — Day 44
+✅ 2. Khôi phục phiên thi khi F5 (endpoint /active + hỏi "tiếp tục hay làm lại") — Day 41
+✅ 3. Ràng buộc thời gian làm bài phía server                                   — Day 40
+✅ 4. Frontend biết role: backend trả roles → nav lọc theo vai → RequireRole    — Day 35-38
+✅ 5. Logout gọi API thật                                                       — Day 39
+✅ 6. Bật lockout khi sai mật khẩu (SignInManager)                              — Day 44
+✅ 7. Validate import Excel dùng chung Validate()                               — Day 47
+✅ 8. Sửa múi giờ cron + thứ tự commit/gửi mail                                 — Day 49
 ```
+
+## Giai đoạn 2b — Quản trị & nhật ký (Day 50–51)
+
+Không có trong audit gốc — phát sinh khi nhận ra trang `/admin` chỉ có **1 endpoint đọc số liệu**,
+và `Sidebar` hardcode 9 mục cho **mọi vai** nên Admin thấy menu của User rồi bấm vào ăn 403.
+
+```
+✅ HM-0. Sidebar đọc navFor(user) thay vì hardcode                            — Day 50
+✅ HM-0. Quản lý tài khoản: tạo/đổi vai/khoá/mở/gửi mail đặt lại mật khẩu     — Day 50
+✅ HM-0. Biểu đồ tổng quan + trang xem nội dung hệ thống (chỉ đọc)            — Day 50
+✅ HM-1. Theo dõi phiên thi đang diễn ra + phiên treo                         — Day 51
+✅ HM-2. (BỎ) Chỉ số "đang online"                                            — xem lý do dưới
+✅ HM-3. Bảng AuditLogs + ghi 16 loại sự kiện kèm IP                          — Day 51
+□  HM-4. Trang xem nhật ký (lọc theo khoảng ngày, 2 tab bảo mật/quản trị)
+□  HM-5. Job Hangfire dọn log Security quá 30 ngày
+```
+
+> **Vì sao BỎ chỉ số "đang online":** JWT là **stateless** — server cấp access token rồi không lưu
+> gì, người dùng đóng tab thì server không hề biết. Không tồn tại danh sách "đang online" để đếm.
+> Ba cách xấp xỉ: đếm refresh token còn hiệu lực (token sống 30 ngày → số luôn cao hơn thực tế rất
+> nhiều), thêm cột `LastSeenAt` + middleware throttle (1 migration, chạy trên **mọi** request), hoặc
+> SignalR (quá mức cho dự án phỏng vấn).
+>
+> Quyết định bỏ vì với 6 tài khoản thì con số luôn là 0 hoặc 1 — chính người đang mở trang admin.
+> Cái đã có trả lời tốt hơn: biểu đồ *"hoạt động theo ngày"* cho xu hướng, và HM-1 cho biết chính
+> xác **ai đang dùng hệ thống ngay lúc này** mà không cần cột mới.
+>
+> Vẫn là câu trả lời tốt khi phỏng vấn — chỉ cần biết **lý do không làm**, không cần code.
 
 ## Giai đoạn 3 — Deploy (~1–2 ngày)
 
 Xem [Phần 5](#5-hướng-dẫn-deploy-thực-chiến).
+
+> ⚠️ **Blocker đã biết:** `docker-compose.prod.yml` thiếu 4 biến môi trường
+> (`Smtp__FromEmail`, `Smtp__Username`, `Smtp__Password`, `Frontend__BaseUrl`) → đăng ký và
+> quên mật khẩu **vỡ cả hai** trên production. Sáu biến ở khung dưới là bản cũ, chưa tính SMTP.
 
 ## Giai đoạn 4 — Chất lượng & hiệu năng (làm dần)
 

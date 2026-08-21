@@ -294,6 +294,50 @@ User đăng ký nhận email nhắc nhở trước kỳ thi. Background job (Han
 
 ---
 
+### 12. AuditLogs *(Audit domain)*
+
+Nhật ký hành động: đăng nhập, đăng ký, và các thao tác quản trị tài khoản. Admin đọc qua UI.
+
+**Vì sao cần bảng riêng thay vì chỉ Serilog:** log file không truy vấn được ("ai đã khoá tài khoản này?"), bị xoay vòng rồi mất, và chỉ đọc được qua terminal server.
+
+| Cột | Kiểu | Ghi chú |
+|-----|------|---------|
+| Id | Guid PK | |
+| Category | int | 1 = Security · 2 = Administrative |
+| ActorId | Guid? | Ai thực hiện. **null** khi chưa đăng nhập (đăng nhập thất bại) hoặc job nền |
+| ActorEmail | nvarchar(256) | Email người thực hiện, **chụp tại thời điểm đó** |
+| Action | nvarchar(64) | Xem `AuditActions` — `"auth.login.failed"`, `"admin.user.locked"`… |
+| TargetType | nvarchar(32) | `"User"`, `"Test"`… |
+| TargetId | Guid? | Id đối tượng bị tác động |
+| TargetLabel | nvarchar(256) | Nhãn dễ đọc (email, tên đề) tại thời điểm đó |
+| Detail | nvarchar(1000)? | Chi tiết đã dựng sẵn để hiện lên UI |
+| IpAddress | nvarchar(45)? | 45 ký tự đủ cho IPv6 dài nhất |
+
+**KHÔNG có FK nào** — cố ý. Log phải sống sót cả khi tài khoản liên quan bị xoá; có FK thì hoặc xoá user làm mất log (Cascade), hoặc không xoá được user (Restrict). Danh tính lưu dạng chữ trong `ActorEmail`/`TargetLabel`. Cũng đúng hơn về lịch sử: người đó lúc ấy tên gì thì log ghi tên đó, đổi tên sau không sửa lại quá khứ.
+
+**`Action` là chuỗi, không enum** — thêm loại hành động mới không cần migration, và log cũ không đổi nghĩa khi ai chèn giá trị vào giữa enum.
+
+**`Category` là cột riêng, không suy từ tiền tố `Action`** — job dọn log lọc theo nhóm; lọc bằng `LIKE 'auth.%'` không dùng được index và vỡ khi ai đặt tên khác quy ước.
+
+**Index:**
+
+| Index | Lý do |
+|-------|-------|
+| `CreatedAt` DESC | Mọi truy vấn đều "mới nhất trước" + lọc khoảng ngày |
+| `(Category, CreatedAt)` | Job dọn log — không có thì quét toàn bảng đúng lúc bảng to nhất |
+| `Action` | Bộ lọc trên UI |
+| `TargetId` | "Tài khoản này đã bị làm những gì" |
+
+**Luật giữ log** (job dọn — chưa làm): `Security` xoá sau 30 ngày (sinh mỗi lần login), `Administrative` giữ mãi ("ai nâng người này lên Admin" phải luôn truy được).
+
+---
+
+> ⚠️ **Doc này còn thiếu 2 bảng** đã có trong code nhưng chưa được ghi ở đây:
+> `RefreshTokens` (Day 42 — refresh token hashed, rotation, reuse detection) và
+> `PracticeSessions` (Day 25 — phiên luyện nhanh, chống IDOR khi nộp bài).
+
+---
+
 ## Bảng tổng hợp quan hệ
 
 | Từ bảng | Đến bảng | Kiểu | OnDelete | Ghi chú |
@@ -337,6 +381,8 @@ User đăng ký nhận email nhắc nhở trước kỳ thi. Background job (Han
 | TestSessions | CompletedAt | Sort theo thời gian hoàn thành |
 | TestQuestions | (TestId, QuestionId) UNIQUE | Tránh trùng câu trong đề |
 | TestSessionAnswers | (SessionId, QuestionId) UNIQUE | Tránh trùng câu trả lời |
+| AuditLogs | CreatedAt DESC | Log mới nhất trước — mọi truy vấn đều cần |
+| AuditLogs | (Category, CreatedAt) | Job dọn log theo nhóm + khoảng ngày |
 | UserVocabularies | (UserId, VocabularyId) UNIQUE | SRS — 1 user 1 bản ghi/từ |
 | UserVocabularies | (UserId, NextReviewDate) | Lấy từ cần ôn hôm nay |
 | ExamSchedules | (City, ExamDate) | Filter lịch thi theo thành phố |

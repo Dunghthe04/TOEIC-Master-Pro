@@ -182,9 +182,45 @@ Toàn bộ endpoint: ❌ ẩn danh · ✅ User/CM/Admin. Lấy `userId` từ JWT
 | Controller | Policy cấp class | Ẩn danh | User | CM | Admin |
 |---|---|---|---|---|---|
 | `ProfileController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
-| `SrsController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
-| `PracticeController` | `[Authorize]` | ❌ 401 | ✅ | ✅ | ✅ |
+| `SrsController` | `[Authorize(Roles = "User")]` | ❌ 401 | ✅ | ❌ 403 | ❌ 403 |
+| `PracticeController` | `[Authorize(Roles = "User")]` | ❌ 401 | ✅ | ❌ 403 | ❌ 403 |
 | `MediaController` (upload) | `[Authorize(Roles = "Admin,ContentManager")]` | ❌ 401 | ❌ 403 | ✅ | ✅ |
+
+`ProfileController` là controller **duy nhất** còn `[Authorize]` trần — cố ý: profile là của chính mình nên cả ba vai đều xem/sửa được. `SrsController`/`PracticeController` siết `Roles="User"` từ Day 35: CM soạn nội dung, Admin quản account — không vai nào cần học hay luyện.
+
+### AdminController — `[Authorize(Roles = "Admin")]` cấp class
+
+Chỉ ĐỌC số liệu, không CRUD nội dung.
+
+| Endpoint | Ẩn danh | User | CM | Admin | Ghi chú |
+|---|---|---|---|---|---|
+| `GET /api/admin/overview` | ❌ 401 | ❌ 403 | ❌ 403 | ✅ | Card tổng quan |
+| `GET /api/admin/stats?days=` | ❌ 401 | ❌ 403 | ❌ 403 | ✅ | Biểu đồ, `days` kẹp 7–180 |
+| `GET /api/admin/active-sessions?staleHours=` | ❌ 401 | ❌ 403 | ❌ 403 | ✅ | Phiên đang thi + phiên treo, `staleHours` kẹp 1–72 |
+
+### AdminUsersController — `[Authorize(Roles = "Admin")]` cấp class
+
+Thao tác GHI lên tài khoản người khác. Tách khỏi `AdminController` vì khác nhóm quan tâm.
+
+| Endpoint | Ghi chú |
+|---|---|
+| `GET /api/admin/users` | Phân trang **dưới SQL**, `pageSize` kẹp ≤100. Roles + số lượt thi lấy **1 query cho cả trang**, không N+1 |
+| `GET /api/admin/users/{id}` | Chi tiết + lịch sử thi. Tái dùng `ITestSessionService` để con số khớp với dashboard học viên |
+| `POST /api/admin/users` | Tạo tài khoản (chủ yếu lập tài khoản CM). **Không nhận mật khẩu** — gửi mail để người đó tự đặt |
+| `PUT /api/admin/users/{id}/roles` | Gửi **toàn bộ** danh sách vai, không add/remove từng cái |
+| `PUT /api/admin/users/{id}/lock` | Khoá/mở. Khoá kèm **thu hồi refresh token** |
+| `POST /api/admin/users/{id}/send-password-reset` | Gửi mail đặt lại. Admin **không bao giờ** biết mật khẩu ai |
+| `POST /api/admin/users/{id}/confirm-email` | Xác thực email thủ công khi user không nhận được mail |
+
+**Ba chốt an toàn phía server** (không chỉ ẩn nút):
+
+| Chặn | Vì sao |
+|---|---|
+| Không tự bỏ vai Admin của mình | Mất quyền vào trang quản trị, chỉ sửa được bằng SQL tay |
+| Không hạ Admin **cuối cùng** | Cùng lý do, chỉ khác là người bị hạ là Admin khác |
+| Không tự khoá mình | Khoá rồi không còn quyền vào để tự mở |
+
+**Không có endpoint XOÁ tài khoản** — cố ý. Khoá đủ để chặn truy cập; xoá user đã thi thì vướng FK `TestSessions` hoặc mất sạch lịch sử thi (méo thống kê toàn hệ thống).
 
 ### MediaFileController — serve media đề thi (thêm 2026-08-05)
 
@@ -204,9 +240,14 @@ Toàn bộ endpoint: ❌ ẩn danh · ✅ User/CM/Admin. Lấy `userId` từ JWT
 >
 > Vẫn chấp nhận Bearer nếu có (curl/Postman/axios). Chi tiết: [09 — mục 1.8](09-hien-trang-va-khuyen-nghi.md).
 
-> ⚠️ **`PracticeController` — nợ đã biết:** `POST /api/practice/submit` chấm **bất kỳ `questionId`
-> nào** gửi lên, không kiểm câu đó có thuộc phiên luyện của user không → **máy tra đáp án hợp lệ, có
-> xác thực đàng hoàng**. Endpoint có `[Authorize]` nhưng thiếu **ownership check**. Sửa ở Day 47.
+> ✅ **`PracticeController` — nợ ĐÃ TRẢ (Day 47).** Trước đây `POST /api/practice/submit` chấm
+> **bất kỳ `questionId` nào** gửi lên, không kiểm câu đó có thuộc phiên luyện của user không →
+> **máy tra đáp án hợp lệ, có xác thực đàng hoàng**. Endpoint có `[Authorize]` nhưng thiếu
+> **ownership check**.
+>
+> Nay `PracticeSession` lưu `QuestionIds` lúc phát đề, và `SubmitAsync` chỉ chấm câu **thuộc**
+> danh sách đó. Phiên không tồn tại và phiên của người khác trả **cùng một 404 với cùng một
+> thông báo** — hai message khác nhau là đủ để dò `sessionId` nào tồn tại (IDOR).
 >
 > Bài học: `[Authorize]` trả lời *"bạn là ai"*, **không** trả lời *"dữ liệu này có phải của bạn"*.
 
