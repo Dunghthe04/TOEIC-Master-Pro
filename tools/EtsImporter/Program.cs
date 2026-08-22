@@ -33,10 +33,19 @@ switch (args[0])
     case "probe":
         if (args.Length < 2)
         {
-            Console.Error.WriteLine("Thiếu đường dẫn ZIP. Ví dụ: probe \"D:\\ETS2026.zip\"");
+            Console.Error.WriteLine("Thiếu đường dẫn. Ví dụ: probe \"D:\\ETS2026.zip\"  (hoặc một thư mục)");
             return 1;
         }
         return Probe(args[1]);
+
+    case "names":
+        if (args.Length < 3)
+        {
+            Console.Error.WriteLine("Cách dùng: names \"<Series>\" \"<Title>\"");
+            Console.Error.WriteLine("Ví dụ:     names \"E26\" \"test1\"");
+            return 1;
+        }
+        return Names(args[1], args[2]);
 
     default:
         Console.Error.WriteLine($"Lệnh không biết: {args[0]}");
@@ -223,5 +232,46 @@ static int ProbeSource(Source source)
       · Cột "ảnh" = 6 ở trang Part 1 → 6 ảnh nhúng riêng, lấy ra trực tiếp được
       """);
 
+    return 0;
+}
+
+/// <summary>
+/// In ra tên file mà server SẼ tự sinh cho một cặp (Series, Title) — để kiểm TRƯỚC khi
+/// tạo đề, thay vì phát hiện sau khi import xong mà cả đề mất tiếng.
+///
+/// ⚠️ Hai bẫy lệnh này tồn tại để chặn, cả hai đều thất bại IM LẶNG (import báo thành công,
+/// đến lúc thi mới biết không có audio):
+///
+///   1. Series: ToExamCode("ETS 2026") ra "ETS2026" chứ KHÔNG phải "E26" — vì bỏ dấu cách
+///      thì chuỗi khớp ngay nhánh regex đầu. Mà "ETS 2026" đúng là ví dụ ghi trong comment
+///      của Test.Series, nên làm theo tài liệu là sai.
+///
+///   2. Title: ToTestCode lấy SỐ ĐẦU TIÊN trong tiêu đề. "ETS 2026 - TEST 1" ra T2026,
+///      không phải T01. Số thứ tự đề phải là số đầu tiên xuất hiện.
+/// </summary>
+static int Names(string series, string title)
+{
+    var exam = ToeicMediaNaming.ToExamCode(series);
+    var test = ToeicMediaNaming.ToTestCode(title);
+
+    Console.WriteLine($"Series = \"{series}\"   →  mã đề  : {exam}");
+    Console.WriteLine($"Title  = \"{title}\"   →  mã test : {test}");
+    Console.WriteLine();
+    Console.WriteLine("Tên file server sẽ tự sinh:");
+    Console.WriteLine($"  Part 1 câu 1        → {ToeicMediaNaming.BuildAudioFileName(series, title, 1, 1)}");
+    Console.WriteLine($"  Part 1 câu 1 (ảnh)  → {ToeicMediaNaming.BuildImageFileName(series, title, 1)}");
+    Console.WriteLine($"  Part 2 câu 7        → {ToeicMediaNaming.BuildAudioFileName(series, title, 2, 7)}");
+    Console.WriteLine($"  Part 3 câu 32,33,34 → {ToeicMediaNaming.BuildAudioFileName(series, title, 3, 33)}  (3 câu chung 1 file)");
+    Console.WriteLine($"  Part 4 câu 71,72,73 → {ToeicMediaNaming.BuildAudioFileName(series, title, 4, 72)}");
+    Console.WriteLine();
+
+    // Cảnh báo bẫy Title: số thứ tự đề phải là số ĐẦU TIÊN trong tiêu đề.
+    var firstNumber = System.Text.RegularExpressions.Regex.Match(title, @"\d+");
+    if (firstNumber.Success && firstNumber.Value.Length >= 4)
+        Console.WriteLine($"  🔴 Title: số đầu tiên là \"{firstNumber.Value}\" nên mã test ra {test}. " +
+                          "Số thứ tự đề PHẢI là số đầu tiên — sửa thành dạng \"test1\" hoặc \"TEST 1 - ETS 2026\".");
+
+    Console.WriteLine("  So tên trên với tên file audio thật. Lệch một ký tự là cả đề mất tiếng,");
+    Console.WriteLine("  và import vẫn báo thành công — không có lỗi nào cho bạn biết.");
     return 0;
 }
