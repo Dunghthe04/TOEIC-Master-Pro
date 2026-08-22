@@ -1,10 +1,63 @@
 # Task: Nhập đề ETS từ PDF + audio bằng AI
 
-**Trạng thái:** đang bàn, chưa code
-**Ngày lập:** 22/08/2026
+**Trạng thái:** đang làm — tool đã có `probe`, `names`, `render`
+**Ngày lập:** 22/08/2026 · **Cập nhật:** 23/08/2026
 
-Tài liệu này ghi lại vấn đề, những gì đã kiểm tra được trong code, và các phương án —
-để bàn tiếp và quyết. **Chưa có gì được triển khai.**
+---
+
+## 📍 TOOL NẰM NGOÀI REPO — `D:\ets-importer\`
+
+Console app .NET 8, **độc lập hoàn toàn** với repo này (không `ProjectReference`, không đường
+dẫn tương đối trỏ ra ngoài). Copy cả thư mục sang máy khác là chạy được.
+
+```bash
+cd D:\ets-importer
+dotnet run -- probe  "D:\Test2026"
+dotnet run -- names  "Test2026" "Test1"
+dotnet run -- render "D:\Test2026\LISTENING ETS 2026.pdf" 142 144
+```
+
+**Vì sao để ngoài repo** — và vì sao lúc đầu tôi làm ngược lại: ban đầu tool tham chiếu
+`ToeicMasterPro.Application` để dùng chung `ToeicMediaNaming`, mục đích là tên file tool sinh
+ra và tên server mong đợi **không thể lệch nhau**. Nhưng theo thiết kế đã chốt, **tool ghi
+thẳng tên file thật vào cột `AudioFile`/`ImageFile` của Excel**, mà server chỉ tự sinh tên khi
+hai cột đó **để trống** (`QuestionService`: `if (string.IsNullOrWhiteSpace(audioFile) && …)`).
+Server không bao giờ sinh tên cho file do tool tạo → **không còn gì phải dùng chung**. Lý do
+duy nhất giữ nó trong repo tự biến mất, nên tách ra: tool là **tiện ích sản xuất nội dung**,
+không phải code sản phẩm — không nên vào build/test/CI của app.
+
+`ToeicNaming.cs` trong thư mục tool là **bản sao** của `ToeicMediaNaming`, chỉ còn phục vụ
+việc riêng của tool (kiểm kê đủ/thiếu audio, so tên có leading zero). Lệnh `names` dự đoán
+hành vi server bằng bản sao đó → **chỉ là tiện ích tham khảo**, không phải nguồn sự thật.
+
+---
+
+## ✅ Đã kiểm chứng trên bộ đề thật (`D:\Test2026`)
+
+| Hạng mục | Kết quả |
+|---|---|
+| **Audio** | ✅ **540/540 file, 10 đề × 54 file, không thiếu câu nào.** Tên khớp chính xác quy ước, kể cả nhóm 3 câu Part 3–4 (`E26-T01-32-34.mp3`). **Không phải đổi tên gì** |
+| **4 PDF** | 🔴 **SCAN 100%** — 0 ký tự text trên mọi trang. Không có đường parse text |
+| Ảnh nhúng | 🔴 Mỗi trang có 4 ảnh ~2433×1095 — là **4 dải scan ngang**, KHÔNG phải ảnh câu hỏi. `GetImages()` vô dụng, phải **render cả trang** bằng PDFium |
+| Chất lượng render | ✅ **150 DPI là đủ** — đã tự đọc ảnh render, bảng đáp án `N (X)` rõ từng ký tự. Không cần 300 DPI |
+| Tốc độ render | 3 trang / 1,6s → cả **744 trang ~7 phút** |
+| **Đáp án LC** | ✅ `LISTENING ETS 2026.pdf` trang **142–144**, mỗi trang **4 đề** (142 = TEST 1–4, 143 = 5–8, 144 = 9–10). Dạng `N (X)`, 20 hàng × 5 cột |
+| Đáp án RC | ⬜ chưa xác định trang — ở cuối `READING ETS 2026.pdf` (304 trang) |
+| `key rc .pdf` | ✅ **GIỮ LẠI** dù trùng nội dung — là nguồn thứ hai để **đối chiếu** đáp án RC. Đáp án là thứ duy nhất đọc sai là chết, có 2 nguồn thì lệch một câu là biết ngay |
+
+## 🔴 Bẫy đã va, ghi lại để không lặp
+
+**File rác macOS.** Lần đầu giải nén, `audio.zip` chỉ chứa **540 file `._E26-*.mp3` nặng đúng
+187 byte** (AppleDouble) — **không một file audio thật nào**, mà tổng vẫn "540 file" nên nhìn
+qua tưởng đủ. Tool lọc `._*`, `__MACOSX/`, `.DS_Store` và **báo số đã lọc** chứ không im lặng.
+
+**`ToExamCode` không rút gọn năm như tưởng.** `ToExamCode("ETS 2026")` trả `ETS2026`, KHÔNG
+phải `E26` — vì bỏ dấu cách xong thì chuỗi khớp ngay nhánh regex đầu. Mà `"ETS 2026"` đúng là
+ví dụ ghi trong comment của `Test.Series`. Không còn ảnh hưởng sau khi tool điền `AudioFile`
+tường minh, nhưng **vẫn là bẫy nếu ai sửa câu bằng tay và để trống cột đó**.
+
+**`ToTestCode` lấy SỐ ĐẦU TIÊN.** `"ETS 2026 - TEST 1"` → `T2026`. Placeholder ở
+`TestFormPage` là `"TEST 1 – ETS 2026"` nên vô tình đúng; đảo thứ tự là vỡ.
 
 ---
 
@@ -214,13 +267,98 @@ Excel cũ bị đọc lệch cột **mà không báo lỗi** — dữ liệu và
 
 ---
 
-## 9. Đề xuất thứ tự làm
+## 9. Thiết kế luồng import — dùng CHUNG cho localhost và production
 
-1. **Không code:** xác nhận việc gõ thừa `AudioFile`/`ImageFile` (mục 2)
-2. **Làm ngay, rẻ:** giải thích trình bày rõ hơn + ảnh Part 1 to hơn (mục 7.1, 7.2) —
-   chỉ CSS, không cần nội dung mới, hiệu quả thị giác lớn nhất
-3. **Sau khi xem form đề:** script AI trích xuất PDF → Excel (chạy ngoài app, không
-   đụng code production)
-4. **Sửa luồng import:** lỗi 200-lần-save + thêm chế độ dry-run (validate không ghi DB,
-   báo trọn gói "thiếu 3 audio, 2 dòng sai đáp án" trước khi import thật)
-5. **Đợt sau:** transcript, bản dịch
+Chốt sau khi bàn: chia theo **tính chất dữ liệu**, KHÔNG chia theo môi trường. Ý tưởng
+"ZIP nhẹ cho production, ZIP đầy cho dev" đã bị loại — nó tạo 2 đường phải bảo trì và test.
+
+| Dữ liệu | Tính chất | Xử lý |
+|---|---|---|
+| Audio / ảnh | Tĩnh, nặng (~22 MB/đề), **vốn đã idempotent** (ghi cùng tên = cùng file) | Upload **riêng**, từng file, chạy lại vô hại |
+| Câu hỏi | Nhỏ (~100 KB), **phải nguyên tử** (200 câu hoặc 0 câu) | Upload **riêng**, 1 transaction |
+
+Trộn hai thứ vào một request là gốc của mọi vấn đề: cái nặng gây timeout, cái cần nguyên tử
+thì bị nửa vời.
+
+```
+① SYNC MEDIA   tool so file local ↔ server, chỉ up cái còn thiếu.
+               540 request nhỏ. Đứt thì chạy lại, không mất gì.
+               Dùng POST /api/media/audio?testId=  (ĐÃ CÓ, nhận multiple)
+
+② DRY-RUN      POST xlsx (~100 KB) + ?dryRun=true
+               Server kiểm TẤT CẢ, KHÔNG ghi gì, trả báo cáo trọn gói:
+                 "200/200 dòng hợp lệ · thiếu 3 audio: E26-T01-45.mp3, …"
+               Rẻ, không thể timeout, và trả lời được câu quan trọng nhất
+               TRƯỚC KHI ghi: media đã có trên server chưa?
+
+③ COMMIT       Cùng file, bỏ dryRun. MỘT transaction cho cả 200 câu.
+               Dưới 1 giây. Không thể có trạng thái nửa vời.
+```
+
+### 🔴 Bốn việc phải sửa để thiết kế này đứng được
+
+| # | Việc | Vì sao |
+|---|---|---|
+| 1 | `SaveChangesAsync()` **ra ngoài vòng lặp** | 200 round-trip → 1. Điều kiện để ③ nguyên tử |
+| 2 | Thêm **`?dryRun=true`** | Không có nó thì ② không tồn tại, và buộc phải ghi để biết mình sai |
+| 3 | **`ImportBatchKey`** trên `Question` | Xem dưới — thứ khiến "retry sau timeout" an toàn |
+| 4 | Nginx **`proxy_read_timeout 300s`** (Day 53) | Kế hoạch chỉ có `client_max_body_size`. Mặc định 60s → 504 giữa lúc ghi |
+
+### Vì sao cần `ImportBatchKey` — rủi ro chỉ xuất hiện ở production
+
+`UpsertQuestionsByOrderAsync` ([TestService.cs:208](../backend/ToeicMasterPro.Infrastructure/Services/TestService.cs#L208))
+chỉ xoá bản ghi `TestQuestion` (liên kết), **KHÔNG xoá `Question` gốc** — comment trong code
+nói rõ. Nên import lại **không** duplicate trong đề, nhưng câu cũ thành **mồ côi** trong bảng
+`Questions`. Import TEST 1 ba lần → 600 dòng, chỉ 200 được gán. Và khó xoá vì FK Restrict từ
+`TestSessionAnswer` (đã va ở Day 47).
+
+Ở localhost không gặp. Ở production: Nginx timeout 60s → thấy 504 → **không biết server ghi
+xong chưa** → bấm Import lại. Đó chính là đường sinh câu mồ côi.
+
+Cách vá: gắn khoá dạng `E26-T01-v1` lên `Question`; import lại cùng khoá thì **xoá hẳn batch
+cũ** rồi ghi lại. Biến import từ *"cầu mong đừng lỗi"* thành *"lỗi thì bấm lại, không hậu quả"*.
+
+### Ngưỡng chuyển sang Hangfire
+
+Sau khi sửa việc 1, commit 200 câu mất **dưới 1 giây** → **chưa cần** job nền, thêm lúc này là
+over-engineer. Nhưng đặt ngưỡng rõ để sau không phải tranh luận: **nếu commit vượt 10 giây**
+(đề 1000 câu, hoặc DB ở máy khác), chuyển sang HTTP nhận file → đẩy Hangfire job → trả `jobId`
+→ client hỏi tiến độ. Hangfire đã có sẵn.
+
+### Không có UI cho tool, và không cần
+
+Đầu ra của tool là **file** — mà UI nhận file thì đã có: `/cm/tests/:id/questions`,
+`accept=".zip,.xlsx"`. Ở production chỉ khác tên miền. Bạn bấm đúng 2 nút: *Tạo đề* và *Import*.
+
+Đưa phần nặng lên web nghĩa là: up 1 GB PDF lên VPS · API key AI nằm trên server (ai có quyền
+CM đều tiêu tiền) · render PDF ngốn RAM trên VPS 4GB đang chạy SQL Server · phải làm job nền +
+trang tiến độ. Đổi lấy một việc làm **10 lần trong đời**. Không đáng.
+
+Nếu sau này người khác nhập đề: **bạn chạy tool → gửi họ file ZIP → họ up qua UI.** ZIP chính
+là giao diện giữa hai người, không cần ai học dòng lệnh.
+
+## 10. Thứ tự làm
+
+```
+✅ probe    — đo bộ đề, kiểm kê audio, phát hiện file rác
+✅ names    — kiểm tên file trước khi tạo đề
+✅ render   — PDFium rasterize trang → PNG, cache theo file
+⬜ answers  — đọc bảng đáp án (LC 3 trang + RC + key rc), ĐỐI CHIẾU 2 nguồn, kiểm đếm
+⬜ extract  — AI vision đọc trang → câu hỏi + 4 đáp án + đoạn văn + transcript
+⬜ crop     — cắt ảnh Part 1 / Part 7 theo vùng, đặt tên đúng + lưới HTML để duyệt
+⬜ explain  — AI viết Explanation, dùng transcript làm ngữ cảnh
+⬜ validate — 6 mục kiểm, KHÔNG đạt thì KHÔNG xuất file
+⬜ build    — xuất ZIP + trang HTML duyệt (ảnh trang gốc ‖ câu đã trích)
+```
+
+**Phía app, không phụ thuộc PDF/AI:**
+```
+✅ Cột Transcript (migration + cột 18 Excel + hiện ở màn review, KHÔNG ở màn thi)
+⬜ SaveChangesAsync ra ngoài vòng lặp
+⬜ ?dryRun=true
+⬜ ImportBatchKey
+⬜ Ghi Nginx proxy_read_timeout vào Day 53
+```
+
+**Làm 1 đề trước, đo, rồi mới chạy 10.** TEST 1 ≈ 74 trang → biết chi phí API thật và tỉ lệ AI
+đọc sai. Sai <1% thì chạy tiếp; 1–5% thì sửa prompt chạy lại (cache nên rẻ); >5% thì đổi cách.
