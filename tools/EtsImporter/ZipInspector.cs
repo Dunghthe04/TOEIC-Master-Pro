@@ -50,21 +50,18 @@ public static class ZipInspector
         return false;
     }
 
-    public static ZipContents Inspect(string zipPath)
+    /// <summary>Phân loại nội dung của một nguồn (zip hoặc thư mục) — cùng một code cho cả hai.</summary>
+    public static ZipContents Inspect(Source source)
     {
         var result = new ZipContents();
-        using var zip = ZipFile.OpenRead(zipPath);
 
-        foreach (var e in zip.Entries)
+        foreach (var (path, name, length) in source.List())
         {
-            // Name rỗng = entry thư mục, không phải file.
-            if (string.IsNullOrEmpty(e.Name)) continue;
+            var item = new ZipItem(path, name, length);
 
-            var item = new ZipItem(e.FullName.Replace('\\', '/'), e.Name, e.Length);
+            if (IsJunk(path, name)) { result.Junk.Add(item); continue; }
 
-            if (IsJunk(e.FullName, e.Name)) { result.Junk.Add(item); continue; }
-
-            var ext = Path.GetExtension(e.Name).ToLowerInvariant();
+            var ext = Path.GetExtension(name).ToLowerInvariant();
             switch (ext)
             {
                 case ".mp3":

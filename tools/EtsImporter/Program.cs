@@ -43,19 +43,31 @@ switch (args[0])
         return 1;
 }
 
-static int Probe(string zipPath)
+static int Probe(string inputPath)
 {
-    if (!File.Exists(zipPath))
+    Source source;
+    try
     {
-        Console.Error.WriteLine($"Không thấy file: {zipPath}");
+        source = Source.Open(inputPath);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        Console.Error.WriteLine("Truyền vào một file .zip hoặc một thư mục chứa audio/ + các file PDF.");
         return 1;
     }
 
-    Console.WriteLine($"ZIP: {zipPath}");
-    Console.WriteLine($"Kích thước: {new FileInfo(zipPath).Length / 1024.0 / 1024.0:F1} MB");
-    Console.WriteLine();
+    using (source)
+    {
+        Console.WriteLine(source.Describe());
+        Console.WriteLine();
+        return ProbeSource(source);
+    }
+}
 
-    var contents = ZipInspector.Inspect(zipPath);
+static int ProbeSource(Source source)
+{
+    var contents = ZipInspector.Inspect(source);
 
     // ── Tổng quan ──
     Console.WriteLine("── NỘI DUNG ─────────────────────────────────────────────");
@@ -169,7 +181,6 @@ static int Probe(string zipPath)
     }
 
     Console.WriteLine("── PDF: loại nào, ảnh nhúng ra sao ─────────────────────");
-    using var zip = ZipFile.OpenRead(zipPath);
 
     foreach (var pdf in contents.Pdfs)
     {
@@ -177,16 +188,9 @@ static int Probe(string zipPath)
         Console.WriteLine($"  ▸ {pdf.Path}");
         Console.WriteLine($"    {pdf.Length / 1024.0 / 1024.0:F1} MB · đoán vai trò: {ZipInspector.GuessPdfRole(pdf.Name)}");
 
-        var entry = zip.GetEntry(pdf.Path) ?? zip.Entries.FirstOrDefault(e => e.Name == pdf.Name);
-        if (entry is null) { Console.WriteLine("    (không mở được entry)"); continue; }
-
-        // PdfPig cần stream seek được, mà stream của ZipArchive thì không → copy ra memory.
-        using var ms = new MemoryStream();
-        using (var es = entry.Open()) es.CopyTo(ms);
-        ms.Position = 0;
-
         try
         {
+            using var ms = source.OpenSeekable(pdf.Path);
             var rep = PdfProbe.Probe(pdf.Name, ms);
             Console.WriteLine($"    {rep.PageCount} trang");
             Console.WriteLine($"    ➜ {rep.Verdict}");
