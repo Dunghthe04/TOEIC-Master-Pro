@@ -116,14 +116,8 @@ export default function ToeicSampleCertificate({
 
                 <div className="flex items-stretch border-b-2 border-[#e85d04]/30 min-h-[46px]">
                     <div className="flex items-center gap-1 px-4 py-2 shrink-0 bg-white">
-                        <span className="text-xl font-bold italic text-[#1a4d7c] leading-none">TOEIC</span>
-                        <span className="text-base font-bold text-[#e85d04] leading-none">MASTER</span>
-
-                        <span className="bg-[#e85d04] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
-
-                            PRO
-
-                        </span>
+                        <span className="text-xl font-bold italic text-[#1a4d7c] leading-none">E</span>
+                        <span className="text-base font-bold text-[#e85d04] leading-none">Test</span>
 
                     </div>
 

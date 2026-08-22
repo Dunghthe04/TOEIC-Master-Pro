@@ -10,8 +10,7 @@
   <rect width="1200" height="680" fill="#faf8f5"/>
   <rect x="16" y="16" width="1168" height="648" fill="#fff" stroke="#e85d04" stroke-width="3"/>
 
-  <text x="40" y="58" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#1a4d7c">TOEIC</text>
-  <text x="40" y="78" font-family="Arial,sans-serif" font-size="12" font-weight="600" fill="#1a4d7c">MASTER PRO</text>
+  <text x="40" y="68" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#1a4d7c">ETest</text>
   <rect x="260" y="36" width="680" height="44" rx="22" fill="#e85d04"/>
   <text x="600" y="66" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">LISTENING AND READING PRACTICE SCORE CERTIFICATE</text>
 

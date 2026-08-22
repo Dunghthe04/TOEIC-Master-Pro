@@ -1,5 +1,5 @@
 # ============================================================
-# TOEIC Master Pro — Docker Compose (môi trường Development)
+# ETest — Docker Compose (môi trường Development)
 # ============================================================
 # Khởi động:  docker compose up -d
 # Dừng:       docker compose down
