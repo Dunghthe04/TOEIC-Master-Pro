@@ -93,6 +93,9 @@ builder.Services.Configure<ToeicDirectionsOptions>(
 builder.Services.Configure<IigOptions>(                              // MỚI
     builder.Configuration.GetSection(IigOptions.SectionName));
 
+builder.Services.Configure<PayOsOptions>(
+    builder.Configuration.GetSection(PayOsOptions.SectionName));
+
 //-----------gogle signin--------------
 builder.Services.Configure<GoogleAuthSettings>(
     builder.Configuration.GetSection(GoogleAuthSettings.SectionName));
@@ -119,6 +122,16 @@ builder.Services.AddHttpClient("Iig", client =>            // MỚI
 {
     client.Timeout = TimeSpan.FromSeconds(15);
 });
+// BaseAddress đặt ở đây (không phải trong service) để đổi được sang môi trường sandbox của
+// payOS bằng cấu hình. Timeout ngắn hơn "Iig": người ủng hộ đang ngồi chờ mã QR hiện ra,
+// treo 15 giây là họ đóng popup.
+builder.Services.AddHttpClient("PayOs", client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["PayOs:BaseUrl"] ?? "https://api-merchant.payos.vn");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddScoped<IDonationService, PayOsDonationService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<ExamReminderJob>();
 builder.Services.AddScoped<IigExamScheduleSyncJob>();
@@ -301,6 +314,42 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }
+        )
+    );
+
+    // Chính sách "donate" — tạo mã QR ủng hộ.
+    //
+    // Endpoint này [AllowAnonymous] và mỗi request tạo một LINK THANH TOÁN THẬT bên payOS,
+    // nên không có trần thì một script vô danh bơm rác vào kênh thanh toán của mình.
+    // 20/phút/IP: popup tạo mã MỚI mỗi lần người ta đổi mức tiền, nên một người còn đang
+    // cân nhắc có thể ăn gần chục request — trần 10 sẽ tự chặn chính luồng của mình.
+    options.AddPolicy("donate", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }
+        )
+    );
+
+    // Chính sách "donate-status" — hỏi "đã nhận tiền chưa".
+    //
+    // TÁCH khỏi "donate" vì tần suất khác hẳn: popup hỏi lại mỗi 3 giây trong lúc người ta
+    // mở app ngân hàng, tức ~20 lần/phút cho MỘT người. Dùng chung trần 10 là tự chặn chính
+    // luồng của mình. 60/phút/IP để vài người sau cùng một NAT không chặn lẫn nhau, và đây
+    // chỉ là đọc trạng thái nên không có gì để lạm dụng.
+    options.AddPolicy("donate-status", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }

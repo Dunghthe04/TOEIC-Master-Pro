@@ -148,7 +148,8 @@ function App() {
         </Routes>
 
         {/* Widget liên hệ — nằm ngoài <Routes> nên không mount lại mỗi lần đổi trang.
-            Tự ẩn ở màn làm bài, xem EXAM_ROUTES trong FloatingContact. */}
+            Chỉ dành cho học viên và khách vãng lai: tự ẩn ở trang xác thực, màn làm bài
+            và với vai Admin/CM. Xem HIDDEN_ROUTES trong FloatingContact. */}
         <FloatingContact />
       </BrowserRouter>
       <Toaster richColors position="top-right" />

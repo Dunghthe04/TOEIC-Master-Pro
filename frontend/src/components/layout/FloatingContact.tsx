@@ -1,23 +1,38 @@
 // ──────────────────────────────────────────────────────────
 // FloatingContact.tsx — Widget liên hệ nổi ở góc phải màn hình
 //
-// Zalo · Messenger · Gọi điện · Instagram. Mỗi nút có logo thương hiệu,
-// vòng sóng lan (ping) thu hút mắt, hiệu ứng xuất hiện lần lượt và nhãn
-// trượt ra khi rê chuột.
+// Bốn kênh liên hệ (Zalo · Messenger · Gọi điện · Instagram) và nút Ủng hộ. Mỗi nút
+// có vòng sóng lan (ping) thu hút mắt, hiệu ứng xuất hiện lần lượt và nhãn trượt ra
+// khi rê chuột.
 //
-// Gắn một lần ở App.tsx nên có mặt ở mọi trang, TRỪ màn làm bài
-// (xem EXAM_ROUTES bên dưới).
+// Gắn một lần ở App.tsx nên có mặt ở mọi trang dành cho học viên và khách
+// vãng lai, TRỪ các trường hợp ở HIDDEN_ROUTES và vai Admin/CM (xem bên dưới).
 //
 // Muốn đổi thông tin liên hệ: sửa các giá trị trong CONTACT_LINKS.
 // ──────────────────────────────────────────────────────────
 
+import { useState } from 'react'
 import { matchPath, useLocation } from 'react-router-dom'
+import { Heart } from 'lucide-react'
+import { useAuthStore } from '@/store/auth.store'
+import { usesTopNav } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import DonateDialog from './DonateDialog'
 
-// Các màn dùng ExamShell — phủ full màn hình (fixed inset-0 z-50) và có nút
-// Next / Nộp bài ở đúng góc phải dưới, tức là chỗ widget đứng. Hiện ở đây là
-// che mất nút bấm của người đang thi.
-const EXAM_ROUTES = ['/mock-test/:id/play', '/mock-test/history/:sessionId']
+// Những màn KHÔNG hiện widget, dù người xem là học viên hay khách:
+//  · Màn làm bài / xem lại dùng ExamShell — phủ full màn hình (fixed inset-0 z-50)
+//    và có nút Next / Nộp bài ở đúng góc phải dưới, tức là chỗ widget đứng.
+//  · Các trang xác thực — chỉ có một việc duy nhất là điền form, thêm một chùm nút
+//    nhấp nháy bên cạnh chỉ gây rối.
+const HIDDEN_ROUTES = [
+  '/mock-test/:id/play',
+  '/mock-test/history/:sessionId',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/confirm-email',
+]
 
 // Thông tin liên hệ — thay bằng thông tin thật của bạn.
 const CONTACT_LINKS = {
@@ -27,16 +42,19 @@ const CONTACT_LINKS = {
   instagram: 'is_dunghoang', // Username Instagram
 } as const
 
-// Mỗi mục = 1 nút liên hệ. Gradient lấy đúng màu nhận diện thương hiệu.
+// Phần nhìn thấy của một nút. Tách khỏi href vì nút Ủng hộ mở popup chứ không mở link,
+// nhưng phải trông giống hệt bốn nút còn lại.
 type ContactItem = {
   label: string
-  href: string
   gradient: string
   glow: string
   icon: React.ReactNode
 }
 
-const CONTACT_ITEMS: ContactItem[] = [
+type ContactLinkItem = ContactItem & { href: string }
+
+// Mỗi mục = 1 nút liên hệ. Gradient lấy đúng màu nhận diện thương hiệu.
+const CONTACT_ITEMS: ContactLinkItem[] = [
   {
     label: 'Chat Zalo',
     href: `https://zalo.me/${CONTACT_LINKS.zaloPhone}`,
@@ -67,57 +85,92 @@ const CONTACT_ITEMS: ContactItem[] = [
   },
 ]
 
+// Nút Ủng hộ — mở popup QR (xem DonateDialog) nên không nằm trong CONTACT_ITEMS.
+// Màu cam ấm để tách khỏi bốn logo thương hiệu phía trên: đây không phải kênh liên hệ.
+const DONATE_ITEM: ContactItem = {
+  label: 'Ủng hộ mình cốc nước để duy trì server',
+  gradient: 'from-[#fbbf24] to-[#f97316]',
+  glow: 'shadow-[0_8px_24px_-6px_rgba(249,115,22,0.7)]',
+  icon: <Heart className="size-6" fill="currentColor" />,
+}
+
+// Lệch pha theo thứ tự nút: xuất hiện lần lượt và nhấp nhô so le nhau
+const staggerDelayOf = (index: number) => `${index * 120}ms`
+
 export default function FloatingContact() {
   const { pathname } = useLocation()
-  if (EXAM_ROUTES.some(route => matchPath(route, pathname))) return null
+  const user = useAuthStore(s => s.user)
+  const [isDonateOpen, setIsDonateOpen] = useState(false)
+
+  // Đây là kênh hỗ trợ học viên. Admin/CM đang làm việc trong hệ quản trị không
+  // phải khách hàng cần tư vấn — usesTopNav(null) là true nên khách vãng lai vẫn thấy.
+  if (!usesTopNav(user)) return null
+  if (HIDDEN_ROUTES.some(route => matchPath(route, pathname))) return null
 
   return (
-    <div className="fixed right-4 bottom-5 z-50 flex flex-col items-end gap-3.5 sm:right-5">
-      {CONTACT_ITEMS.map((item, index) => {
-        // Lệch pha theo thứ tự nút: xuất hiện lần lượt và nhấp nhô so le nhau
-        const staggerDelay = `${index * 120}ms`
-
-        return (
+    <>
+      <div className="fixed right-4 bottom-5 z-50 flex flex-col items-end gap-3.5 sm:right-5">
+        {CONTACT_ITEMS.map((item, index) => (
           <a
             key={item.label}
             href={item.href}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={item.label}
-            style={{ animationDelay: staggerDelay }}
+            style={{ animationDelay: staggerDelayOf(index) }}
             className="group animate-contact-in flex items-center"
           >
-            {/* Nhãn trượt ra khi rê chuột */}
-            <span className="pointer-events-none mr-3 translate-x-3 rounded-full bg-slate-900/90 px-3 py-1.5 text-sm font-medium whitespace-nowrap text-white opacity-0 shadow-lg backdrop-blur transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
-              {item.label}
-            </span>
-
-            {/* Nút tròn + vòng sóng lan, nhấp nhô nhẹ khi đứng yên */}
-            <span
-              style={{ animationDelay: staggerDelay }}
-              className="animate-contact-float relative flex size-13 shrink-0 items-center justify-center"
-            >
-              <span
-                style={{ animationDelay: staggerDelay }}
-                className={cn(
-                  'animate-contact-ping absolute inset-0 rounded-full bg-gradient-to-br opacity-60',
-                  item.gradient,
-                )}
-              />
-              <span
-                className={cn(
-                  'relative flex size-13 items-center justify-center rounded-full bg-gradient-to-br text-white transition-transform duration-300 group-hover:scale-110 group-active:scale-95',
-                  item.gradient,
-                  item.glow,
-                )}
-              >
-                {item.icon}
-              </span>
-            </span>
+            <ContactBubble item={item} delay={staggerDelayOf(index)} />
           </a>
-        )
-      })}
-    </div>
+        ))}
+
+        {/* Đứng cuối hàng: sát cạnh dưới nên là nút dễ với ngón tay nhất trên mobile. */}
+        <button
+          type="button"
+          onClick={() => setIsDonateOpen(true)}
+          aria-label={DONATE_ITEM.label}
+          style={{ animationDelay: staggerDelayOf(CONTACT_ITEMS.length) }}
+          className="group animate-contact-in flex items-center"
+        >
+          <ContactBubble item={DONATE_ITEM} delay={staggerDelayOf(CONTACT_ITEMS.length)} />
+        </button>
+      </div>
+
+      <DonateDialog open={isDonateOpen} onClose={() => setIsDonateOpen(false)} />
+    </>
+  )
+}
+
+/** Nhãn trượt ra khi rê chuột + nút tròn có vòng sóng lan phía sau. */
+function ContactBubble({ item, delay }: { item: ContactItem; delay: string }) {
+  return (
+    <>
+      <span className="pointer-events-none mr-3 translate-x-3 rounded-full bg-slate-900/90 px-3 py-1.5 text-sm font-medium whitespace-nowrap text-white opacity-0 shadow-lg backdrop-blur transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+        {item.label}
+      </span>
+
+      <span
+        style={{ animationDelay: delay }}
+        className="animate-contact-float relative flex size-13 shrink-0 items-center justify-center"
+      >
+        <span
+          style={{ animationDelay: delay }}
+          className={cn(
+            'animate-contact-ping absolute inset-0 rounded-full bg-gradient-to-br opacity-60',
+            item.gradient,
+          )}
+        />
+        <span
+          className={cn(
+            'relative flex size-13 items-center justify-center rounded-full bg-gradient-to-br text-white transition-transform duration-300 group-hover:scale-110 group-active:scale-95',
+            item.gradient,
+            item.glow,
+          )}
+        >
+          {item.icon}
+        </span>
+      </span>
+    </>
   )
 }
 
