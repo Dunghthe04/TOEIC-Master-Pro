@@ -47,6 +47,15 @@ switch (args[0])
         }
         return Names(args[1], args[2]);
 
+    case "render":
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("Cách dùng: render \"<file.pdf>\" [trang-đầu] [trang-cuối] [dpi]");
+            Console.Error.WriteLine("Ví dụ:     render \"D:\\Test2026\\LISTENING ETS 2026.pdf\" 142 144");
+            return 1;
+        }
+        return RenderCmd(args);
+
     default:
         Console.Error.WriteLine($"Lệnh không biết: {args[0]}");
         return 1;
@@ -273,5 +282,51 @@ static int Names(string series, string title)
 
     Console.WriteLine("  So tên trên với tên file audio thật. Lệch một ký tự là cả đề mất tiếng,");
     Console.WriteLine("  và import vẫn báo thành công — không có lỗi nào cho bạn biết.");
+    return 0;
+}
+
+/// <summary>
+/// render "<file.pdf>" [trang-đầu] [trang-cuối] [dpi]
+///
+/// Ảnh ra thư mục out/render/. Đã có file thì BỎ QUA — render 744 trang từ ~1 GB PDF là
+/// việc tốn phút, không được bắt làm lại mỗi lần thử bước sau.
+/// </summary>
+static int RenderCmd(string[] args)
+{
+    var pdf = args[1];
+    if (!File.Exists(pdf)) { Console.Error.WriteLine($"Không thấy file: {pdf}"); return 1; }
+
+    var from = args.Length > 2 && int.TryParse(args[2], out var f) ? f : 1;
+    int? to = args.Length > 3 && int.TryParse(args[3], out var t) ? t : null;
+    var dpi = args.Length > 4 && int.TryParse(args[4], out var d) ? d : PdfRenderer.DefaultDpi;
+
+    var outDir = Path.Combine("out", "render");
+
+    var total = PdfRenderer.GetPageCount(pdf);
+    Console.WriteLine($"PDF   : {Path.GetFileName(pdf)}  ({total} trang)");
+    Console.WriteLine($"Render: trang {from} → {(to?.ToString() ?? total.ToString())}  ·  {dpi} DPI");
+    Console.WriteLine($"Ra    : {Path.GetFullPath(outDir)}");
+    Console.WriteLine();
+
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var res = PdfRenderer.Render(pdf, outDir, from, to, dpi);
+    sw.Stop();
+
+    Console.WriteLine($"✓ render {res.Rendered} trang, bỏ qua {res.Skipped} (đã có sẵn) " +
+                      $"trong {sw.Elapsed.TotalSeconds:F1}s");
+
+    if (res.Files.Count > 0)
+    {
+        var sizes = res.Files.Where(File.Exists).Select(p => new FileInfo(p).Length).ToList();
+        if (sizes.Count > 0)
+            Console.WriteLine($"  cỡ ảnh: trung bình {sizes.Average() / 1024:F0} KB " +
+                              $"(nhỏ nhất {sizes.Min() / 1024:F0} KB, lớn nhất {sizes.Max() / 1024:F0} KB)");
+        Console.WriteLine();
+        Console.WriteLine("  Mở vài ảnh xem chất lượng TRƯỚC KHI cho AI đọc — chữ đáp án A/B/C/D");
+        Console.WriteLine("  phải đọc được bằng mắt ở cỡ 100%. Không rõ thì tăng DPI lên 200–300.");
+        foreach (var p in res.Files.Take(5)) Console.WriteLine($"    {p}");
+        if (res.Files.Count > 5) Console.WriteLine($"    … (+{res.Files.Count - 5})");
+    }
+
     return 0;
 }
