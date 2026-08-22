@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Template t?nh — xem preview. D? li?u ??ng dùng ToeicSampleCertificate.tsx -->
+<!-- Template t?nh ï¿½ xem preview. D? li?u ??ng dï¿½ng ToeicSampleCertificate.tsx -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
   <defs>
     <linearGradient id="barGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -37,7 +37,7 @@
   <line x1="160" y1="240" x2="480" y2="240" stroke="#d1d5db"/>
 
   <rect x="175" y="252" width="280" height="22" rx="3" fill="#dc2626"/>
-  <text x="315" y="268" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#fff">SAMPLE — KHÔNG PH?I CH?NG CH? TH?T</text>
+  <text x="315" y="268" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#fff">SAMPLE ï¿½ KHï¿½NG PH?I CH?NG CH? TH?T</text>
 
   <line x1="480" y1="100" x2="480" y2="520" stroke="#d1d5db"/>
   <line x1="960" y1="100" x2="960" y2="520" stroke="#d1d5db"/>
@@ -73,6 +73,6 @@
   <text x="1060" y="315" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="700">570</text>
 
   <rect x="16" y="580" width="1168" height="84" fill="#d4b896" opacity="0.35"/>
-  <text x="40" y="615" font-family="Arial,sans-serif" font-size="12" font-weight="600" fill="#374151">TOEIC Master Pro — Practice Exam Platform (Sample Certificate)</text>
-  <text x="40" y="638" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">Ch?ng ch? mô ph?ng — không có giá tr? pháp lý. Không ph?i ch?ng ch? chính th?c c?a ETS.</text>
+  <text x="40" y="615" font-family="Arial,sans-serif" font-size="12" font-weight="600" fill="#374151">ETest - Practice Exam Platform (Sample Certificate)</text>
+  <text x="40" y="638" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">Ch?ng ch? mï¿½ ph?ng ï¿½ khï¿½ng cï¿½ giï¿½ tr? phï¿½p lï¿½. Khï¿½ng ph?i ch?ng ch? chï¿½nh th?c c?a ETS.</text>
 </svg>

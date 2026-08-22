@@ -23,7 +23,7 @@ export default function Sidebar() {
     return (
         <aside className="flex h-screen w-56 flex-col border-r bg-white">
             <div className="flex h-16 items-center px-6 text-lg font-bold text-blue-600">
-                TOEIC Master
+                ETest
             </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
                 {items.map(({ to, icon: Icon, label }) => (

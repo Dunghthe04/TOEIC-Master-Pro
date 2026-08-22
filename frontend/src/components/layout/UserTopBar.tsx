@@ -72,8 +72,8 @@ export default function UserTopBar() {
 
                 {/* Logo */}
                 <Link to="/dashboard" className="flex shrink-0 items-center gap-2 font-bold">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">T</span>
-                    <span className="hidden text-lg sm:inline">TOEIC Master</span>
+                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">E</span>
+                    <span className="hidden text-lg sm:inline">ETest</span>
                 </Link>
 
                 {/* Đẩy menu ra giữa: hai flex-1 hai bên "ép" nav vào chính giữa header,

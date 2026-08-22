@@ -197,7 +197,7 @@ export default function DonateDialog({ open, onClose }: Props) {
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-gray-600">
                             Đã nhận được {paidAmount.toLocaleString('vi-VN')}đ. Khoản này đi thẳng vào
-                            tiền server để TOEIC Master Pro chạy tiếp.
+                            tiền server để ETest chạy tiếp.
                         </p>
                         <p className="mt-4 text-xs text-gray-400">Popup sẽ tự đóng…</p>
                     </div>

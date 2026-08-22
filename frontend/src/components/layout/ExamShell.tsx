@@ -44,7 +44,7 @@ export default function ExamShell({
             {/* Header hệ thống */}
             <header className="shrink-0 bg-[#1a4d7c] text-white px-4 md:px-8 py-3 flex items-center justify-between">
                 <span className="font-semibold tracking-wide text-sm md:text-base">
-                    TOEIC MASTER — THI THỬ
+                    ETEST — THI THỬ
                 </span>
                 <span className="text-xs md:text-sm text-white/85 truncate max-w-[40%]">
                     {title}

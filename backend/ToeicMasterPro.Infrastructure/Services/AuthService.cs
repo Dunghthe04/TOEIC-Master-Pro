@@ -83,7 +83,7 @@ public class AuthService : IAuthService
                 await _emailSender.SendAsync(
                     req.Email,
                     "Có người vừa thử đăng ký bằng email của bạn",
-                    "Ai đó vừa dùng email này để đăng ký TOEIC Master Pro. Email đã có " +
+                    "Ai đó vừa dùng email này để đăng ký ETest. Email đã có " +
                     "tài khoản nên KHÔNG có gì được tạo thêm và mật khẩu của bạn không đổi.\n\n" +
                     "Nếu đó là bạn: hãy đăng nhập bằng mật khẩu, hoặc dùng \"Quên mật khẩu\".\n" +
                     "Nếu không phải bạn: bỏ qua email này, tài khoản của bạn vẫn an toàn.");
@@ -139,7 +139,7 @@ public class AuthService : IAuthService
         {
             await _emailSender.SendAsync(
                 user.Email,
-                "Xác nhận tài khoản TOEIC Master Pro",
+                "Xác nhận tài khoản ETest",
                 $"Bấm vào link sau để xác nhận tài khoản:\n{confirmLink}");
         }
         catch (Exception ex)
@@ -352,7 +352,7 @@ public class AuthService : IAuthService
             {
                 await _emailSender.SendAsync(
                     user.Email!,
-                    "Đặt lại mật khẩu TOEIC Master Pro",
+                    "Đặt lại mật khẩu ETest",
                     $"Bấm vào link sau để đặt lại mật khẩu:\n{resetLink}\n\n" +
                     "Nếu bạn không yêu cầu việc này, hãy bỏ qua email này — mật khẩu " +
                     "hiện tại của bạn vẫn an toàn.");

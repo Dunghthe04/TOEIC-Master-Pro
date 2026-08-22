@@ -76,7 +76,7 @@ namespace ToeicMasterPro.Infrastructure.Services
                 // SUBJECT phải bỏ CRLF — đây là HEADER SMTP. Title chứa "\r\nBcc: ..."
                 // là chèn được header mới (email header injection), gửi bản sao mail
                 // tới địa chỉ của kẻ tấn công. Nghiêm trọng hơn injection ở body.
-                var subject = SingleLine($"[TOEIC Master Pro] Nhắc thi: {exam.Title}");
+                var subject = SingleLine($"[ETest] Nhắc thi: {exam.Title}");
 
                 // Các field trong BODY cũng bỏ CRLF: mail plaintext nên không có HTML
                 // injection, nhưng \r\n vẫn chèn được dòng mới — kẻ tấn công viết thêm
@@ -87,7 +87,7 @@ namespace ToeicMasterPro.Infrastructure.Services
                     $"lúc {exam.StartTime:hh\\:mm} tại {SingleLine(exam.Location)} ({SingleLine(exam.City)}).\n" +
                     $"Hạn đăng ký: {exam.RegistrationDeadline:dd/MM/yyyy}.\n" +
                     (string.IsNullOrEmpty(exam.RegisterUrl) ? "" : $"Link đăng ký: {SingleLine(exam.RegisterUrl)}\n") +
-                    "\nChúc bạn thi tốt!\nTOEIC Master Pro";
+                    "\nChúc bạn thi tốt!\nETest";
 
                 // try/catch TỪNG mail: một địa chỉ lỗi (hộp thư đầy, domain sai, SMTP
                 // timeout) không được làm chết cả loop — 9 người còn lại vẫn phải nhận.

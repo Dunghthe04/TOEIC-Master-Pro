@@ -1,6 +1,6 @@
 /**
 
- * Chứng chỉ điểm mô phỏng — layout theo mẫu TOEIC Master Pro (SAMPLE).
+ * Chứng chỉ điểm mô phỏng — layout theo mẫu ETest (SAMPLE).
 
  * Hiển thị sau khi nộp bài; không có giá trị pháp lý.
 

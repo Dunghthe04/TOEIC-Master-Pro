@@ -16,8 +16,8 @@ export default function PublicGuestHeader() {
         <header className="sticky top-0 z-40 bg-blue-600 text-white shadow-sm">
             <div className="flex h-16 items-center gap-4 px-6">
                 <Link to="/" className="flex shrink-0 items-center gap-2 font-bold">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">T</span>
-                    <span className="hidden text-lg sm:inline">TOEIC Master</span>
+                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">E</span>
+                    <span className="hidden text-lg sm:inline">ETest</span>
                 </Link>
 
                 <div className="hidden flex-1 lg:block" />

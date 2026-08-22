@@ -215,8 +215,8 @@ export default function LandingPage() {
             <header className="sticky top-0 z-40 bg-blue-600 text-white shadow-sm">
                 <div className="flex h-16 items-center gap-4 px-6">
                     <Link to="/" className="flex shrink-0 items-center gap-2 font-bold">
-                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">T</span>
-                        <span className="text-lg">TOEIC Master</span>
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-blue-600">E</span>
+                        <span className="text-lg">ETest</span>
                     </Link>
 
                     {/* Spacer đầu: cùng cặp với flex-1 sau menu (dòng dưới) để "ép" nav vào
@@ -727,7 +727,7 @@ export default function LandingPage() {
             </section>
 
             <footer className="border-t bg-white py-8 text-center text-sm text-gray-500">
-                <p>© {new Date().getFullYear()} TOEIC Master. Mọi quyền được bảo lưu.</p>
+                <p>© {new Date().getFullYear()} ETest. Mọi quyền được bảo lưu.</p>
             </footer>
 
             {/* Popup đăng nhập/đăng ký — mở khi bấm chức năng cần auth, hoặc mở thẳng

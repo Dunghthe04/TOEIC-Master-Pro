@@ -531,12 +531,12 @@ public class AdminUsersController : ControllerBase
                    $"&token={Uri.EscapeDataString(token)}";
 
         var subject = isNewAccount
-            ? "Tài khoản TOEIC Master Pro của bạn đã được tạo"
-            : "Đặt lại mật khẩu TOEIC Master Pro";
+            ? "Tài khoản ETest của bạn đã được tạo"
+            : "Đặt lại mật khẩu ETest";
 
         var body = isNewAccount
             ? $"Xin chào {user.FullName},\n\n" +
-              "Quản trị viên đã tạo tài khoản TOEIC Master Pro cho bạn.\n" +
+              "Quản trị viên đã tạo tài khoản ETest cho bạn.\n" +
               $"Bấm vào link sau để đặt mật khẩu và bắt đầu sử dụng:\n{link}\n"
             : "Quản trị viên đã yêu cầu đặt lại mật khẩu cho tài khoản của bạn.\n" +
               $"Bấm vào link sau để đặt mật khẩu mới:\n{link}\n\n" +

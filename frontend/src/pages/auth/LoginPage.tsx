@@ -94,7 +94,7 @@ export default function LoginPage() {
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Đăng nhập</CardTitle>
-                    <CardDescription>Chào mừng bạn trở lại TOEIC Master Pro</CardDescription>
+                    <CardDescription>Chào mừng bạn trở lại ETest</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

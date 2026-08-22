@@ -403,7 +403,7 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "ToeicMasterPro API",
+        Title = "ETest API",
         Version = "v1"
     });
 
@@ -455,7 +455,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference(options =>
     {
         options.OpenApiRoutePattern = "/swagger/v1/swagger.json";
-        options.Title = "ToeicMasterPro API";
+        options.Title = "ETest API";
     }).AllowAnonymous();
 }
 //ExceptionHandler phải nằm trước Authentication, Authorization và Routing

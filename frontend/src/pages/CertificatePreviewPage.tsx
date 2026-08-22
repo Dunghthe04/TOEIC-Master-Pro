@@ -26,7 +26,7 @@ export default function CertificatePreviewPage() {
     return (
         <div className="min-h-screen bg-[#eef2f6]">
             <header className="bg-[#1a4d7c] text-white px-4 md:px-8 py-3 flex items-center justify-between">
-                <span className="font-semibold">TOEIC MASTER — Xem trước chứng chỉ SAMPLE</span>
+                <span className="font-semibold">ETEST — Xem trước chứng chỉ SAMPLE</span>
                 <Button variant="secondary" size="sm" asChild>
                     <Link to="/mock-test">
                         <ArrowLeft className="w-4 h-4 mr-1" />
