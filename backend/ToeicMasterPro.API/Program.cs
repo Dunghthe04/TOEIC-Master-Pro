@@ -27,6 +27,7 @@ using ToeicMasterPro.API.Jobs;
 using Microsoft.AspNetCore.Authorization;
 using Hangfire.Dashboard;                    // LocalRequestsOnlyAuthorizationFilter, DashboardOptions
 using ToeicMasterPro.API.Authorization;      // HangfireDashboardAuthFilter (file mình vừa tạo)
+using ToeicMasterPro.API.Json;               // UtcDateTimeConverter — mốc thời gian ra JSON kèm "Z"
 using Microsoft.AspNetCore.Mvc;              // ApiBehaviorOptions, BadRequestObjectResult
 using Microsoft.AspNetCore.HttpOverrides;    // ForwardedHeadersOptions — đọc IP thật sau Nginx
 
@@ -364,6 +365,10 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // Mốc thời gian luôn ra kèm "Z" — xem UtcDateTimeConverter, thiếu nó thì frontend
+        // hiểu chuỗi ISO là giờ địa phương và mọi mốc lệch 7 tiếng.
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+        options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeConverter());
     });
 
 // ── Lỗi validation trả về cùng KHUÔN với mọi lỗi khác của app ──────────
