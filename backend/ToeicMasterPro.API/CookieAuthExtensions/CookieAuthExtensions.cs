@@ -23,6 +23,8 @@ public static class CookieAuthExtenstions
     //Hàm tiện ích set cookie refresh token vào response, dùng trong AuthController/RefreshToken.
     public static void SetRefreshTokenCookie(this HttpResponse response, string token, DateTime expiresAt)
     {
+        WarnIfCookieWillBeDropped(response.HttpContext);
+
         response.Cookies.Append(CookieName, token, new CookieOptions
         {
             HttpOnly = true,//Chặn JavaScript đọc cookie này, chỉ trình duyệt mới gửi kèm request.
@@ -45,5 +47,35 @@ public static class CookieAuthExtenstions
     public static string? GetRefreshTokenCookie(this HttpRequest request)
     {
         return request.Cookies[CookieName];
+    }
+
+    /// <summary>
+    /// Cảnh báo khi cookie Secure=true được set trên một origin HTTP mà browser KHÔNG
+    /// miễn trừ — khi đó browser lặng lẽ bỏ cookie: không lỗi, không log, không dấu hiệu.
+    ///
+    /// Triệu chứng gây nhầm lẫn: đăng nhập thành công (200, có access token), nhưng F5
+    /// là mất phiên vì cookie chưa từng được lưu. Y hệt triệu chứng của SameSite chặn
+    /// cookie, nên rất dễ đi sai hướng khi truy lỗi.
+    ///
+    /// localhost/127.0.0.1 KHÔNG cảnh báo: spec Secure Contexts coi đây là "potentially
+    /// trustworthy origin" nên Chrome/Firefox vẫn nhận cookie Secure qua HTTP (Safari
+    /// thì không — nếu dev bằng Safari thì phải chạy HTTPS).
+    /// </summary>
+    private static void WarnIfCookieWillBeDropped(HttpContext http)
+    {
+        if (http.Request.IsHttps) return;
+
+        var host = http.Request.Host.Host;
+        if (host is "localhost" or "127.0.0.1" or "[::1]" or "::1") return;
+
+        http.RequestServices
+            .GetService<ILoggerFactory>()
+            ?.CreateLogger(typeof(CookieAuthExtenstions))
+            .LogWarning(
+                "Cookie '{CookieName}' có Secure=true nhưng request đến qua HTTP trên host " +
+                "'{Host}' (không phải localhost) — browser sẽ BỎ cookie này mà không báo lỗi. " +
+                "Hệ quả: đăng nhập được nhưng F5 là mất phiên. Chạy qua HTTPS, hoặc để reverse " +
+                "proxy chuyển tiếp HTTPS kèm X-Forwarded-Proto.",
+                CookieName, host);
     }
 }

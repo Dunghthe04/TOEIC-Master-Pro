@@ -96,8 +96,8 @@ api.interceptors.response.use(
                     // Với trang THẬT SỰ cần đăng nhập, logout() ở đây đã đủ: nó set
                     // isAuthenticated=false trong store, ProtectedRoute tự re-render và
                     // <Navigate to="/login"/> ngay — không cần ép thêm bằng window.location.
+                    // logout() tự dọn cả localStorage — xem auth.store.ts.
                     useAuthStore.getState().logout()
-                    try { localStorage.removeItem('auth-storage') } catch { /* ignore */ }
                 }
                 // Không phải 401 → để lỗi gốc rơi xuống dưới cho caller tự xử lý/retry.
             }

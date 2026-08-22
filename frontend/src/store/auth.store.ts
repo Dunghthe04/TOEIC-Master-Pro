@@ -53,6 +53,12 @@ export const useAuthStore = create<AuthState>()(
             logout: () => {
                 clearMediaTokens()
                 set({ accessToken: null, user: null, isAuthenticated: false })
+                // Dọn luôn bản persist, ĐẶT Ở ĐÂY thay vì ở từng chỗ gọi logout():
+                // trước đây chỉ interceptor trong axios.ts nhớ removeItem, còn
+                // useSilentRefresh thì không, nên hết phiên rồi mà thông tin user
+                // (tên, email, role) vẫn nằm lại trong localStorage. Gom vào đây để
+                // mọi đường đăng xuất dọn giống nhau, không phải nhớ từng nơi.
+                try { localStorage.removeItem('auth-storage') } catch { /* private mode */ }
             },
         }),
         {

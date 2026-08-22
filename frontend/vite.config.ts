@@ -21,8 +21,26 @@ export default defineConfig({
     tailwindcss(),  // Scan class Tailwind trong .tsx → sinh CSS tương ứng
   ],
   server: {
-    // Dev: proxy /uploads → API wwwroot (audio/ảnh đề thi)
     proxy: {
+      // Dev: proxy /api → backend, để FE và API CÙNG origin (http://localhost:5173).
+      //
+      // VÌ SAO CẦN: cookie refreshToken có SameSite=Strict. Trước đây FE gọi thẳng
+      // https://localhost:7021 — khác SCHEME với http://localhost:5173, mà scheme là
+      // một phần định danh "site", nên browser coi là cross-site và KHÔNG gửi cookie.
+      // Hệ quả: F5 là mất phiên, vì /auth/refresh-token không thấy cookie → 401 → logout.
+      //
+      // Đi qua proxy thì browser chỉ thấy một origin duy nhất, cookie gửi bình thường
+      // và Strict giữ nguyên (không phải hạ xuống None, tức không mất lớp chống CSRF).
+      // Đây cũng ĐÚNG hình dạng của production: nginx serve / cho FE và /api/ cho API
+      // trên cùng domain — dev giờ khớp prod thay vì lệch.
+      //
+      // Nhắm vào cửa HTTP 5191 (không phải HTTPS 7021): cert localhost là self-signed,
+      // proxy đi HTTP tránh phải cấu hình bỏ qua xác thực cert.
+      '/api': {
+        target: 'http://localhost:5191',
+        changeOrigin: true,
+      },
+      // Dev: proxy /uploads → API wwwroot (audio/ảnh đề thi)
       '/uploads': {
         target: 'http://localhost:5191',
         changeOrigin: true,
