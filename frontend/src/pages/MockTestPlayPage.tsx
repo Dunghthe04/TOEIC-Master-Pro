@@ -696,6 +696,10 @@ export default function MockTestPlayPage() {
         const sid = sessionIdRef.current
         if (!sid || isSubmitting) return
         setIsSubmitting(true)
+        // Nộp giữa phần Listening thì audio đang phát: dừng ngay tại đây thay vì
+        // dựa vào cleanup của useEffect khi phase đổi sang 'results' — nộp là hành
+        // động dứt khoát, không để tiếng còn chạy trên màn kết quả.
+        stopAudio()
         if (options?.auto) {
             toast.message('Hết thời gian Reading — đang tự động nộp bài…')
         }
@@ -751,9 +755,16 @@ export default function MockTestPlayPage() {
 
     const totalQuestions = play?.questions.length ?? 0
 
-    /** Nút NỘP BÀI trên thanh Reading (Bước 4b) */
-    const readingSubmitControl =
-        section === 'reading' && (phase === 'directions' || phase === 'answering') ? (
+    /**
+     * Nút NỘP BÀI trên thanh header — hiện ở CẢ Listening và Reading.
+     *
+     * Trước đây chỉ hiện ở Reading, nên ai muốn dừng giữa phần Listening thì
+     * không có đường nộp: phải đóng tab và bỏ phiên nằm InProgress. Backend
+     * SubmitAsync không hề phân biệt section (chỉ cần phiên còn InProgress),
+     * câu chưa trả lời tính là skipped — nên chặn ở frontend là chặn oan.
+     */
+    const submitControl =
+        phase === 'directions' || phase === 'answering' ? (
             <Button
                 type="button"
                 size="lg"
@@ -765,7 +776,7 @@ export default function MockTestPlayPage() {
             </Button>
         ) : null
 
-    /** Dialog xác nhận nộp — dùng chung Reading + màn done */
+    /** Dialog xác nhận nộp — dùng chung Listening + Reading + màn done */
     const submitConfirmDialog = (
         <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
             <AlertDialogContent className="max-w-lg sm:max-w-xl p-6 sm:p-8 gap-5 data-[size=default]:max-w-xl">
@@ -792,6 +803,22 @@ export default function MockTestPlayPage() {
                                         thời gian Reading.
                                     </p>
                                 )}
+                            {/* Nộp giữa Listening là bỏ luôn toàn bộ Reading — hậu quả lớn
+                                hơn hẳn nộp ở Reading, nên phải nói rõ trước khi user bấm. */}
+                            {section === 'listening' &&
+                                (phase === 'directions' || phase === 'answering') && (
+                                    <p>
+                                        Bạn đang ở phần <strong>Listening</strong> — nộp bây giờ là
+                                        bỏ toàn bộ phần <strong>Reading</strong>, các câu chưa làm
+                                        tính là không trả lời.
+                                    </p>
+                                )}
+                            {phase === 'section-break' && (
+                                <p>
+                                    Nộp bây giờ là bỏ toàn bộ phần <strong>Reading</strong> — các
+                                    câu Reading tính là không trả lời.
+                                </p>
+                            )}
                         </div>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -876,17 +903,31 @@ export default function MockTestPlayPage() {
             ? partToNumber(readingStats.parts[0])
             : 5
 
-        return (
+        return wrapWithSubmitDialog(
             <ExamShell
                 title={play.title}
                 partLabel="Kết thúc Listening"
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
                 footer={
-                    <Button onClick={startReadingSection} size="lg" className="h-10 md:h-11 px-6 text-base">
-                        Bắt đầu phần Reading
-                        <BookOpen className="w-5 h-5 ml-2" />
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        {/* Nộp luôn không cần làm Reading — trước đây màn này chỉ có một
+                            đường ra là "Bắt đầu Reading", ai không muốn làm nữa thì kẹt. */}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="lg"
+                            className="h-10 md:h-11 px-5 text-base"
+                            onClick={openSubmitConfirm}
+                            disabled={!sessionId || isSubmitting}
+                        >
+                            {isSubmitting ? 'Đang nộp…' : 'Nộp bài luôn'}
+                        </Button>
+                        <Button onClick={startReadingSection} size="lg" className="h-10 md:h-11 px-6 text-base">
+                            Bắt đầu phần Reading
+                            <BookOpen className="w-5 h-5 ml-2" />
+                        </Button>
+                    </div>
                 }
             >
                 <div className="max-w-2xl mx-auto space-y-6 py-4">
@@ -948,7 +989,7 @@ export default function MockTestPlayPage() {
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
                 timerSeconds={shellTimerSeconds}
-                submitControl={section === 'reading' ? readingSubmitControl : undefined}
+                submitControl={submitControl}
                 footer={
                     <Button onClick={skipDirections} size="lg" className="h-10 md:h-11 px-6 text-base">
                         Next
@@ -969,12 +1010,13 @@ export default function MockTestPlayPage() {
 
     // ── UI: Listening — audio tự phát, hết thì tự chuyển ──
     if (section === 'listening' && phase === 'answering' && currentUnit) {
-        return (
+        return wrapWithSubmitDialog(
             <ExamShell
                 title={play.title}
                 partLabel={`Listening — Part ${partToNumber(currentUnit.part)}`}
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
+                submitControl={submitControl}
             >
                 {!currentUnit.audioUrl && (
                     <p className="text-sm text-destructive bg-red-50 border rounded-lg px-4 py-2 mb-4">

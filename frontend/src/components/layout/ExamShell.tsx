@@ -20,7 +20,7 @@ type ExamShellProps = {
      * Giây còn lại của timer Reading — null/undefined = không hiện (Listening).
      */
     timerSeconds?: number | null
-    /** Nút NỘP BÀI (Reading) — hiện cạnh timer / tiến độ */
+    /** Nút NỘP BÀI (Listening + Reading) — hiện cạnh timer / tiến độ */
     submitControl?: ReactNode
 }
 
