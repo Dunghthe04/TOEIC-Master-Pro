@@ -11,7 +11,20 @@ public record SessionAnswerReview(
   Guid CorrectOptionId,
   string CorrectLabel,
   bool IsCorrect,
-  string? Explanation
+  string? Explanation,
+
+  /// <summary>
+  /// Lời đoạn băng (Part 1–4), quan trọng nhất ở Part 3–4.
+  ///
+  /// 🔴 CỐ Ý chỉ có Ở ĐÂY, không có trong PlayQuestionItem: PlayQuestionItem là payload trả
+  /// về TRONG LÚC ĐANG THI, nên transcript nằm ở đó là gửi nguyên lời đoạn băng xuống trình
+  /// duyệt trước khi học viên nghe — mở DevTools là đọc thay vì nghe. Cùng họ lỗi với Day 34
+  /// (lộ IsCorrect cho người chưa đăng nhập) và Day 47 (máy tra đáp án ở /practice/submit).
+  ///
+  /// 3 câu cùng nhóm Part 3–4 trả về CÙNG một nội dung. Frontend đã gộp nhóm theo audioUrl
+  /// (examListening.ts) nên hiện MỘT LẦN cho cả nhóm, đừng render 3 lần liên tiếp.
+  /// </summary>
+  string? Transcript
 );
 
 /// <summary>

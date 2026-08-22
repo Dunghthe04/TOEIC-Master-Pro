@@ -256,6 +256,11 @@ public class QuestionService : IQuestionService
             var orderRaw = sheet.Cells[row, 15].GetValue<string>();   // vị trí câu trong đề: 1–100
             var audioFile = sheet.Cells[row, 16].GetValue<string>();  // tên file, vd E26-T01-7.mp3
             var imageFile = sheet.Cells[row, 17].GetValue<string>();  // tên file ảnh Part 1
+            // Cột 18 — transcript (lời đoạn băng), thêm để nhập đề ETS bằng tool.
+            // ⚠️ THÊM VÀO CUỐI, không chèn giữa: hàm này đọc theo VỊ TRÍ cột, nên chèn vào
+            // giữa sẽ làm mọi file Excel cũ bị đọc lệch cột MÀ KHÔNG BÁO LỖI — dữ liệu vào
+            // sai chỗ, im lặng. Cột mới sau này cũng phải là 19, 20, …
+            var transcript = sheet.Cells[row, 18].GetValue<string>();
 
             if (!int.TryParse(partRaw, out var partInt) || partInt < 1 || partInt > 7)
             { errors.Add(new ImportRowError(row, "Part không hợp lệ (phải là số 1–7).")); continue; }
@@ -339,6 +344,9 @@ public class QuestionService : IQuestionService
                 Difficulty = difficulty,
                 Content = _html.Clean(content) ?? string.Empty,
                 Explanation = _html.Clean(explanation) ?? string.Empty,
+                // Sanitize như mọi nội dung nhập từ ngoài (Day 42): transcript đi thẳng ra
+                // màn review dưới dạng HTML nên phải qua cùng một cửa với Content/Passage.
+                Transcript = _html.Clean(transcript),
                 AudioUrl = audioUrl,
                 ImageUrl = imageUrl,
                 Passage = _html.Clean(passage),

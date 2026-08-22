@@ -64,6 +64,16 @@ export interface SessionAnswerReview {
     correctLabel: string
     isCorrect: boolean
     explanation: string | null
+    /**
+     * Lời đoạn băng (Part 1–4), quan trọng nhất ở Part 3–4.
+     *
+     * 🔴 Chỉ có ở ĐÂY (payload sau khi nộp bài), KHÔNG có trong PlayQuestion (payload lúc
+     * đang thi) — nếu có ở đó thì mở DevTools là đọc script thay vì phải nghe.
+     *
+     * 3 câu cùng nhóm Part 3–4 trả về CÙNG một nội dung → hiện MỘT LẦN cho cả nhóm,
+     * đừng render 3 lần liên tiếp.
+     */
+    transcript: string | null
 }
 
 /** Thống kê đúng/sai theo Part — Day 30 Phần 2 */

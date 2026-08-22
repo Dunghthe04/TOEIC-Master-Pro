@@ -483,7 +483,10 @@ public class TestSessionService : ITestSessionService
                 correctOpt.Id,
                 correctOpt.Label,
                 isCorrect,
-                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation
+                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation,
+                // Transcript CHỈ ra ở đây — sau khi đã nộp bài. Không bao giờ ở
+                // PlayQuestionItem (payload lúc đang thi), xem SessionAnswerReview.
+                string.IsNullOrWhiteSpace(q.Transcript) ? null : q.Transcript
             ));
         }
 
@@ -663,7 +666,10 @@ public class TestSessionService : ITestSessionService
                 correctOpt.Id,
                 correctOpt.Label,
                 isCorrect,
-                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation
+                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation,
+                // Transcript CHỈ ra ở đây — sau khi đã nộp bài. Không bao giờ ở
+                // PlayQuestionItem (payload lúc đang thi), xem SessionAnswerReview.
+                string.IsNullOrWhiteSpace(q.Transcript) ? null : q.Transcript
             ));
         }
 
@@ -855,7 +861,10 @@ public class TestSessionService : ITestSessionService
                 correctOpt.Id,
                 correctOpt.Label,
                 isCorrect,
-                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation
+                string.IsNullOrWhiteSpace(q.Explanation) ? null : q.Explanation,
+                // Transcript CHỈ ra ở đây — sau khi đã nộp bài. Không bao giờ ở
+                // PlayQuestionItem (payload lúc đang thi), xem SessionAnswerReview.
+                string.IsNullOrWhiteSpace(q.Transcript) ? null : q.Transcript
             ));
         }
 

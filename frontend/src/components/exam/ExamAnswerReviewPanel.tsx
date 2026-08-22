@@ -156,6 +156,13 @@ export default function ExamAnswerReviewPanel({
                         reviewReadingImages.length > 0 &&
                         reviewReadingImages.join('|') !== prevReadingImages.join('|')
 
+                    // Transcript của 3 câu cùng nhóm Part 3–4 giống HỆT nhau (backend trả
+                    // cùng nội dung cho cả nhóm). Render 3 lần liên tiếp thì trông như lỗi,
+                    // nên chỉ hiện ở câu ĐẦU nhóm — đúng cách showReadingImage đang làm:
+                    // so với dòng trước, khác thì mới hiện.
+                    const prevTranscript = idx > 0 ? filtered[idx - 1].transcript : null
+                    const showTranscript = !!r.transcript && r.transcript !== prevTranscript
+
                     return (
                         <li
                             key={r.questionId}
@@ -277,6 +284,29 @@ export default function ExamAnswerReviewPanel({
                                             )
                                         })}
                                 </div>
+                            )}
+
+                            {/* Transcript — khối riêng, chữ đọc được, KHÔNG dùng text-xs
+                                muted như chú thích chân trang: với Part 3–4 đây là thứ
+                                người học đọc lâu nhất sau khi xem đáp án. */}
+                            {showTranscript && (
+                                <details
+                                    className="rounded-md border border-sky-200 bg-sky-50/60"
+                                    open
+                                >
+                                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium text-sky-900">
+                                        Lời đoạn băng
+                                        {question && partToNumber(question.part) >= 3 && (
+                                            <span className="ml-1 font-normal text-sky-700">
+                                                (dùng chung cho cả nhóm câu)
+                                            </span>
+                                        )}
+                                    </summary>
+                                    <div
+                                        className="whitespace-pre-line px-3 pb-3 text-sm leading-relaxed text-sky-950"
+                                        dangerouslySetInnerHTML={{ __html: r.transcript! }}
+                                    />
+                                </details>
                             )}
 
                             {r.explanation && (
