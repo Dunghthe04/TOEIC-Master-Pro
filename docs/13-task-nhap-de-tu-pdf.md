@@ -41,9 +41,25 @@ hành vi server bằng bản sao đó → **chỉ là tiện ích tham khảo**,
 | Ảnh nhúng | 🔴 Mỗi trang có 4 ảnh ~2433×1095 — là **4 dải scan ngang**, KHÔNG phải ảnh câu hỏi. `GetImages()` vô dụng, phải **render cả trang** bằng PDFium |
 | Chất lượng render | ✅ **150 DPI là đủ** — đã tự đọc ảnh render, bảng đáp án `N (X)` rõ từng ký tự. Không cần 300 DPI |
 | Tốc độ render | 3 trang / 1,6s → cả **744 trang ~7 phút** |
-| **Đáp án LC** | ✅ `LISTENING ETS 2026.pdf` trang **142–144**, mỗi trang **4 đề** (142 = TEST 1–4, 143 = 5–8, 144 = 9–10). Dạng `N (X)`, 20 hàng × 5 cột |
-| Đáp án RC | ⬜ chưa xác định trang — ở cuối `READING ETS 2026.pdf` (304 trang) |
-| `key rc .pdf` | ✅ **GIỮ LẠI** dù trùng nội dung — là nguồn thứ hai để **đối chiếu** đáp án RC. Đáp án là thứ duy nhất đọc sai là chết, có 2 nguồn thì lệch một câu là biết ngay |
+| **Đáp án** | ✅ **Đã định vị hết** — xem bảng dưới |
+| `key rc .pdf` | ✅ **GIỮ LẠI** — đã xác nhận là nguồn thứ hai THẬT cho RC, không phải bản trùng vô ích |
+
+### Bản đồ trang đáp án — chỉ 9 trang cho cả 2000 câu
+
+| Nguồn | Trang | Câu | Chia đề |
+|---|---|---|---|
+| `LISTENING ETS 2026.pdf` | **142, 143, 144** | 1–100 (LC) | 4 + 4 + 2 đề/trang |
+| `READING ETS 2026.pdf` | **302, 303, 304** | 101–200 (RC) | 4 + 4 + 2 đề/trang |
+| `key rc .pdf` | **2, 3, 4** (trang 1 là bìa) | 101–200 (RC) | 4 + 4 + 2 đề/trang |
+
+Cả ba cùng một định dạng: bảng `N (X)`, **20 hàng × 5 cột**, tiêu đề `기출 TEST n`.
+
+**RC có HAI nguồn độc lập** (`READING` trang cuối + `key rc`) → lệnh `answers` đọc cả hai rồi
+**đối chiếu từng câu**. Lệch một câu là biết ngay đã đọc nhầm, tự động, không cần soát tay.
+LC chỉ có một nguồn → phải dựa vào kiểm đếm (đúng 100 câu, số 1→100 liên tục, giá trị chỉ A–D).
+
+Đây là điểm quan trọng nhất của cả task: **phần "sai là chết người" lại là phần rẻ nhất** —
+9 trang trên tổng 744, và định dạng đều tới mức máy gần như không thể đọc sai.
 
 ## 🔴 Bẫy đã va, ghi lại để không lặp
 
