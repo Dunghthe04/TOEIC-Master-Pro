@@ -184,7 +184,8 @@ public class TestController : ControllerBase
     [HttpPost("{id:Guid}/import-listening")]   // alias: UI hiện tại vẫn gọi route này
     [Authorize(Roles = "ContentManager")]
     [RequestSizeLimit(100 * 1024 * 1024)] // giới hạn 100MB cho gói ZIP
-    public async Task<IActionResult> ImportListening(Guid id, IFormFile file)
+    public async Task<IActionResult> ImportListening(
+        Guid id, IFormFile file, [FromQuery] bool dryRun = false)
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { error = "Chưa chọn file." });
@@ -194,6 +195,12 @@ public class TestController : ControllerBase
         // Cờ này để biết có cần Dispose stream Excel sau khi import xong không
         var disposeExcel = false;
         ImportManifest? manifest = null;
+
+        // Tên file media có trong gói — chỉ dùng cho dryRun, để đối chiếu với những file mà
+        // Excel tham chiếu. Chuẩn hoá bằng đúng hàm server dùng khi giải nén, nếu không thì
+        // "E26-T01-01.mp3" trong gói và "E26-T01-1.mp3" trong Excel sẽ bị coi là khác nhau.
+        var zipAudio = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var zipImages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // ── Nhánh 1: file ZIP (Excel + media trong cùng gói) ──────────────────
         if (ext == ".zip")
@@ -205,8 +212,15 @@ public class TestController : ControllerBase
             // vì UseStaticFiles serve toàn bộ wwwroot không phân biệt thư mục con.
             var audioFolder = _paths.TestAudioFolder(id);
             var imagesFolder = _paths.TestImageFolder(id);
-            Directory.CreateDirectory(audioFolder);
-            Directory.CreateDirectory(imagesFolder);
+
+            // dryRun không tạo thư mục: "không ghi gì" phải đúng nghĩa, kể cả thư mục rỗng.
+            // Tạo thư mục cho một lần chạy thử rồi để nó nằm lại là rác, và tệ hơn là làm
+            // người đọc tưởng đề này đã từng được import.
+            if (!dryRun)
+            {
+                Directory.CreateDirectory(audioFolder);
+                Directory.CreateDirectory(imagesFolder);
+            }
 
             using var zip = new ZipArchive(file.OpenReadStream(), ZipArchiveMode.Read);
 
@@ -264,6 +278,15 @@ public class TestController : ControllerBase
                 // Chuẩn hóa tên: E26-T01-07.mp3 → E26-T01-7.mp3 (khớp quy ước ToeicMediaNaming)
                 var name = ToeicMediaNaming.NormalizeMediaFileName(Path.GetFileName(ae.Name));
                 if (string.IsNullOrEmpty(name)) continue;
+
+                // dryRun: chỉ GHI NHẬN tên, không copy. Đây là dữ liệu để đối chiếu với những
+                // file mà Excel tham chiếu — bước kiểm giá trị nhất của chế độ chạy thử.
+                if (dryRun)
+                {
+                    (destFolder == audioFolder ? zipAudio : zipImages).Add(name);
+                    continue;
+                }
+
                 var dest = Path.Combine(destFolder, name);
                 await using var src = ae.Open();
                 await using var dst = System.IO.File.Create(dest);
@@ -295,7 +318,16 @@ public class TestController : ControllerBase
             // ImportQuestionOptions(id, true):
             //   - TestId = id → load Series/Title của đề để tự sinh tên file audio/ảnh
             //   - AssignToTest = true (cờ dự phòng; gán thực tế ở bước B bên dưới)
-            var importResult = await _questionService.ImportAsync(excelStream, new ImportQuestionOptions(id, true));
+            var importResult = await _questionService.ImportAsync(
+                excelStream, new ImportQuestionOptions(id, true, DryRun: dryRun));
+
+            // ── dryRun: dừng ở đây, không gán, không ghi ──
+            //
+            // Trả về HTTP 200 chứ không phải 4xx dù có lỗi trong gói: chạy thử THÀNH CÔNG có
+            // nghĩa là "đã kiểm xong và đây là kết quả". Lỗi của gói nằm trong thân báo cáo.
+            // Trả 4xx thì client không phân biệt được "gói sai" với "gọi API sai".
+            if (dryRun)
+                return Ok(await BuildDryRunReportAsync(id, manifest, importResult, zipAudio, zipImages, ext));
 
             // Bước B: gán các câu vừa tạo vào bảng TestQuestion theo OrderIndex
             var assigned = await AssignImportedToTestAsync(id, importResult);
@@ -347,6 +379,161 @@ public class TestController : ControllerBase
     /// Gọi TestService.UpsertQuestionsByOrderAsync:
     ///   - Trùng OrderIndex → xóa câu cũ, gán câu mới (import lại không bị duplicate).
     /// </summary>
+    /// <summary>
+    /// Báo cáo của lần chạy thử: gói này SẼ làm gì với đề, và có gì sai.
+    ///
+    /// MỤC ĐÍCH: import 200 câu là việc khó hoàn tác. Bốn lớp kiểm dưới đây đều chỉ trả lời
+    /// được TRƯỚC KHI ghi, và cả bốn đều là lỗi thật đã hoặc sẽ gặp:
+    ///
+    ///   1. Dòng Excel lỗi          — hiện đã có, nhưng chỉ biết sau khi đã tạo câu
+    ///   2. OrderIndex trùng/thiếu  — hai dòng cùng vị trí thì một dòng bị mất im lặng
+    ///   3. Media tham chiếu nhưng KHÔNG có trong gói — câu mất tiếng, không lỗi nào báo
+    ///   4. Vị trí SẼ BỊ GHI ĐÈ     — câu trả lời cho "import này phá mất cái gì"
+    ///
+    /// Lớp 3 và 4 là hai lớp mà chạy thật không bao giờ nói cho bạn biết.
+    /// </summary>
+    private async Task<object> BuildDryRunReportAsync(
+        Guid testId, ImportManifest? manifest, ImportResultResponse import,
+        HashSet<string> zipAudio, HashSet<string> zipImages, string ext)
+    {
+        var rows = import.Created ?? [];
+        var orders = rows.Where(r => r.OrderIndex.HasValue).Select(r => r.OrderIndex!.Value).ToList();
+
+        // ── OrderIndex: trùng và thiếu ──
+        // Trùng là lỗi ÂM THẦM nguy hiểm nhất ở đây: UpsertQuestionsByOrderAsync ghi lần lượt
+        // nên dòng sau đè dòng trước, và báo cáo vẫn nói "2 câu thành công".
+        var duplicates = orders.GroupBy(o => o).Where(g => g.Count() > 1)
+            .Select(g => g.Key).OrderBy(o => o).ToList();
+
+        var missing = orders.Count == 0
+            ? []
+            : Enumerable.Range(orders.Min(), orders.Max() - orders.Min() + 1)
+                .Where(n => !orders.Contains(n)).ToList();
+
+        // ── Media: file nào Excel trỏ tới mà gói không có ──
+        // Chỉ kiểm được khi upload ZIP. Với .xlsx trần thì media phải có sẵn trên disk, và
+        // nói "thiếu" lúc này là nói sai — nên bỏ qua, và ghi rõ lý do bỏ qua.
+        var audioMissing = new List<string>();
+        var imageMissing = new List<string>();
+        var checkedMedia = ext == ".zip";
+
+        if (checkedMedia)
+        {
+            var existingAudio = SafeList(_paths.TestAudioFolder(testId));
+            var existingImages = SafeList(_paths.TestImageFolder(testId));
+
+            foreach (var r in rows)
+            {
+                foreach (var name in SplitMedia(r.AudioFile))
+                    if (!zipAudio.Contains(name) && !existingAudio.Contains(name))
+                        audioMissing.Add($"câu {r.OrderIndex}: {name}");
+
+                foreach (var name in SplitMedia(r.ImageFile))
+                    if (!zipImages.Contains(name) && !existingImages.Contains(name))
+                        imageMissing.Add($"câu {r.OrderIndex}: {name}");
+            }
+        }
+
+        var referencedAudio = rows.SelectMany(r => SplitMedia(r.AudioFile))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var referencedImages = rows.SelectMany(r => SplitMedia(r.ImageFile))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // File nằm trong gói mà không câu nào dùng. Không phải lỗi, nhưng đáng báo: thường
+        // là dấu hiệu Excel ghi sai tên, và nó CHE mất lỗi thật (câu không có tiếng).
+        var unused = zipAudio.Where(n => !referencedAudio.Contains(n))
+            .Concat(zipImages.Where(n => !referencedImages.Contains(n)))
+            .OrderBy(n => n).ToList();
+
+        // ── Vị trí sẽ bị ghi đè ──
+        var willReplace = new List<int>();
+        var test = await _service.GetByIdAsync(testId);
+
+        if (test.IsSuccess && test.Value is not null)
+        {
+            var taken = test.Value.Questions.Select(q => q.OrderIndex).ToHashSet();
+            willReplace = orders.Where(taken.Contains).Distinct().OrderBy(o => o).ToList();
+        }
+
+        var blocking = import.FailedCount + duplicates.Count + audioMissing.Count + imageMissing.Count;
+
+        return new
+        {
+            dryRun = true,
+            ok = blocking == 0,
+            summary = blocking == 0
+                ? $"Gói hợp lệ. Sẽ tạo {rows.Count} câu" +
+                  (willReplace.Count > 0 ? $", trong đó THAY {willReplace.Count} câu đang có trong đề." : ".")
+                : $"Gói có {blocking} vấn đề cần sửa trước khi import.",
+
+            manifest = manifest is null ? null : new
+            {
+                manifest.Series,
+                manifest.Title,
+                sections = manifest.Sections ?? [],
+                manifest.Source,
+            },
+
+            rows = new
+            {
+                total = import.TotalRows,
+                valid = rows.Count,
+                invalid = import.FailedCount,
+            },
+            errors = import.Errors,
+
+            sections = DescribeSections(import),
+            orderIndex = new
+            {
+                min = orders.Count == 0 ? (int?)null : orders.Min(),
+                max = orders.Count == 0 ? (int?)null : orders.Max(),
+                duplicates,
+                missing,
+            },
+
+            media = new
+            {
+                @checked = checkedMedia,
+                note = checkedMedia
+                    ? null
+                    : "Chỉ upload .xlsx nên không đối chiếu được media — file phải có sẵn trên server.",
+                audioReferenced = referencedAudio.Count,
+                audioMissing,
+                imageReferenced = referencedImages.Count,
+                imageMissing,
+                unusedInPackage = unused,
+            },
+
+            willReplace,
+        };
+    }
+
+    /// <summary>
+    /// Tách giá trị cột AudioFile/ImageFile thành danh sách tên file đã chuẩn hoá.
+    ///
+    /// Một ô có thể chứa NHIỀU file, nối bằng ';' hoặc '|' — dùng cho cụm Part 6/7 có 2–3 văn
+    /// bản. Chuẩn hoá bằng đúng hàm server dùng khi giải nén, nếu không thì "E26-T01-01.mp3"
+    /// trong gói và "E26-T01-1.mp3" trong Excel bị coi là hai file khác nhau và báo thiếu oan.
+    /// </summary>
+    private static IEnumerable<string> SplitMedia(string? cell)
+    {
+        if (string.IsNullOrWhiteSpace(cell)) return [];
+
+        return cell.Split([';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => ToeicMediaNaming.NormalizeMediaFileName(Path.GetFileName(p)))
+            .Where(n => !string.IsNullOrEmpty(n));
+    }
+
+    /// <summary>Tên file đã có trên disk của đề. Thư mục chưa tồn tại là bình thường.</summary>
+    private static HashSet<string> SafeList(string folder)
+    {
+        if (!Directory.Exists(folder)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        return Directory.GetFiles(folder)
+            .Select(f => Path.GetFileName(f))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// So manifest với đề đang nhập. Trả về câu mô tả lệch, hoặc null nếu khớp.
     ///

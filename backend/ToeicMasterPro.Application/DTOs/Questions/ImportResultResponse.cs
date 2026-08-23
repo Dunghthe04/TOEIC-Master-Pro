@@ -9,9 +9,19 @@ public record ImportResultResponse(
     List<ImportQuestionCreatedItem> Created = null!
 );
 
+/// <summary>
+/// Một dòng Excel đã tạo thành Question (hoặc SẼ tạo, khi chạy dryRun).
+///
+/// AudioFile/ImageFile mang theo TÊN FILE mà dòng đó tham chiếu, để bên gọi đối chiếu được
+/// với nội dung gói ZIP trước khi ghi. Không có hai trường này thì không có cách nào biết
+/// "câu 32 trỏ tới một file không nằm trong gói" — mà đó chính là lỗi làm câu mất tiếng.
+/// </summary>
+/// <param name="QuestionId">Guid.Empty khi chạy dryRun — chưa có gì được tạo.</param>
 public record ImportQuestionCreatedItem(
     Guid QuestionId,
-    int? OrderIndex
+    int? OrderIndex,
+    string? AudioFile = null,
+    string? ImageFile = null
 );
 
 public record ImportRowError(

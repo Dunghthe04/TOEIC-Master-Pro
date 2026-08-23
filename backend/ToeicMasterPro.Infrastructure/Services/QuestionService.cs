@@ -355,10 +355,19 @@ public class QuestionService : IQuestionService
                 Options = options_list
             };
 
+            // DryRun: đã kiểm xong dòng này, nhưng KHÔNG ghi. Vẫn đưa vào `created` để bên
+            // gọi biết dòng nào hợp lệ và nó sẽ vào vị trí nào — QuestionId là Guid.Empty
+            // để không ai vô tình dùng nó như một Id thật.
+            if (options.DryRun)
+            {
+                created.Add(new ImportQuestionCreatedItem(Guid.Empty, orderIndex, audioFile, imageFile));
+                continue;
+            }
+
             await _uow.Repository<Question>().AddAsync(entity);
             // Save từng dòng để có QuestionId ngay — Controller dùng Id này gán vào TestQuestion
             await _uow.SaveChangesAsync();
-            created.Add(new ImportQuestionCreatedItem(entity.Id, orderIndex));
+            created.Add(new ImportQuestionCreatedItem(entity.Id, orderIndex, audioFile, imageFile));
         }
 
         return new ImportResultResponse(
