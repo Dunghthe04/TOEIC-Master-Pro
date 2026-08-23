@@ -370,7 +370,19 @@ public class QuestionService : IQuestionService
         );
     }
 
-  public Task<byte[]> GetImportTemplateAsync()
+    /// <summary>
+    /// File Excel mẫu để CM tải về soạn đề.
+    ///
+    /// ⚠️ HEADER Ở ĐÂY PHẢI KHỚP ĐÚNG SỐ CỘT MÀ <see cref="ImportAsync"/> ĐỌC.
+    /// ImportAsync đọc theo VỊ TRÍ cột (Cells[row, 1..18]), không theo tên header. Nên hai
+    /// chỗ này lệch nhau là thất bại IM LẶNG: template thiếu cột nào thì CM không biết cột
+    /// đó tồn tại, soạn xong import vẫn "thành công", chỉ là dữ liệu cột đó luôn rỗng.
+    ///
+    /// Đúng lỗi đã xảy ra với cột 18 (Transcript): ImportAsync đọc nó từ đầu, template thì
+    /// chỉ phát ra 17 header — nên transcript Part 3/4 không có đường nào vào đề nếu soạn
+    /// bằng template.
+    /// </summary>
+    public Task<byte[]> GetImportTemplateAsync()
     {
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         using var package = new ExcelPackage();
@@ -379,7 +391,7 @@ public class QuestionService : IQuestionService
         {
             "Part", "Difficulty", "Content", "Explanation", "AudioUrl", "ImageUrl",
             "Passage", "Tags", "IsPublished", "A", "B", "C", "D", "CorrectAnswer",
-            "OrderIndex", "AudioFile", "ImageFile"
+            "OrderIndex", "AudioFile", "ImageFile", "Transcript"
         };
         for (int i = 0; i < headers.Length; i++)
             sheet.Cells[1, i + 1].Value = headers[i];
@@ -397,9 +409,15 @@ public class QuestionService : IQuestionService
         sheet.Cells[2, 15].Value = 71;
         sheet.Cells[2, 16].Value = ""; // → E26-T01-71-73.mp3
 
+        // Dòng mẫu Part 3 — có Transcript để CM thấy cột đó dùng thế nào.
+        // Cả 3 câu 38, 39, 40 dùng CHUNG một đoạn băng nên cùng một transcript; nhãn người
+        // nói đặt trong ngoặc để không dính vào lời thoại.
         sheet.Cells[3, 1].Value = 3;
         sheet.Cells[3, 15].Value = 38;
         sheet.Cells[3, 16].Value = "E26-T01-38-40.mp3";
+        sheet.Cells[3, 18].Value =
+            "(W) Have you finished the quarterly report? (M) Not yet — I'm still waiting on "
+            + "the sales figures. (W) Let me know if you need help.";
 
         sheet.Cells[4, 1].Value = 1;
         sheet.Cells[4, 15].Value = 1;
