@@ -61,3 +61,53 @@ export interface TestListeningImportResult {
     import: ImportResultResponse
     assignedToTest: number
 }
+/**
+ * Báo cáo của lần chạy thử import (`?dryRun=true`).
+ *
+ * MỤC ĐÍCH: import 200 câu là việc khó hoàn tác. Server đọc gói, kiểm hết, rồi DỪNG —
+ * không tạo câu, không gán vào đề, không giải nén media. Báo cáo này là thứ duy nhất
+ * nó trả về, và người dùng xem nó TRƯỚC khi bấm import thật.
+ */
+export interface TestImportDryRunReport {
+    dryRun: true
+    /** false khi gói có lỗi chặn (dòng lỗi, OrderIndex trùng, media thiếu). */
+    ok: boolean
+    summary: string
+
+    manifest: {
+        series: string | null
+        title: string | null
+        sections: string[]
+        source: string | null
+    } | null
+
+    rows: { total: number; valid: number; invalid: number }
+    errors: ImportRowError[]
+
+    /** Suy ra từ OrderIndex, không tin theo manifest. */
+    sections: string[]
+
+    orderIndex: {
+        min: number | null
+        max: number | null
+        /** Trùng = một dòng bị đè im lặng khi import thật. */
+        duplicates: number[]
+        missing: number[]
+    }
+
+    media: {
+        /** false khi upload .xlsx trần — không có gói để đối chiếu. */
+        checked: boolean
+        note: string | null
+        audioReferenced: number
+        /** Excel trỏ tới mà gói không có → câu sẽ mất tiếng. */
+        audioMissing: string[]
+        imageReferenced: number
+        imageMissing: string[]
+        /** Có trong gói mà không câu nào dùng — thường là dấu hiệu sai tên. */
+        unusedInPackage: string[]
+    }
+
+    /** Vị trí đang có câu trong đề và SẼ BỊ THAY. Đây là "import này phá mất cái gì". */
+    willReplace: number[]
+}

@@ -7,7 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { TestService } from '@/services/test.service'
 import { QuestionService } from '@/services/question.service'
 import type { TestDetail } from '@/types/test.types'
-import type { QuestionResponse } from '@/types/question.types'
+import type { QuestionResponse, TestImportDryRunReport } from '@/types/question.types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -27,11 +27,52 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Link2, Trash2, Upload, FileSpreadsheet, Download } from 'lucide-react'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { ArrowLeft, Link2, Trash2, Upload, FileSpreadsheet, Download, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { uploadAudio, uploadImage } from '@/services/media.service'
 import { getMediaUrl, prefetchMediaToken } from '@/lib/media'
 import { buildAudioFileName, toExamCode, toTestCode } from '@/lib/toeicMediaNaming'
+
+/**
+ * Một khối danh sách trong báo cáo chạy thử.
+ *
+ * Cắt còn 12 phần tử: danh sách 100 số OrderIndex làm hộp thoại dài vô ích, mà thứ cần đọc
+ * chỉ là "có bao nhiêu" và "trông như thế nào". Số đầy đủ vẫn hiện trong ngoặc.
+ */
+function ReportList({ label, items, tone = 'muted' }: {
+    label: string
+    items: (string | number)[]
+    tone?: 'muted' | 'warn'
+}) {
+    if (items.length === 0) return null
+    const shown = items.slice(0, 12)
+
+    return (
+        <div className={
+            tone === 'warn'
+                ? 'rounded-md border border-destructive/40 bg-destructive/5 p-2'
+                : 'rounded-md border p-2'
+        }>
+            <p className="font-medium">
+                {label} <span className="text-muted-foreground">({items.length})</span>
+            </p>
+            <p className="mt-1 font-mono text-xs break-words text-muted-foreground">
+                {shown.join(', ')}
+                {items.length > shown.length ? ` … +${items.length - shown.length}` : ''}
+            </p>
+        </div>
+    )
+}
 
 /** Bỏ HTML TipTap để xem nhanh trong bảng. */
 function plainText(html: string, max = 72): string {
@@ -63,6 +104,12 @@ export default function TestQuestionsPage() {
     const imageInputRef = useRef<HTMLInputElement>(null)
     const packInputRef = useRef<HTMLInputElement>(null)
     const [importingPack, setImportingPack] = useState(false)
+    const [checkingPack, setCheckingPack] = useState(false)
+    // Báo cáo chạy thử + chính file đã chạy thử. Giữ file lại để lần import thật dùng
+    // ĐÚNG file đó — không phải đọc lại từ input (input đã bị clear, và người dùng có thể
+    // đã chọn file khác trong lúc xem báo cáo).
+    const [dryRun, setDryRun] = useState<TestImportDryRunReport | null>(null)
+    const [pendingPack, setPendingPack] = useState<File | null>(null)
     const [previewPart, setPreviewPart] = useState<string>('1')
 
     const load = useCallback(async () => {
@@ -192,16 +239,44 @@ export default function TestQuestionsPage() {
         }
     }
 
-    /** Import ZIP (questions.xlsx + audio/) hoặc Excel trực tiếp. */
-    const handleImportPack = async (files: FileList | null) => {
+    /**
+     * Bước 1 — CHẠY THỬ. Server đọc gói, kiểm hết, rồi dừng: không tạo câu, không gán vào
+     * đề, không giải nén media.
+     *
+     * VÌ SAO KHÔNG IMPORT LUÔN: import ghi câu theo OrderIndex, trùng thì THAY câu cũ. Chọn
+     * nhầm gói (Test1.zip vào đề Test 3) hoặc thiếu file audio đều không sinh lỗi nào —
+     * import báo "100 câu thành công" trong khi đề đã bị thay sạch, hoặc câu mất tiếng. Xem
+     * báo cáo trước, ghi sau.
+     */
+    const handlePickPack = async (files: FileList | null) => {
         if (!id || !files?.[0]) return
         const file = files[0]
+        setCheckingPack(true)
+        try {
+            const report = await TestService.importListeningDryRun(id, file)
+            setDryRun(report)
+            setPendingPack(file)
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+                ?? 'Không đọc được gói'
+            toast.error(msg)
+        } finally {
+            setCheckingPack(false)
+        }
+    }
+
+    /** Bước 2 — import THẬT, dùng đúng file vừa chạy thử. */
+    const handleConfirmImport = async () => {
+        if (!id || !pendingPack) return
         setImportingPack(true)
         try {
-            const res = await TestService.importListening(id, file)
+            const res = await TestService.importListening(id, pendingPack)
             toast.success(
                 `Import ${res.import.successCount} câu · gán ${res.assignedToTest} vào đề`
             )
+            setDryRun(null)
+            setPendingPack(null)
             await load()
         } catch (err: unknown) {
             const msg =
@@ -316,6 +391,8 @@ export default function TestQuestionsPage() {
                 <h2 className="font-semibold">Import Listening Part 1–4</h2>
                 <p className="text-sm text-muted-foreground">
                     Excel: cột <code>OrderIndex</code> bắt buộc. Import lại cùng số câu sẽ <strong>thay</strong> câu cũ (không trùng).
+                    <br />
+                    Chọn file sẽ <strong>kiểm trước</strong> — chưa ghi gì vào đề cho tới khi bạn xác nhận.
                 </p>
                 <div className="flex flex-wrap gap-2">
                     <input
@@ -324,18 +401,18 @@ export default function TestQuestionsPage() {
                         accept=".zip,.xlsx"
                         className="hidden"
                         onChange={(e) => {
-                            void handleImportPack(e.target.files)
+                            void handlePickPack(e.target.files)
                             e.target.value = ''
                         }}
                     />
                     <Button
                         variant="default"
                         size="sm"
-                        disabled={importingPack}
+                        disabled={checkingPack || importingPack}
                         onClick={() => packInputRef.current?.click()}
                     >
                         <FileSpreadsheet className="w-4 h-4 mr-1" />
-                        {importingPack ? 'Đang import…' : 'Chọn ZIP / Excel'}
+                        {checkingPack ? 'Đang kiểm gói…' : importingPack ? 'Đang import…' : 'Chọn ZIP / Excel'}
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => void downloadTemplate()}>
                         <Download className="w-4 h-4 mr-1" />
@@ -597,6 +674,123 @@ export default function TestQuestionsPage() {
                     </Table>
                 </div>
             </section>
+
+            {/* ── Hộp xác nhận import: nội dung là báo cáo chạy thử ──────────────────
+                Mở ngay khi chọn file, TRƯỚC khi có gì được ghi. Người dùng đọc "sẽ tạo bao
+                nhiêu câu, THAY câu nào, thiếu file nào" rồi mới quyết định. */}
+            <AlertDialog
+                open={dryRun !== null}
+                onOpenChange={(open) => {
+                    // Không cho đóng giữa lúc đang import — đóng lúc đó chỉ làm mất thông tin
+                    // trên màn hình, request vẫn chạy tiếp ở server.
+                    if (!open && !importingPack) {
+                        setDryRun(null)
+                        setPendingPack(null)
+                    }
+                }}
+            >
+                <AlertDialogContent className="data-[size=default]:max-w-2xl data-[size=default]:sm:max-w-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            {dryRun?.ok
+                                ? <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                : <AlertTriangle className="h-5 w-5 text-destructive" />}
+                            Kiểm gói trước khi import
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {dryRun?.summary} Chưa có gì được ghi vào đề.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    {dryRun && (
+                        <div className="max-h-[55vh] space-y-3 overflow-y-auto text-sm">
+                            <div className="rounded-md border p-2">
+                                <p className="font-medium">Gói</p>
+                                <p className="text-xs text-muted-foreground">
+                                    <code>{pendingPack?.name}</code>
+                                    {' · '}{((pendingPack?.size ?? 0) / 1048576).toFixed(1)} MB
+                                    {dryRun.sections.length > 0 && ` · ${dryRun.sections.join(' + ')}`}
+                                </p>
+                                {dryRun.manifest ? (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        manifest: {dryRun.manifest.series} · {dryRun.manifest.title}
+                                        {dryRun.manifest.source && ` · ${dryRun.manifest.source}`}
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Không có manifest.json — không đối chiếu được gói với đề.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="rounded-md border p-2">
+                                <p className="font-medium">Số câu</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {dryRun.rows.total} dòng · <strong>{dryRun.rows.valid}</strong> sẽ tạo
+                                    {dryRun.rows.invalid > 0 && ` · ${dryRun.rows.invalid} dòng lỗi`}
+                                    {dryRun.orderIndex.min !== null &&
+                                        ` · vị trí ${dryRun.orderIndex.min}–${dryRun.orderIndex.max}`}
+                                </p>
+                            </div>
+
+                            {/* Khối đáng đọc nhất: import này PHÁ MẤT gì. */}
+                            <ReportList
+                                label="Vị trí đang có câu và SẼ BỊ THAY"
+                                items={dryRun.willReplace}
+                                tone="warn"
+                            />
+                            <ReportList
+                                label="Dòng Excel lỗi"
+                                items={dryRun.errors.map(e => `dòng ${e.row}: ${e.reason}`)}
+                                tone="warn"
+                            />
+                            <ReportList
+                                label="OrderIndex TRÙNG — dòng sau sẽ đè dòng trước"
+                                items={dryRun.orderIndex.duplicates}
+                                tone="warn"
+                            />
+                            <ReportList
+                                label="Audio gói không có — câu sẽ mất tiếng"
+                                items={dryRun.media.audioMissing}
+                                tone="warn"
+                            />
+                            <ReportList
+                                label="Ảnh gói không có"
+                                items={dryRun.media.imageMissing}
+                                tone="warn"
+                            />
+
+                            <ReportList label="Vị trí bị thiếu trong dải" items={dryRun.orderIndex.missing} />
+                            <ReportList label="File trong gói không câu nào dùng" items={dryRun.media.unusedInPackage} />
+
+                            <p className="text-xs text-muted-foreground">
+                                {dryRun.media.checked
+                                    ? `Đối chiếu media: ${dryRun.media.audioReferenced} audio, ${dryRun.media.imageReferenced} ảnh được tham chiếu.`
+                                    : dryRun.media.note}
+                            </p>
+                        </div>
+                    )}
+
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={importingPack}>Hủy</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={importingPack}
+                            onClick={(e) => {
+                                // Chặn hành vi mặc định của Radix (đóng ngay khi bấm) để hộp
+                                // thoại còn hiện được trạng thái "đang import".
+                                e.preventDefault()
+                                void handleConfirmImport()
+                            }}
+                        >
+                            {importingPack
+                                ? 'Đang import…'
+                                : dryRun?.ok
+                                    ? `Import thật (${dryRun.rows.valid} câu)`
+                                    : 'Import dù có lỗi'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

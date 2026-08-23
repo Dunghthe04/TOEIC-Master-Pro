@@ -9,7 +9,7 @@ import type {
     TestDetail,
     AddQuestionsPayload,
 } from "@/types/test.types";
-import type { TestListeningImportResult } from "@/types/question.types";
+import type { TestListeningImportResult, TestImportDryRunReport } from "@/types/question.types";
 
 export const TestService = {
     /** Danh sách đề (CM). */
@@ -66,6 +66,26 @@ export const TestService = {
             `/test/${testId}/import-listening`,
             form,
             { headers: { 'Content-Type': 'multipart/form-data' } }
+        ).then(r => r.data)
+    },
+
+    /**
+     * Chạy thử import — server kiểm gói rồi DỪNG, không ghi gì.
+     *
+     * MỤC ĐÍCH: xem trước "gói này sẽ thay câu nào, thiếu file nào" trước khi ghi vào đề.
+     * Cùng endpoint, cùng file, chỉ thêm cờ dryRun — nên chạy thử OK thì chạy thật đi đúng
+     * nhánh code đó, không phải một đường khác.
+     */
+    importListeningDryRun: (testId: string, file: File) => {
+        const form = new FormData()
+        form.append('file', file)
+        return api.post<TestImportDryRunReport>(
+            `/test/${testId}/import`,
+            form,
+            {
+                params: { dryRun: true },
+                headers: { 'Content-Type': 'multipart/form-data' },
+            }
         ).then(r => r.data)
     },
 
