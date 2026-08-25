@@ -1049,6 +1049,17 @@ export default function MockTestPlayPage() {
 
         const isPassageScreen = currentReadingItem.kind === 'passage'
 
+        // Màn CUỐI của Part cuối — đã đến câu 200, không còn màn nào phía sau.
+        //
+        // Điều kiện bám đúng theo nhánh cuối của advanceReading(): hết màn trong Part VÀ
+        // hết Part. Sai một trong hai vế là khoá nút giữa bài.
+        //
+        // Trước đây nút vẫn bấm được ở màn 15/15 và nhảy thẳng sang màn kết thúc — giao
+        // diện tự mâu thuẫn: đọc "Màn 15/15" mà vẫn mời bấm "Tiếp".
+        const isLastReadingScreen =
+            readingItemIdx + 1 >= readingItems.length &&
+            partIdx + 1 >= readingPartsOrder.length
+
         return wrapWithSubmitDialog(
             <ExamShell
                 title={play.title}
@@ -1056,7 +1067,7 @@ export default function MockTestPlayPage() {
                 answeredCount={answeredCount}
                 totalCount={totalQuestions}
                 timerSeconds={shellTimerSeconds}
-                submitControl={readingSubmitControl}
+                submitControl={submitControl}
                 wide={isPassageScreen}
                 footer={
                     <div className="flex w-full items-center justify-between gap-3">
@@ -1070,10 +1081,19 @@ export default function MockTestPlayPage() {
                             <ChevronLeft className="w-5 h-5 mr-1.5" />
                             Trước
                         </Button>
+                        {/* Đến câu cuối thì KHOÁ nút: không còn màn nào phía sau để "tiếp"
+                            tới. Ai muốn kết thúc thì bấm NỘP BÀI ở thanh trên — nút đó hiện
+                            suốt cả bài, nên khoá ở đây không chặn đường ai cả.
+
+                            Màn "Kết thúc bài thi" vì vậy không còn nằm trong luồng thi bình
+                            thường, và không mất gì: phần xem lại đáp án đầy đủ nằm ở màn KẾT
+                            QUẢ sau khi nộp (ExamResultScreen → ExamAnswerReviewPanel), có cả
+                            Part 1 lẫn đáp án đúng — nhiều hơn hẳn màn kết thúc cũ. */}
                         <Button
                             size="lg"
                             className="h-10 md:h-11 min-w-[120px] px-5 text-base"
                             onClick={advanceReading}
+                            disabled={isLastReadingScreen}
                         >
                             Tiếp
                             <ChevronRight className="w-5 h-5 ml-2" />
@@ -1299,6 +1319,66 @@ function ReadingSingleScreen({
     )
 }
 
+/**
+ * Hệ số thu nhỏ ảnh bài đọc.
+ *
+ * Ảnh được cắt từ trang PDF ở 200 DPI, nên SỐ PIXEL CỦA CHÚNG ĐÃ TỈ LỆ ĐÚNG với kích
+ * thước thật trên giấy. Chỉ cần nhân tất cả với cùng một hệ số là mọi bài đọc ra đúng
+ * một cỡ chữ — đúng như khi cầm tờ đề trên tay.
+ *
+ * 0.7 chọn theo số đo thật của đề 1: bản thông báo rộng 1143px là ảnh đang hiển thị đẹp
+ * nhất (cột rộng ~840px → đang ở tỉ lệ 0.73). Giữ nguyên cỡ đó, những ảnh còn lại tự khớp
+ * theo.
+ */
+const PassageImageScale = 0.7
+
+/**
+ * Ảnh bài đọc Part 6–7 — hiện ở TỈ LỆ CỐ ĐỊNH, không kéo giãn cho vừa cột.
+ *
+ * 🔴 LỖI CŨ: ảnh dùng `w-full`, tức mọi ảnh đều bị kéo cho bằng bề ngang cột (~840px)
+ * bất kể nó rộng bao nhiêu. Số đo thật của đề 1 cho thấy hậu quả:
+ *
+ *   thông báo 147-148   1143px → 840px   thu nhỏ 0.73×   ✅ đẹp
+ *   tin nhắn  149-150    813px → 840px   PHÓNG TO 1.03×  ❌ chữ to
+ *   bài báo   153-154    555px → 840px   PHÓNG TO 1.51×  ❌ chữ rất to, lại còn mờ
+ *
+ * Ảnh càng HẸP thì càng bị phóng to — mà ảnh hẹp chính là mấy ảnh dọc (điện thoại, cột
+ * báo). Cùng một cỡ chữ trên giấy in mà ra ba cỡ khác nhau trên màn hình, và ảnh bị
+ * phóng quá 100% thì vỡ nét vì không có thêm pixel nào để phóng.
+ *
+ * CÁCH SỬA: nhân bề ngang thật với <see cref="PassageImageScale"/> — một hệ số DÙNG CHUNG
+ * cho mọi ảnh. Không bao giờ phóng to quá kích thước thật, nên không còn ảnh mờ.
+ *
+ * `max-w-full` vẫn giữ: ảnh nào sau khi thu nhỏ vẫn rộng hơn cột thì thu tiếp cho vừa,
+ * không tràn ngang.
+ */
+function PassageImage({ url, bordered }: { url: string; bordered: boolean }) {
+    const [width, setWidth] = useState<number>()
+
+    // Đọc bề ngang thật ngay khi ảnh sẵn sàng. Cần CẢ hai đường: onLoad cho ảnh tải mới,
+    // và ref cho ảnh đã nằm sẵn trong cache trình duyệt — ảnh cache có thể xong TRƯỚC khi
+    // React kịp gắn onLoad, và khi đó sự kiện không bao giờ bắn.
+    const measure = useCallback((el: HTMLImageElement | null) => {
+        if (el?.complete && el.naturalWidth > 0) {
+            setWidth(el.naturalWidth * PassageImageScale)
+        }
+    }, [])
+
+    return (
+        <img
+            ref={measure}
+            src={getMediaUrl(url)}
+            alt="Bài đọc"
+            onLoad={(e) => setWidth(e.currentTarget.naturalWidth * PassageImageScale)}
+            style={width ? { width } : undefined}
+            // mx-auto: ảnh hẹp giờ không lấp kín cột nữa, để lệch trái thì phần trắng dồn
+            // hết sang phải, trông như lỗi tràn. Căn giữa thì khoảng trắng chia đều hai bên
+            // và đọc ra là có chủ ý.
+            className={`block mx-auto max-w-full h-auto bg-white ${bordered ? 'border-2 border-slate-800' : ''}`}
+        />
+    )
+}
+
 /** Part 6–7 — passage/ảnh trái, nhóm câu phải */
 function ReadingPassageScreen({
     passage,
@@ -1353,14 +1433,10 @@ function ReadingPassageScreen({
                                     }`}
                             >
                                 {imageUrls.map((url) => (
-                                    <img
+                                    <PassageImage
                                         key={url}
-                                        src={getMediaUrl(url)}
-                                        alt="Bài đọc"
-                                        className={`block w-full max-w-full h-auto bg-white ${multiImage
-                                                ? ''
-                                                : 'border-2 border-slate-800'
-                                            }`}
+                                        url={url}
+                                        bordered={!multiImage}
                                     />
                                 ))}
                             </div>
