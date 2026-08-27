@@ -32,12 +32,21 @@ public class DashboardService : IDashboardService
             .OrderByDescending(s => s.CompletedAt ?? s.StartedAt)
             .FirstOrDefault();
 
-        // ── Câu sai: lấy theo lần làm GẦN NHẤT của từng câu ──
+        // ── Câu sai: đọc từ SỔ TAY LỖI SAI ──
         //
-        // Vì sao không đếm mọi lần sai: làm lại đề cũ và sửa được câu 104 thì câu đó KHÔNG
-        // còn là lỗi sai nữa. Cộng dồn mọi lần sai thì sổ tay chỉ phình ra, không bao giờ
-        // vơi đi — và một danh sách không bao giờ vơi thì không ai buồn mở.
-        var (wrongByPart, wrongTotal, skippedTotal) = await CountMistakesAsync(sessions);
+        // 🔴 TRƯỚC ĐÂY TÍNH LẠI TỪ TestSessionAnswers, giờ không nữa. Bảng
+        // UserQuestionReviews đã là nguồn duy nhất cho "câu tôi làm sai" — nó biết thêm
+        // hai thứ mà bảng trả lời không biết: người học đã luyện lại đúng mấy lần, và đã
+        // tự bấm "đã hiểu" chưa.
+        //
+        // Giữ hai nơi đếm theo hai cách thì chúng SẼ lệch nhau — người dùng gỡ một câu ở
+        // sổ tay mà khối HÔM NAY vẫn đếm nó, và không ai biết con số nào đúng.
+        var (wrongByPart, wrongTotal) = await CountFromNotebookAsync(userId);
+
+        // Câu bỏ trống vẫn tính từ bảng trả lời: chúng KHÔNG vào sổ tay (xem chú thích ở
+        // UserQuestionReview), nhưng vẫn cần hiện làm ghi chú để người dùng hiểu vì sao
+        // con số "câu sai" nhỏ hơn nhiều so với số câu họ nhớ là mình bỏ trống.
+        var skippedTotal = await CountSkippedAsync(sessions);
 
         // ── Thẻ từ đến hạn ──
         var today = DateTime.UtcNow.Date;
@@ -87,43 +96,26 @@ public class DashboardService : IDashboardService
     }
 
     /// <summary>
-    /// Đếm câu sai / câu bỏ trống theo LẦN LÀM GẦN NHẤT của mỗi câu.
+    /// Đếm câu chưa gỡ trong SỔ TAY LỖI SAI, kèm phân bố theo Part.
     ///
-    /// Dùng thẳng cờ <c>TestSessionAnswer.IsCorrect</c> thay vì tính lại từ QuestionOptions:
-    /// đã đối chiếu trên toàn bộ 2.300 dòng dữ liệu thật — 97 câu đúng, **0 câu lệch**. Cờ
-    /// đó đáng tin, và tính lại thì phải nạp thêm hai bảng cho mỗi lần mở Dashboard.
+    /// Đọc thẳng bảng UserQuestionReviews thay vì tính lại từ lịch sử trả lời — bảng đó
+    /// đã là nguồn duy nhất, và nó biết thêm việc người học đã gỡ câu nào.
     /// </summary>
-    private async Task<(List<WrongByPartItem> ByPart, int Wrong, int Skipped)> CountMistakesAsync(
-        List<TestSession> sessions)
+    private async Task<(List<WrongByPartItem> ByPart, int Wrong)> CountFromNotebookAsync(Guid userId)
     {
-        if (sessions.Count == 0) return ([], 0, 0);
-
-        var sessionIds = sessions.Select(s => s.Id).ToList();
-        var answers = (await _uow.Repository<TestSessionAnswer>()
-                .FindAsync(a => sessionIds.Contains(a.SessionId)))
+        var rows = (await _uow.Repository<UserQuestionReview>()
+                .FindAsync(r => r.UserId == userId && !r.IsResolved))
             .ToList();
 
-        if (answers.Count == 0) return ([], 0, 0);
+        if (rows.Count == 0) return ([], 0);
 
-        // Thời điểm của từng phiên — để biết đâu là lần làm gần nhất của một câu.
-        var sessionTime = sessions.ToDictionary(s => s.Id, s => s.CompletedAt ?? s.StartedAt);
-
-        var latestPerQuestion = answers
-            .GroupBy(a => a.QuestionId)
-            .Select(g => g.OrderByDescending(a => sessionTime.GetValueOrDefault(a.SessionId)).First())
-            .ToList();
-
-        var wrongIds = latestPerQuestion
-            .Where(a => a.SelectedOptionId != null && !a.IsCorrect)
-            .Select(a => a.QuestionId)
-            .ToList();
-
-        var skipped = latestPerQuestion.Count(a => a.SelectedOptionId == null);
-
-        if (wrongIds.Count == 0) return ([], 0, skipped);
-
-        // Part nằm ở bảng Question, không có trong bảng trả lời — phải nạp thêm một lượt.
-        var questions = await _uow.Repository<Question>().FindAsync(q => wrongIds.Contains(q.Id));
+        // Part nằm ở bảng Question, không có trong sổ tay — nạp thêm một lượt.
+        //
+        // KHÔNG nhân bản cột Part sang UserQuestionReviews cho tiện: Part của một câu là
+        // thuộc tính của CÂU, không phải của lần học. Chép ra thì có hai bản, và bản chép
+        // sẽ sai vào ngày ai đó sửa Part của câu gốc.
+        var qIds = rows.Select(r => r.QuestionId).ToList();
+        var questions = await _uow.Repository<Question>().FindAsync(q => qIds.Contains(q.Id));
 
         var byPart = questions
             .GroupBy(q => (int)q.Part)
@@ -131,6 +123,31 @@ public class DashboardService : IDashboardService
             .OrderBy(x => x.Part)
             .ToList();
 
-        return (byPart, wrongIds.Count, skipped);
+        return (byPart, rows.Count);
+    }
+
+    /// <summary>
+    /// Đếm câu BỎ TRỐNG ở lần làm gần nhất.
+    ///
+    /// Vẫn tính từ bảng trả lời chứ không từ sổ tay, vì câu bỏ trống cố ý KHÔNG vào sổ tay
+    /// — xem chú thích ở <c>UserQuestionReview</c>. Con số này chỉ dùng làm ghi chú.
+    /// </summary>
+    private async Task<int> CountSkippedAsync(List<TestSession> sessions)
+    {
+        if (sessions.Count == 0) return 0;
+
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        var answers = (await _uow.Repository<TestSessionAnswer>()
+                .FindAsync(a => sessionIds.Contains(a.SessionId)))
+            .ToList();
+
+        if (answers.Count == 0) return 0;
+
+        var sessionTime = sessions.ToDictionary(s => s.Id, s => s.CompletedAt ?? s.StartedAt);
+
+        return answers
+            .GroupBy(a => a.QuestionId)
+            .Select(g => g.OrderByDescending(a => sessionTime.GetValueOrDefault(a.SessionId)).First())
+            .Count(a => a.SelectedOptionId == null);
     }
 }

@@ -420,6 +420,11 @@ public class TestSessionService : ITestSessionService
         var readingTotal = 0;
         var partStats = new Dictionary<int, (int Correct, int Total, int Skipped)>();
 
+        // Gom cho SỔ TAY LỖI SAI. Chỉ gom ở đây, ghi một lượt sau vòng lặp — ghi từng câu
+        // trong vòng lặp là 200 lượt truy vấn cho một lần nộp bài.
+        var wrongIds = new List<Guid>();
+        var correctIds = new List<Guid>();
+
         foreach (var (tq, q) in scopeQuestions)
         {
             var opts = optByQ.GetValueOrDefault(q.Id) ?? [];
@@ -434,6 +439,11 @@ public class TestSessionService : ITestSessionService
             if (isSkipped) skippedTotal++;
             var isCorrect = !isSkipped && selectedId == correctOpt.Id;
             if (isCorrect) correctTotal++;
+
+            // Câu BỎ TRỐNG không vào cả hai danh sách: nó không phải lỗi sai (để vào sổ
+            // tay), cũng không phải bằng chứng đã hiểu (để tăng chuỗi đúng).
+            if (isCorrect) correctIds.Add(q.Id);
+            else if (!isSkipped) wrongIds.Add(q.Id);
 
             // Tách Listening (1–4) vs Reading (5–7) để tính điểm section
             var partNum = (int)q.Part;
@@ -514,6 +524,9 @@ public class TestSessionService : ITestSessionService
         session.TotalScore = totalScore;
         session.SetUpdatedAt();
         _uow.Repository<TestSession>().Update(session);
+
+        await UpdateReviewNotebookAsync(userId, wrongIds, correctIds, completedAt);
+
         await _uow.SaveChangesAsync();
 
         return Result<TestSessionSubmitResponse>.Success(new TestSessionSubmitResponse(
@@ -528,6 +541,74 @@ public class TestSessionService : ITestSessionService
             partBreakdown,
             reviews
         ));
+    }
+
+    /// <summary>
+    /// Cập nhật SỔ TAY LỖI SAI sau khi chấm xong một bài.
+    ///
+    /// ─── VÌ SAO GHI Ở ĐÂY, KHÔNG PHẢI TÍNH LẠI KHI ĐỌC ─────────────────────────────
+    ///
+    /// Danh sách câu sai suy được từ TestSessionAnswers, nhưng chuỗi trả lời đúng và cờ
+    /// "đã hiểu" thì không — chúng là trạng thái tích luỹ, phải ghi lại tại thời điểm
+    /// xảy ra. Đây chính là thời điểm đó.
+    ///
+    /// ─── HAI CHIỀU, KHÔNG PHẢI MỘT ────────────────────────────────────────────────
+    ///
+    /// Sai  → vào sổ tay, hoặc nếu đã có thì cộng WrongCount và ĐẶT LẠI chuỗi đúng về 0.
+    ///        Kể cả câu đã được gỡ (IsResolved) cũng quay lại — đã gỡ rồi mà sai lại thì
+    ///        rõ ràng là chưa thật sự hiểu.
+    ///
+    /// Đúng → nếu câu đang trong sổ tay thì tăng chuỗi đúng; đủ ResolveStreak thì GỠ.
+    ///        Câu chưa từng sai thì không làm gì — không tạo dòng mới cho câu làm đúng,
+    ///        nếu không bảng sẽ phình bằng đúng số câu người dùng từng gặp.
+    ///
+    /// 🔴 Trả lời đúng trong BÀI THI cũng tính vào chuỗi, không chỉ trong chế độ luyện
+    /// lại. Bằng chứng "đã hiểu câu này" là như nhau, mà bắt phải luyện riêng mới được
+    /// gỡ thì sổ tay giữ lại những câu người học đã thật sự nắm được.
+    /// </summary>
+    /// <param name="at">Thời điểm nộp bài — dùng làm LastWrongAt để xếp câu mới sai lên đầu.</param>
+    private async Task UpdateReviewNotebookAsync(
+        Guid userId, List<Guid> wrongIds, List<Guid> correctIds, DateTime at)
+    {
+        if (wrongIds.Count == 0 && correctIds.Count == 0) return;
+
+        // Nạp MỘT lượt cho cả hai chiều. Truy vấn từng câu là 200 lượt cho một lần nộp.
+        var touched = wrongIds.Concat(correctIds).Distinct().ToList();
+        var existing = (await _uow.Repository<UserQuestionReview>()
+                .FindAsync(r => r.UserId == userId && touched.Contains(r.QuestionId)))
+            .ToDictionary(r => r.QuestionId);
+
+        foreach (var qid in wrongIds)
+        {
+            // nếu câu đó xuất hiện tại trong các câu sai
+            if (existing.TryGetValue(qid, out var row))
+            {
+                // Luật nằm trên entity, không viết lại ở đây — xem UserQuestionReview.
+                row.RecordWrong(at);
+                _uow.Repository<UserQuestionReview>().Update(row);
+            }
+            else
+            {
+                //chưa xuất hiện trong câu sai ==> thêm vào 
+                await _uow.Repository<UserQuestionReview>().AddAsync(new UserQuestionReview
+                {
+                    UserId = userId,
+                    QuestionId = qid,
+                    WrongCount = 1,
+                    LastWrongAt = at,
+                });
+            }
+        }
+
+        //update các câu đúng
+        foreach (var qid in correctIds)
+        {
+            // Không có trong sổ tay = chưa từng sai câu này. Không tạo dòng mới.
+            if (!existing.TryGetValue(qid, out var row)) continue;
+
+            row.RecordCorrect();
+            _uow.Repository<UserQuestionReview>().Update(row);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════

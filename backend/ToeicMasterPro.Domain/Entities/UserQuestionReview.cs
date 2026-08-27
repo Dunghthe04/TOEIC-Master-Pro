@@ -70,4 +70,73 @@ public class UserQuestionReview : BaseEntity
 
     public ApplicationUser User { get; set; } = null!;
     public Question Question { get; set; } = null!;
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Luật cộng chuỗi — ĐỂ Ở ĐÂY, không để trong service
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //
+    // 🔴 VÌ SAO: có ĐÚNG HAI nơi ghi vào bảng này, và chúng nằm ở hai service khác nhau:
+    //
+    //     TestSessionService.UpdateReviewNotebookAsync   ← khi NỘP BÀI THI
+    //     ReviewNotebookService.AnswerAsync              ← khi LUYỆN LẠI trong sổ tay
+    //
+    // Trước đây mỗi nơi tự viết luật, và hai bản giống hệt nhau. Đó là luật nghiệp vụ bị
+    // chép hai bản: đổi ngưỡng gỡ câu, hay thêm quy tắc mới, là phải nhớ sửa cả hai. Quên
+    // một nơi thì "luyện lại" và "thi thật" hành xử khác nhau — mà KHÔNG có gì báo, vì cả
+    // hai đều biên dịch được và đều chạy.
+    //
+    // Đưa về entity thì luật nằm cạnh chính hằng ResolveStreak nó dùng, và không còn hai
+    // bản để lệch.
+
+    /// <summary>
+    /// Ghi nhận một lần TRẢ LỜI SAI.
+    ///
+    /// Dùng chung cho cả bài thi lẫn luyện lại — bằng chứng "chưa hiểu" là như nhau, nên
+    /// phản ứng phải như nhau.
+    /// </summary>
+    /// <param name="at">Thời điểm sai — dùng để xếp câu mới sai lên đầu sổ tay.</param>
+    public void RecordWrong(DateTime at)
+    {
+        WrongCount++;
+        CorrectStreak = 0;
+
+        // Đã gỡ rồi mà sai lại thì rõ ràng là chưa thật sự hiểu — cho quay lại sổ tay.
+        IsResolved = false;
+
+        LastWrongAt = at;
+        SetUpdatedAt();
+    }
+
+    /// <summary>
+    /// Ghi nhận một lần TRẢ LỜI ĐÚNG. Đủ <see cref="ResolveStreak"/> lần liên tiếp thì câu
+    /// tự rời sổ tay.
+    ///
+    /// Câu đã gỡ thì không làm gì: chuỗi đúng chỉ có nghĩa với câu còn trong sổ tay, và để
+    /// nó cộng tiếp là tích một con số không ai đọc.
+    /// </summary>
+    public void RecordCorrect()
+    {
+        if (IsResolved) return;
+
+        CorrectStreak++;
+        if (CorrectStreak >= ResolveStreak) IsResolved = true;
+        SetUpdatedAt();
+    }
+
+    /// <summary>
+    /// Người học tự bấm "Đã hiểu" — gỡ ngay, không cần đúng đủ <see cref="ResolveStreak"/> lần.
+    ///
+    /// VÌ SAO CHO PHÉP: người học biết rõ hơn máy. Có câu chỉ sai vì bấm nhầm, hoặc đọc lời
+    /// giải một lượt là hiểu ngay — bắt luyện thêm hai lần nữa là phí thời gian, và họ sẽ bỏ
+    /// qua cả sổ tay chứ không chỉ câu đó.
+    ///
+    /// KHÔNG đặt <see cref="CorrectStreak"/> lên ngưỡng: chuỗi đúng là số lần TRẢ LỜI ĐÚNG
+    /// thật sự. Bịa ra một chuỗi không có thật thì con số đó hết ý nghĩa, mà nếu sau này câu
+    /// quay lại sổ tay thì nó mang theo một quá khứ sai.
+    /// </summary>
+    public void MarkUnderstood()
+    {
+        IsResolved = true;
+        SetUpdatedAt();
+    }
 }
