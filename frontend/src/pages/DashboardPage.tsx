@@ -27,6 +27,9 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 import ExamPartBreakdownPanel from '@/components/exam/ExamPartBreakdownPanel'
+import TodayPanel from '@/components/dashboard/TodayPanel'
+import { DashboardService } from '@/services/dashboard.service'
+import type { TodayPlanResponse } from '@/types/test-session.types'
 import { TestSessionService } from '@/services/test-session.service'
 import type {
     TestStatsOverviewResponse,
@@ -213,6 +216,14 @@ export default function DashboardPage() {
     const [overview, setOverview] = useState<TestStatsOverviewResponse>(EMPTY_OVERVIEW)
     const [timeline, setTimeline] = useState<TestStatsTimelineResponse>(EMPTY_TIMELINE)
     const [partsStats, setPartsStats] = useState<TestStatsPartsResponse>(EMPTY_PARTS)
+    /**
+     * Khối HÔM NAY — null khi chưa tải xong HOẶC khi gọi hỏng.
+     *
+     * 🔴 KHÔNG dùng chung `loadError` với phần thống kê bên dưới. Đây là khối MỚI thêm;
+     * nếu nó hỏng mà kéo cả Dashboard vào trạng thái lỗi thì một tính năng phụ đánh sập
+     * ba biểu đồ vốn đang chạy tốt. Hỏng thì im lặng không hiện, phần còn lại vẫn nguyên.
+     */
+    const [today, setToday] = useState<TodayPlanResponse | null>(null)
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(false)
     /** false = gồm thi theo part — giống Tiến độ thi */
@@ -230,6 +241,15 @@ export default function DashboardPage() {
             setOverview(overviewData)
             setTimeline(timelineData)
             setPartsStats(partsData)
+
+            // Gọi RIÊNG, ngoài Promise.all ở trên và có catch riêng.
+            //
+            // Nếu gộp vào Promise.all thì một lỗi ở endpoint mới làm cả ba biểu đồ cũ
+            // không hiện — đúng kiểu hỏng mà tôi vừa gặp hôm qua khi thiếu cột Transcript
+            // làm sập cả trang. Khối phụ không được phép kéo theo phần chính.
+            DashboardService.getToday()
+                .then(setToday)
+                .catch(() => setToday(null))
         } catch {
             setLoadError(true)
             toast.error('Không tải được dashboard. Vui lòng thử lại.')
@@ -284,6 +304,11 @@ export default function DashboardPage() {
                         </span>
                         ! Tổng quan tiến độ luyện thi TOEIC.
                     </p>
+
+                    {/* Bộ lọc "Tất cả lần thi / Chỉ full" — chỉ ảnh hưởng THỐNG KÊ bên dưới.
+                        Khối HÔM NAY không nghe theo bộ lọc này: câu bạn làm sai trong một
+                        phiên luyện Part 5 vẫn là câu bạn làm sai. Lọc nó đi thì việc cần làm
+                        biến mất mà không có lý do nào người dùng hiểu được. */}
                     <div className="flex flex-wrap gap-2 pt-1">
                         <Button
                             type="button"
@@ -305,6 +330,15 @@ export default function DashboardPage() {
                         </Button>
                     </div>
                 </div>
+
+                {/* ── HÔM NAY ──
+                    Đặt TRÊN mọi thứ khác vì nó là thứ duy nhất trên trang trả lời câu hỏi
+                    "giờ tôi làm gì". Các thẻ và biểu đồ bên dưới trả lời "tôi đã đến đâu" —
+                    quan trọng, nhưng không phải thứ cần đọc trước.
+
+                    Không nằm trong nhánh `loading`: nó có vòng tải riêng và hỏng riêng, nên
+                    hiện ngay khi có dữ liệu thay vì chờ ba biểu đồ kia. */}
+                {today && <TodayPanel plan={today} />}
 
                 {loading ? (
                     <p className="py-12 text-center text-sm text-muted-foreground">

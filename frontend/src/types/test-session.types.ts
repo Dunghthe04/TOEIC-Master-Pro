@@ -246,3 +246,42 @@ export interface ActiveTestSession {
     questionCount: number
     readingSecondsLeft: number | null
 }
+
+// ── Dashboard: khối "HÔM NAY" ───────────────────────────────────────────────
+
+/** Số câu sai của một Part — để hiện "Part 5 · 12 câu". */
+export interface WrongByPartItem {
+    part: number
+    count: number
+}
+
+/**
+ * GET /api/dashboard/today — việc nên làm hôm nay.
+ *
+ * Khối này trả lời câu hỏi duy nhất người học mở web lên để hỏi: "hôm nay tôi làm gì?".
+ * Các thẻ và biểu đồ bên dưới trả lời câu khác — "tôi đã đi được đến đâu".
+ */
+export interface TodayPlanResponse {
+    targetScore: number
+    /** Điểm lần thi FULL gần nhất. null = chưa thi lần nào. */
+    latestScore: number | null
+    examDate: string | null
+    /** Số tuần còn lại tới ngày thi, làm tròn LÊN. null = chưa khai ngày thi. */
+    weeksLeft: number | null
+
+    /**
+     * Số câu ĐÃ CHỌN nhưng chọn sai, tính theo lần làm gần nhất của mỗi câu.
+     * KHÔNG gồm câu bỏ trống — xem `skippedTotal`.
+     */
+    wrongTotal: number
+    wrongByPart: WrongByPartItem[]
+    /** Câu bỏ trống ở lần làm gần nhất. Tách riêng vì bản chất khác câu chọn sai. */
+    skippedTotal: number
+
+    vocabDue: number
+    /** Đã nộp bài nào trong tuần này chưa (tính từ thứ Hai). */
+    testedThisWeek: boolean
+
+    suggestedTestId: string | null
+    suggestedTestTitle: string | null
+}
