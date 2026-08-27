@@ -21,6 +21,7 @@ public class ApplicationDbContext
     public DbSet<TestSessionAnswer> TestSessionAnswers => Set<TestSessionAnswer>();
     public DbSet<Vocabulary> Vocabularies => Set<Vocabulary>();
     public DbSet<UserVocabulary> UserVocabularies => Set<UserVocabulary>();
+    public DbSet<UserQuestionReview> UserQuestionReviews => Set<UserQuestionReview>();
     public DbSet<ExamSchedule> ExamSchedules => Set<ExamSchedule>();
     public DbSet<UserExamReminder> UserExamReminders => Set<UserExamReminder>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
