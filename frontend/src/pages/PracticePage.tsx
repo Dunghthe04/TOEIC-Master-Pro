@@ -75,6 +75,21 @@ async function prefetchMediaForItems(items: ReviewQuestionItem[]): Promise<void>
     await Promise.all([...testIds].map((id) => prefetchMediaToken(id)))
 }
 
+/**
+ * Nhãn số câu trên đầu mỗi đề.
+ *
+ * 🔴 Phải nói rõ "đang hiện 20 / 27", không được ghi trơ mỗi "20 câu": chip trên thanh
+ * lọc ghi 27 (tổng thật của đề) còn tiêu đề ghi 20 (số đã tải) thì hai con số đá nhau,
+ * và người đọc không biết tin cái nào — cũng không đoán được 7 câu kia đi đâu.
+ *
+ * 🔴 Nhưng khi ĐANG LỌC PART thì bỏ mẫu số đi. `byTest.count` đếm cả đề, mọi Part; ghi
+ * "12 / 27" trong lúc lọc Part 6 là đem số câu Part 6 chia cho tổng cả đề.
+ */
+function groupCountLabel(shown: number, testTotal: number | undefined, partFiltered: boolean) {
+    if (partFiltered || !testTotal || testTotal <= shown) return `${shown} câu`
+    return `đang hiện ${shown} / ${testTotal} câu`
+}
+
 /** Đọc ?part=N từ URL — khối HÔM NAY deep-link thẳng vào Part yếu nhất. */
 function partFromUrl(raw: string | null): number | null {
     const n = Number(raw)
@@ -87,6 +102,7 @@ export default function PracticePage() {
     const [testId, setTestId] = useState<string | null>(null)
     const [data, setData] = useState<ReviewNotebookResponse>(EMPTY)
     const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -111,6 +127,33 @@ export default function PracticePage() {
     useEffect(() => {
         load()
     }, [load])
+
+    /**
+     * Lấy thêm một trang, NỐI vào cuối chứ không thay.
+     *
+     * Không có nút này thì các câu từ 21 trở đi không có đường nào tới được: lọc theo đề
+     * cũng vô ích vì một đề đã 27 câu. Bảo người học "gỡ bớt rồi tải lại" là bắt họ gỡ
+     * những câu chưa kịp xem để xem được câu khác.
+     */
+    const loadMore = async () => {
+        setLoadingMore(true)
+        try {
+            const res = await ReviewService.getQuestions({
+                part: part ?? undefined,
+                testId: testId ?? undefined,
+                skip: data.items.length,
+                take: PAGE_SIZE,
+            })
+            await prefetchMediaForItems(res.items)
+            // Giữ items cũ, chỉ nối phần mới. Thay cả mảng thì trang nhảy về đầu và câu
+            // đang đọc dở biến mất.
+            setData((d) => ({ ...res, items: [...d.items, ...res.items] }))
+        } catch {
+            toast.error('Không tải thêm được. Thử lại.')
+        } finally {
+            setLoadingMore(false)
+        }
+    }
 
     const groups = useMemo(() => groupByTest(data.items), [data.items])
     const hasFilter = part !== null || testId !== null
@@ -235,7 +278,11 @@ export default function PracticePage() {
                                 <h2 className="sticky top-16 z-20 -mx-1 flex items-center justify-between gap-2 rounded-lg bg-[#eef2f6]/95 px-3 py-2 text-sm font-bold text-[#1a4d7c] backdrop-blur">
                                     <span className="truncate">{g.title}</span>
                                     <span className="shrink-0 text-xs font-medium tabular-nums text-slate-500">
-                                        {g.clusters.reduce((n, c) => n + c.items.length, 0)} câu
+                                        {groupCountLabel(
+                                            g.clusters.reduce((n, c) => n + c.items.length, 0),
+                                            data.byTest.find((t) => t.testId === g.testId)?.count,
+                                            part !== null
+                                        )}
                                     </span>
                                 </h2>
 
@@ -254,10 +301,19 @@ export default function PracticePage() {
                             Dùng `matched` chứ không phải `total`: đang lọc Part 7 mà so với
                             tổng 28 câu thì con số hiện ra là sai. */}
                         {data.matched > data.items.length && (
-                            <p className="py-4 text-center text-sm text-muted-foreground">
-                                Đang hiện {data.items.length} trong {data.matched} câu. Gỡ bớt rồi
-                                tải lại, hoặc lọc theo đề để xem phần còn lại.
-                            </p>
+                            <div className="flex flex-col items-center gap-2 py-4">
+                                <p className="text-sm text-muted-foreground">
+                                    Đang hiện {data.items.length} trong {data.matched} câu.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={loadMore}
+                                    disabled={loadingMore}
+                                    className="rounded-full border border-[#1a4d7c] px-4 py-1.5 text-sm font-semibold text-[#1a4d7c] transition-colors hover:bg-[#1a4d7c] hover:text-white disabled:opacity-50"
+                                >
+                                    {loadingMore ? 'Đang tải…' : 'Xem thêm'}
+                                </button>
+                            </div>
                         )}
                     </div>
                 )}
