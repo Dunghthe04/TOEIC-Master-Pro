@@ -54,8 +54,15 @@ export type ReadingItem =
 /**
  * Khóa nhóm Part 6–7.
  * Ưu tiên Passage (kể cả mã nhóm "151-154") để nhiều ảnh/câu gộp 1 unit.
+ *
+ * Nhận kiểu theo CẤU TRÚC chứ không phải `PlayQuestion`: sổ tay lỗi sai có kiểu câu
+ * riêng (`ReviewQuestionItem`) nhưng phải chia cụm y hệt màn thi. Nới kiểu ở đây rẻ hơn
+ * nhiều so với để hai nơi giữ hai bản quy tắc gom nhóm rồi lệch nhau.
  */
-function readingGroupKey(q: PlayQuestion): string | null {
+export function readingGroupKey(q: {
+    passage?: string | null
+    imageUrl?: string | null
+}): string | null {
     const passage = q.passage?.trim()
     if (passage) return `pass:${passage}`
     const image = q.imageUrl?.trim()

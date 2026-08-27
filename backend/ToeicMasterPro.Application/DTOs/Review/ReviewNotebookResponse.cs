@@ -12,14 +12,32 @@ namespace ToeicMasterPro.Application.DTOs.Review;
 /// Cũng KHÔNG phụ thuộc bộ lọc: lọc sang Part 5 rồi mà thanh lọc chỉ còn Part 5 thì
 /// người dùng không quay lại được chỗ cũ.
 /// </param>
+/// <param name="ByTest">
+/// Số câu chưa gỡ theo từng ĐỀ, đề vừa thi gần nhất đứng trước.
+///
+/// Sổ tay gom câu sai của MỌI đề vào một danh sách. Không nói câu nào của đề nào thì
+/// người học nhìn vào chỉ thấy một đống bài đọc trông na ná nhau — muốn xem lại đúng đề
+/// vừa thi thì phải cuộn và tự đoán. Cũng KHÔNG phụ thuộc bộ lọc, cùng lý do với ByPart.
+/// </param>
+/// <param name="Matched">
+/// Số câu KHỚP BỘ LỌC đang chọn — khác <paramref name="Total"/>.
+///
+/// Cần cả hai con số: Total để thanh lọc "Tất cả" hiện đúng, Matched để câu "đang hiện 20
+/// trong N" không nói dối khi đang lọc một Part hoặc một đề.
+/// </param>
 /// <param name="Items">Các câu của trang hiện tại.</param>
 public record ReviewNotebookResponse(
     int Total,
     IReadOnlyList<ReviewPartCount> ByPart,
+    IReadOnlyList<ReviewTestCount> ByTest,
+    int Matched,
     IReadOnlyList<ReviewQuestionItem> Items
 );
 
 public record ReviewPartCount(int Part, int Count);
+
+/// <summary>Một đề có mặt trong sổ tay, kèm số câu chưa gỡ của đề đó.</summary>
+public record ReviewTestCount(Guid TestId, string Title, int Count);
 
 /// <summary>
 /// Một câu trong sổ tay.
@@ -41,8 +59,22 @@ public record ReviewPartCount(int Part, int Count);
 /// Đang đúng liên tiếp mấy lần. Hiện dạng "1/2" để người học thấy mình sắp gỡ được câu —
 /// một danh sách có thể vơi đi thì mới có người theo đuổi.
 /// </param>
+/// <param name="TestId">
+/// Đề chứa câu này. Null khi câu đã bị gỡ khỏi mọi đề nhưng vẫn còn trong sổ tay —
+/// vẫn trả về để người học luyện được, chỉ là không xếp vào nhóm đề nào.
+/// </param>
+/// <param name="TestTitle">Tên đề — để hiện trên đầu nhóm, khỏi phải gọi thêm API.</param>
+/// <param name="QuestionNumber">
+/// Số câu TRONG ĐỀ (1–200), lấy từ <c>TestQuestion.OrderIndex</c>.
+///
+/// Đây mới là thứ người học nhớ được. Họ không nhớ GUID, cũng không nhớ nội dung câu —
+/// họ nhớ "câu 147 mình phân vân mãi". Có số câu thì đối chiếu được với đề giấy.
+/// </param>
 public record ReviewQuestionItem(
     Guid QuestionId,
+    Guid? TestId,
+    string? TestTitle,
+    int? QuestionNumber,
     QuestionPart Part,
     string Content,
     string? AudioUrl,

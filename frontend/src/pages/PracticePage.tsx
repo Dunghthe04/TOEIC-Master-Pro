@@ -1,364 +1,350 @@
-// Luyện nhanh (PHỤ) — random từ kho Question / API Day 25.
-// Luồng chính thi thử từ đề import nằm ở /mock-test (Exam Engine Day 26+).
-import { useEffect, useMemo, useState } from 'react'
+/**
+ * SỔ TAY LỖI SAI — thay cho màn "Luyện nhanh" cũ.
+ *
+ * ─── VÌ SAO THAY ────────────────────────────────────────────────────────────────────
+ *
+ * Màn cũ có ĐÚNG 0 phiên sau nhiều tháng (`PracticeSessions` rỗng trơn). Lý do không
+ * phải giao diện xấu: nó bắt người dùng trả lời ba câu hỏi họ không biết trả lời thế
+ * nào — Part nào? Độ khó nào? Mấy câu? — trước khi cho được giá trị gì.
+ *
+ * Người học không nghĩ "hôm nay tôi muốn 10 câu Part 1 độ khó trung bình". Họ nghĩ
+ * "tôi yếu chỗ nào?". Mà hệ thống đã biết câu trả lời từ lâu: 2.300 câu trả lời nằm
+ * trong `TestSessionAnswers`, chưa dùng vào việc gì.
+ *
+ * "Luyện nhanh" là một HÀNH ĐỘNG — phải tự chọn rồi mới có gì làm.
+ * "Sổ tay lỗi sai" là một NƠI CHỐN — mở ra là đã có sẵn nội dung của chính mình.
+ *
+ * ─── XẾP THEO ĐỀ, KHÔNG PHẢI MỘT DANH SÁCH PHẲNG ────────────────────────────────────
+ *
+ * Bản đầu đổ tất cả câu sai của mọi đề vào một danh sách phẳng, xếp theo "sai nhiều lần
+ * lên trước". Người dùng báo lại: "tìm khá lâu". Đúng — các bài đọc Part 7 chiếm gần
+ * trọn màn hình và nhìn na ná nhau, nên danh sách phẳng không có mốc nào để định vị:
+ * cuộn ba vòng vẫn không biết mình đang ở đề nào, câu số mấy.
+ *
+ * Giờ sổ tay được chép theo đúng cách người ta chép tay: theo từng đề, trong mỗi đề xếp
+ * theo số câu tăng dần, tên đề dính trên đỉnh màn hình khi cuộn. Thêm hai thanh lọc
+ * (đề / Part) để nhảy thẳng, khỏi cuộn.
+ *
+ * ─── VÀ THEO CỤM, KHÔNG LẶP ĐỀ BÀI ──────────────────────────────────────────────────
+ *
+ * Trong một đề, câu Part 6–7 lại dùng chung bài đọc. Vẽ mỗi câu một thẻ thì cụm 131–134
+ * hiện CÙNG một ảnh bốn lần. Nên câu được gom thành cụm (`buildClusters`) và mỗi cụm vẽ
+ * hai cột: đề bài một lần bên trái, các câu bên phải. Xem `ReviewClusterCard`.
+ *
+ * ─── GIỮ NGUYÊN ĐƯỜNG DẪN /practice ─────────────────────────────────────────────────
+ *
+ * Không đổi sang /review dù tên đã khác: khối HÔM NAY trên Dashboard và deep-link
+ * `?part=N` đều đang trỏ vào đây. Đổi đường dẫn là vỡ chúng, để đổi được gì đó chỉ hiện
+ * trên thanh địa chỉ.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PracticeService } from '@/services/practice.service'
-import type {
-    DifficultyLevel,
-    PracticeQuestion,
-    PracticeResult,
-} from '@/types/practice.types'
-import AudioPlayer from '@/components/practice/AudioPlayer'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import {
-    Card, CardContent, CardFooter, CardHeader, CardTitle,
-} from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+import { ClipboardList, PartyPopper } from 'lucide-react'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, RotateCcw, Timer } from 'lucide-react'
+import ReviewClusterCard from '@/components/review/ReviewClusterCard'
+import { partToNumber } from '@/lib/examListening'
+import { prefetchMediaToken } from '@/lib/media'
+import { groupByTest } from '@/lib/reviewNotebook'
+import { ReviewService } from '@/services/review.service'
+import type { ReviewNotebookResponse, ReviewQuestionItem } from '@/types/review.types'
 
-type Phase = 'setup' | 'doing' | 'result'
+/** Số câu lấy mỗi lượt. Backend chặn trần 50. */
+const PAGE_SIZE = 20
 
-const PARTS = [
-    { value: 1, label: 'Part 1 — Photographs' },
-    { value: 2, label: 'Part 2 — Question-Response' },
-    { value: 3, label: 'Part 3 — Conversations' },
-    { value: 4, label: 'Part 4 — Talks' },
-]
+const EMPTY: ReviewNotebookResponse = { total: 0, byPart: [], byTest: [], matched: 0, items: [] }
 
-/** Đọc ?part=N từ URL — Dashboard Day 32 deep-link thẳng vào Part yếu. */
-function initialPartFromUrl(raw: string | null): string {
+/** testId nằm sẵn trong URL media: /api/media/tests/{testId}/... */
+const MEDIA_TEST_ID = /\/api\/media\/tests\/([0-9a-fA-F-]{36})\//
+
+/**
+ * Xin token media TRƯỚC khi render — nếu không, ảnh Part 6-7 và audio Part 1-4 nhận 401
+ * rồi im lặng không hiện.
+ *
+ * 🔴 KHÁC mọi màn khác ở một điểm: token được ký theo TỪNG ĐỀ, mà sổ tay gom câu sai từ
+ * NHIỀU đề. Màn thi chỉ cần prefetch một testId; ở đây phải quét hết danh sách và xin
+ * token cho mọi đề có mặt. Prefetch một đề thôi là ảnh của các đề còn lại vẫn trắng.
+ */
+async function prefetchMediaForItems(items: ReviewQuestionItem[]): Promise<void> {
+    const testIds = new Set<string>()
+    for (const item of items) {
+        for (const url of [item.audioUrl, item.imageUrl]) {
+            const id = url ? MEDIA_TEST_ID.exec(url)?.[1] : null
+            if (id) testIds.add(id)
+        }
+    }
+    await Promise.all([...testIds].map((id) => prefetchMediaToken(id)))
+}
+
+/** Đọc ?part=N từ URL — khối HÔM NAY deep-link thẳng vào Part yếu nhất. */
+function partFromUrl(raw: string | null): number | null {
     const n = Number(raw)
-    return PARTS.some((p) => p.value === n) ? String(n) : '1'
+    return n >= 1 && n <= 7 ? n : null
 }
 
 export default function PracticePage() {
     const [searchParams] = useSearchParams()
-    const [phase, setPhase] = useState<Phase>('setup')
-    const [part, setPart] = useState(() => initialPartFromUrl(searchParams.get('part')))
-    const [difficulty, setDifficulty] = useState<'all' | DifficultyLevel>('all')
-    const [limit, setLimit] = useState('10')
-    const [timerOn, setTimerOn] = useState(false)
-    const [secondsLeft, setSecondsLeft] = useState(0)
+    const [part, setPart] = useState<number | null>(() => partFromUrl(searchParams.get('part')))
+    const [testId, setTestId] = useState<string | null>(null)
+    const [data, setData] = useState<ReviewNotebookResponse>(EMPTY)
+    const [loading, setLoading] = useState(true)
 
-    const [questions, setQuestions] = useState<PracticeQuestion[]>([])
-    /** Phiên luyện do server cấp — bắt buộc gửi kèm khi nộp bài. */
-    const [sessionId, setSessionId] = useState<string | null>(null)
-    const [index, setIndex] = useState(0)
-    // questionId → optionId đã chọn
-    const [answers, setAnswers] = useState<Record<string, string>>({})
-    const [result, setResult] = useState<PracticeResult | null>(null)
-    const [loading, setLoading] = useState(false)
-    const [submitting, setSubmitting] = useState(false)
-
-    const current = questions[index]
-
-    // Timer đếm ngược — hết giờ tự nộp
-    useEffect(() => {
-        if (phase !== 'doing' || !timerOn || secondsLeft <= 0) return
-        const id = window.setInterval(() => {
-            setSecondsLeft(s => {
-                if (s <= 1) {
-                    window.clearInterval(id)
-                    void handleSubmit(true)
-                    return 0
-                }
-                return s - 1
-            })
-        }, 1000)
-        return () => window.clearInterval(id)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase, timerOn, secondsLeft > 0])
-
-    const answeredCount = useMemo(
-        () => questions.filter(q => answers[q.id]).length,
-        [questions, answers]
-    )
-
-    const start = async () => {
+    const load = useCallback(async () => {
         setLoading(true)
-        setResult(null)
         try {
-            const data = await PracticeService.getQuestions({
-                part: Number(part),
-                difficulty: difficulty === 'all' ? undefined : difficulty,
-                limit: Number(limit),
+            const res = await ReviewService.getQuestions({
+                part: part ?? undefined,
+                testId: testId ?? undefined,
+                take: PAGE_SIZE,
             })
-            // sessionId null = không có câu nào khớp nên server không tạo phiên
-            if (!data.sessionId || data.questions.length === 0) {
-                toast.error('Không có câu hỏi phù hợp (cần isPublished = true).')
-                return
-            }
-            setSessionId(data.sessionId)
-            setQuestions(data.questions)
-            setAnswers({})
-            setIndex(0)
-            // ~45 giây / câu nếu bật timer
-            setSecondsLeft(timerOn ? data.questions.length * 45 : 0)
-            setPhase('doing')
+            // Xin token xong mới setData: render trước rồi mới có token thì thẻ <img> đã
+            // gọi URL trần, ăn 401, và trình duyệt không tự tải lại.
+            await prefetchMediaForItems(res.items)
+            setData(res)
         } catch {
-            toast.error('Không tải được câu hỏi')
+            toast.error('Không tải được sổ tay. Thử lại sau.')
+            setData(EMPTY)
         } finally {
             setLoading(false)
         }
+    }, [part, testId])
+
+    useEffect(() => {
+        load()
+    }, [load])
+
+    const groups = useMemo(() => groupByTest(data.items), [data.items])
+    const hasFilter = part !== null || testId !== null
+
+    /**
+     * Câu vừa được gỡ — bỏ khỏi danh sách TẠI CHỖ, không gọi lại cả trang.
+     *
+     * Gọi lại thì danh sách nhảy: các câu còn lại đổi vị trí, và câu người dùng đang đọc
+     * dở biến mất khỏi tầm mắt. Xoá tại chỗ thì mọi thứ khác đứng yên.
+     */
+    const handleResolved = (questionId: string, remaining: number) => {
+        setData((d) => {
+            const gone = d.items.find((i) => i.questionId === questionId)
+            // 🔴 byPart.part là SỐ (backend ép (int)), còn item.part là CHUỖI ("Part7").
+            // So thẳng hai cái là luôn false — số trên thanh lọc sẽ không bao giờ giảm.
+            const gonePart = partToNumber(gone?.part ?? '')
+
+            return {
+                total: remaining,
+                matched: Math.max(0, d.matched - 1),
+                byPart: d.byPart.map((p) =>
+                    p.part === gonePart ? { ...p, count: Math.max(0, p.count - 1) } : p
+                ),
+                byTest: d.byTest.map((t) =>
+                    t.testId === gone?.testId ? { ...t, count: Math.max(0, t.count - 1) } : t
+                ),
+                items: d.items.filter((i) => i.questionId !== questionId),
+            }
+        })
     }
-
-    const selectOption = (questionId: string, optionId: string) => {
-        setAnswers(prev => ({ ...prev, [questionId]: optionId }))
-    }
-
-    const handleSubmit = async (fromTimer = false) => {
-        if (submitting || questions.length === 0 || !sessionId) return
-        setSubmitting(true)
-        try {
-            const payload = questions.map(q => ({
-                questionId: q.id,
-                selectedOptionId: answers[q.id] ?? null,
-            }))
-            const data = await PracticeService.submit(sessionId, payload)
-            setResult(data)
-            setPhase('result')
-            if (fromTimer) toast.message('Hết giờ — đã tự nộp bài')
-        } catch (err: any) {
-            // Hiện ĐÚNG lý do server nêu (vd "Phiên luyện tập đã nộp trước đó")
-            // thay vì câu chung chung — cùng bài học với lỗi 429 lúc đăng nhập.
-            toast.error(err?.response?.data?.error ?? 'Nộp bài thất bại')
-        } finally {
-            setSubmitting(false)
-        }
-    }
-
-    const reset = () => {
-        setPhase('setup')
-        setQuestions([])
-        // Phiên cũ đã nộp rồi, server không nhận lại — bấm "Luyện tiếp" phải xin
-        // phiên mới qua getQuestions(). Không xóa ở đây thì lần nộp sau dính
-        // "Phiên luyện tập đã nộp trước đó".
-        setSessionId(null)
-        setAnswers({})
-        setResult(null)
-        setIndex(0)
-    }
-
-    // ── Setup ─────────────────────────────────────────────
-    if (phase === 'setup') {
-        return (
-            <div className="p-6 max-w-xl space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold">Luyện nhanh — Listening (Part 1–4)</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Luyện phụ từ kho câu hỏi. Muốn làm đề full TOEIC → dùng mục <strong>Thi thử</strong>.
-                    </p>
-                </div>
-
-                <div className="space-y-4 rounded-lg border p-4">
-                    <div className="space-y-2">
-                        <Label>Part</Label>
-                        <Select value={part} onValueChange={setPart}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {PARTS.map(p => (
-                                    <SelectItem key={p.value} value={String(p.value)}>
-                                        {p.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Độ khó</Label>
-                        <Select
-                            value={difficulty}
-                            onValueChange={v => setDifficulty(v as 'all' | DifficultyLevel)}
-                        >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Tất cả</SelectItem>
-                                <SelectItem value="Easy">Dễ</SelectItem>
-                                <SelectItem value="Medium">Trung bình</SelectItem>
-                                <SelectItem value="Hard">Khó</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Số câu</Label>
-                        <Select value={limit} onValueChange={setLimit}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {[5, 10, 15, 20].map(n => (
-                                    <SelectItem key={n} value={String(n)}>{n} câu</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="timer"
-                            checked={timerOn}
-                            onCheckedChange={v => setTimerOn(v === true)}
-                        />
-                        <Label htmlFor="timer" className="flex items-center gap-1">
-                            <Timer className="w-4 h-4" /> Bật timer (~45s/câu)
-                        </Label>
-                    </div>
-
-                    <Button className="w-full" disabled={loading} onClick={start}>
-                        {loading ? 'Đang tải...' : 'Bắt đầu luyện'}
-                    </Button>
-                </div>
-            </div>
-        )
-    }
-
-    // ── Result ────────────────────────────────────────────
-    if (phase === 'result' && result) {
-        const reviewMap = new Map(result.reviews.map(r => [r.questionId, r]))
-        return (
-            <div className="p-6 space-y-6 max-w-3xl">
-                <div className="flex items-center justify-between gap-3">
-                    <div>
-                        <h1 className="text-2xl font-bold">Kết quả luyện</h1>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            Đúng {result.correctCount}/{result.totalCount}
-                            {' · '}Bỏ qua {result.skippedCount}
-                            {' · '}{result.scorePercent}%
-                        </p>
-                    </div>
-                    <Button variant="outline" onClick={reset}>
-                        <RotateCcw className="w-4 h-4 mr-2" /> Luyện lại
-                    </Button>
-                </div>
-
-                <div className="space-y-3">
-                    {questions.map((q, i) => {
-                        const rev = reviewMap.get(q.id)
-                        return (
-                            <Card key={q.id}>
-                                <CardHeader className="pb-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <CardTitle className="text-base">Câu {i + 1}</CardTitle>
-                                        <Badge variant={rev?.isCorrect ? 'default' : 'destructive'}>
-                                            {rev?.isCorrect ? 'Đúng' : 'Sai'}
-                                        </Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-2 text-sm">
-                                    <div
-                                        className="prose prose-sm max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: q.content }}
-                                    />
-                                    <p>
-                                        Đáp án đúng: <strong>{rev?.correctLabel}</strong>
-                                    </p>
-                                    <p className="text-muted-foreground">{rev?.explanation}</p>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </div>
-            </div>
-        )
-    }
-
-    // ── Doing ─────────────────────────────────────────────
-    if (!current) return null
 
     return (
-        <div className="p-6 space-y-4 max-w-3xl">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-xl font-bold">
-                        Câu {index + 1}/{questions.length}
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Đã chọn {answeredCount}/{questions.length}
-                        {timerOn && (
-                            <span className="ml-2 font-medium text-orange-600">
-                                ⏱ {Math.floor(secondsLeft / 60)}:
-                                {String(secondsLeft % 60).padStart(2, '0')}
-                            </span>
-                        )}
+        <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-[#eef2f6] to-white px-4 py-8">
+            {/* Rộng 88rem (1408px), không phải 3xl/5xl.
+                Cụm Part 6-7 vẽ hai cột, và cột trái phải chứa được ảnh bài đọc ở đúng cỡ
+                thật của nó — ảnh rộng nhất trong kho là 1143px, nhân hệ số 0.7 ra 800px.
+                Container hẹp hơn thì `max-w-full` lại bóp ảnh xuống, tức là quay về đúng
+                cái cỡ chữ nhỏ đang phải soi.
+                `w-full` vẫn giữ nên màn hẹp hơn thì tự co, đây chỉ là trần. */}
+            <div className="mx-auto w-full max-w-[88rem] space-y-4">
+                <header className="space-y-2">
+                    <div className="inline-flex items-center gap-2 text-[#1a4d7c]">
+                        <ClipboardList className="h-7 w-7" />
+                        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                            Sổ tay lỗi sai
+                        </h1>
+                    </div>
+                    {/* Bó dòng mô tả lại: trang rộng 1408px mà để câu này trải hết bề
+                        ngang thì mắt đọc xong không tìm được đầu dòng sau. */}
+                    <p className="max-w-2xl text-sm text-muted-foreground">
+                        Những câu bạn từng chọn sai, xếp theo đề. Trả lời đúng{' '}
+                        <strong>2 lần liên tiếp</strong> thì câu tự rời sổ tay.
                     </p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={reset}>Thoát</Button>
-                    <Button disabled={submitting} onClick={() => handleSubmit(false)}>
-                        {submitting ? 'Đang nộp...' : 'Nộp bài'}
-                    </Button>
-                </div>
-            </div>
+                </header>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex gap-2">
-                        <Badge variant="secondary">{current.part}</Badge>
-                        <Badge variant="outline">{current.difficulty}</Badge>
+                {/* ── Thanh lọc ──
+                    Số đếm lấy từ `byPart`/`byTest` của TOÀN BỘ sổ tay, không phải của trang
+                    hiện tại — nên lọc sang Part 5 rồi vẫn thấy và quay lại được chỗ khác. */}
+                {(data.byTest.length > 1 || data.byPart.length > 0) && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-3">
+                        {/* Một đề thì không có gì để phân biệt — giấu cả hàng đi cho đỡ rối. */}
+                        {data.byTest.length > 1 && (
+                            <FilterRow label="Đề">
+                                <FilterChip
+                                    active={testId === null}
+                                    onClick={() => setTestId(null)}
+                                    label="Mọi đề"
+                                    count={data.total}
+                                />
+                                {data.byTest.map((t) => (
+                                    <FilterChip
+                                        key={t.testId}
+                                        active={testId === t.testId}
+                                        onClick={() => setTestId(t.testId)}
+                                        label={t.title}
+                                        count={t.count}
+                                    />
+                                ))}
+                            </FilterRow>
+                        )}
+
+                        {data.byPart.length > 0 && (
+                            <FilterRow label="Part">
+                                <FilterChip
+                                    active={part === null}
+                                    onClick={() => setPart(null)}
+                                    label="Mọi Part"
+                                    count={data.total}
+                                />
+                                {data.byPart.map((p) => (
+                                    <FilterChip
+                                        key={p.part}
+                                        active={part === p.part}
+                                        onClick={() => setPart(p.part)}
+                                        label={`Part ${p.part}`}
+                                        count={p.count}
+                                    />
+                                ))}
+                            </FilterRow>
+                        )}
                     </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {/* Part 1: ảnh */}
-                    {current.imageUrl && (
-                        <img
-                            src={current.imageUrl}
-                            alt="Part 1"
-                            className="max-h-72 rounded-lg border object-contain mx-auto"
-                        />
-                    )}
+                )}
 
-                    {/* Part 1–4: audio */}
-                    <AudioPlayer src={current.audioUrl} />
-
-                    <div
-                        className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: current.content }}
+                {loading ? (
+                    <p className="py-16 text-center text-sm text-muted-foreground">Đang tải…</p>
+                ) : data.items.length === 0 ? (
+                    <EmptyState
+                        hasFilter={hasFilter}
+                        onClear={() => {
+                            setPart(null)
+                            setTestId(null)
+                        }}
                     />
+                ) : (
+                    <div className="space-y-5">
+                        {groups.map((g) => (
+                            <section key={g.testId ?? 'unknown'} className="space-y-3">
+                                {/* Tên đề DÍNH trên đỉnh khi cuộn (thanh điều hướng cao h-16).
+                                    Một ảnh Part 7 chiếm gần trọn màn hình, nên nếu tên đề cuộn
+                                    mất thì giữa chừng lại không biết mình đang ở đề nào — đúng
+                                    cái làm người dùng "tìm khá lâu". */}
+                                <h2 className="sticky top-16 z-20 -mx-1 flex items-center justify-between gap-2 rounded-lg bg-[#eef2f6]/95 px-3 py-2 text-sm font-bold text-[#1a4d7c] backdrop-blur">
+                                    <span className="truncate">{g.title}</span>
+                                    <span className="shrink-0 text-xs font-medium tabular-nums text-slate-500">
+                                        {g.clusters.reduce((n, c) => n + c.items.length, 0)} câu
+                                    </span>
+                                </h2>
 
-                    <div className="space-y-2">
-                        {current.options.map(opt => {
-                            const selected = answers[current.id] === opt.id
-                            return (
-                                <button
-                                    key={opt.id}
-                                    type="button"
-                                    onClick={() => selectOption(current.id, opt.id)}
-                                    className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                        selected
-                                            ? 'border-blue-600 bg-blue-50'
-                                            : 'hover:bg-gray-50'
-                                    }`}
-                                >
-                                    <strong className="mr-2">{opt.label}.</strong>
-                                    <span dangerouslySetInnerHTML={{ __html: opt.content }} />
-                                </button>
-                            )
-                        })}
+                                {g.clusters.map((c) => (
+                                    <ReviewClusterCard
+                                        key={c.key}
+                                        cluster={c}
+                                        onResolved={handleResolved}
+                                    />
+                                ))}
+                            </section>
+                        ))}
+
+                        {/* Backend trả tối đa PAGE_SIZE câu một lượt. Nói rõ còn bao nhiêu
+                            thay vì im lặng cắt — im lặng thì người dùng tưởng đã hết.
+                            Dùng `matched` chứ không phải `total`: đang lọc Part 7 mà so với
+                            tổng 28 câu thì con số hiện ra là sai. */}
+                        {data.matched > data.items.length && (
+                            <p className="py-4 text-center text-sm text-muted-foreground">
+                                Đang hiện {data.items.length} trong {data.matched} câu. Gỡ bớt rồi
+                                tải lại, hoặc lọc theo đề để xem phần còn lại.
+                            </p>
+                        )}
                     </div>
-                </CardContent>
-                <CardFooter className="justify-between">
-                    <Button
-                        variant="outline"
-                        disabled={index === 0}
-                        onClick={() => setIndex(i => i - 1)}
-                    >
-                        <ChevronLeft className="w-4 h-4 mr-1" /> Trước
-                    </Button>
-                    <Button
-                        variant="outline"
-                        disabled={index >= questions.length - 1}
-                        onClick={() => setIndex(i => i + 1)}
-                    >
-                        Sau <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                </CardFooter>
-            </Card>
+                )}
+            </div>
         </div>
+    )
+}
+
+/**
+ * Màn rỗng.
+ *
+ * Hai trường hợp rất khác nhau, và gộp lại là sai: "sổ tay sạch" là THÀNH TÍCH đáng
+ * mừng, còn "lọc chỗ này không có câu nào" chỉ là một bộ lọc chọn hụt.
+ */
+function EmptyState({ hasFilter, onClear }: { hasFilter: boolean; onClear: () => void }) {
+    if (hasFilter) {
+        return (
+            <div className="rounded-xl border border-slate-200 bg-white py-14 text-center">
+                <p className="text-sm text-muted-foreground">
+                    Không còn câu nào chưa gỡ khớp bộ lọc này.
+                </p>
+                <button
+                    type="button"
+                    onClick={onClear}
+                    className="mt-2 text-sm font-medium text-[#1a4d7c] underline underline-offset-2"
+                >
+                    Xem tất cả
+                </button>
+            </div>
+        )
+    }
+
+    return (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 py-14 text-center">
+            <PartyPopper className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
+            <p className="font-semibold text-emerald-900">Sổ tay đang sạch</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-emerald-800/80">
+                Chưa có câu nào chờ luyện lại. Thi thêm một đề để tìm ra điểm yếu tiếp theo.
+            </p>
+        </div>
+    )
+}
+
+/**
+ * Một hàng lọc, có nhãn ở đầu.
+ *
+ * Có nhãn vì giờ có HAI hàng chip trông giống hệt nhau, mỗi hàng đều mở đầu bằng một
+ * chip "mọi …". Không nói rõ hàng nào lọc gì thì hai hàng chip cạnh nhau còn khó đọc
+ * hơn là không có bộ lọc.
+ */
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-9 shrink-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                {label}
+            </span>
+            {children}
+        </div>
+    )
+}
+
+function FilterChip({
+    active,
+    onClick,
+    label,
+    count,
+}: {
+    active: boolean
+    onClick: () => void
+    label: string
+    count: number
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={label}
+            className={`inline-flex max-w-[15rem] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                active
+                    ? 'border-[#1a4d7c] bg-[#1a4d7c] text-white'
+                    : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+        >
+            <span className="truncate">{label}</span>
+            <span className={`tabular-nums ${active ? 'text-white/80' : 'text-slate-400'}`}>
+                {count}
+            </span>
+        </button>
     )
 }

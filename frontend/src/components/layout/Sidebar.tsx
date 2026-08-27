@@ -9,7 +9,7 @@ import { navFor } from '@/lib/roles'
  * Sidebar cho CM/Admin (User dùng header ngang — xem UserTopBar).
  *
  * ⚠️ TRƯỚC ĐÂY file này HARDCODE 9 mục cho MỌI vai, bỏ qua roles.ts hoàn toàn. Hậu quả:
- * Admin đăng nhập thấy "Thi thử / Lịch sử thi / Tiến độ thi / Luyện nhanh" — toàn bộ là
+ * Admin đăng nhập thấy "Thi thử / Lịch sử thi / Tiến độ thi / Sổ tay lỗi sai" — toàn bộ là
  * endpoint [Authorize(Roles="User")] nên bấm vào ăn 403. Menu hứa những thứ tài khoản
  * đó không có quyền dùng.
  *

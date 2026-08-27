@@ -16,9 +16,11 @@ public interface IReviewNotebookService
     /// Danh sách câu chưa gỡ.
     /// </summary>
     /// <param name="part">Lọc theo Part 1–7. null = tất cả.</param>
+    /// <param name="testId">Lọc theo đề. null = mọi đề.</param>
     /// <param name="skip">Bỏ qua bao nhiêu câu — phân trang.</param>
     /// <param name="take">Lấy bao nhiêu câu.</param>
-    Task<Result<ReviewNotebookResponse>> GetAsync(Guid userId, int? part, int skip, int take);
+    Task<Result<ReviewNotebookResponse>> GetAsync(
+        Guid userId, int? part, Guid? testId, int skip, int take);
 
     /// <summary>
     /// Ghi lại một lần trả lời trong chế độ luyện lại.

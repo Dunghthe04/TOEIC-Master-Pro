@@ -82,7 +82,7 @@ export const LANDING_NAV: { label: string; to: string; requireLogin: boolean }[]
     // dám bấm vào "Thi thử" (một lần thi mất 2 tiếng).
     { label: 'TOEIC là gì?', to: '/toeic-guide', requireLogin: false },
     { label: 'Thi thử', to: '/mock-test', requireLogin: true },
-    { label: 'Luyện nhanh', to: '/practice', requireLogin: true },
+    { label: 'Sổ tay lỗi sai', to: '/practice', requireLogin: true },
     { label: 'Từ vựng', to: '/vocabulary', requireLogin: true },
     { label: 'Tiến độ', to: '/mock-test/progress', requireLogin: true },
     // Lịch thi TOEIC là thông tin công khai — GET /api/examschedule đã [AllowAnonymous]
