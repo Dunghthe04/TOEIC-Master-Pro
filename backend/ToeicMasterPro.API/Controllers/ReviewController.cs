@@ -27,16 +27,18 @@ public class ReviewController : ControllerBase
         _currentUser = currentUser;
     }
 
-    /// <summary>Danh sách câu chưa gỡ, kèm số đếm theo Part để dựng thanh lọc.</summary>
+    /// <summary>Danh sách câu chưa gỡ, kèm số đếm theo Part và theo đề để dựng thanh lọc.</summary>
     /// <param name="part">Lọc theo Part 1–7. Bỏ trống = tất cả.</param>
+    /// <param name="testId">Lọc theo một đề. Bỏ trống = mọi đề.</param>
     [HttpGet("questions")]
     public async Task<IActionResult> GetQuestions(
-        [FromQuery] int? part, [FromQuery] int skip = 0, [FromQuery] int take = 20)
+        [FromQuery] int? part, [FromQuery] Guid? testId,
+        [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
         var userId = RequireUserId();
         if (userId is null) return Unauthorized();
 
-        var result = await _service.GetAsync(userId.Value, part, skip, take);
+        var result = await _service.GetAsync(userId.Value, part, testId, skip, take);
         return result.ToActionResult(this);
     }
 

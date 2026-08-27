@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import {
     BarChart3,
     BookMarked,
-    BookOpen,
+    NotebookPen,
     ClipboardList,
     History,
     LayoutDashboard,
@@ -206,7 +206,7 @@ const QUICK_LINKS = [
     { to: '/mock-test', label: 'Thi thử', icon: ClipboardList },
     { to: '/mock-test/history', label: 'Lịch sử thi', icon: History },
     { to: '/mock-test/progress', label: 'Tiến độ thi', icon: BarChart3 },
-    { to: '/practice', label: 'Luyện nhanh', icon: BookOpen },
+    { to: '/practice', label: 'Sổ tay lỗi sai', icon: NotebookPen },
     { to: '/vocabulary', label: 'Từ vựng', icon: BookMarked },
 ] as const
 

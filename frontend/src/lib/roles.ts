@@ -9,7 +9,7 @@
  */
 import type { LucideIcon } from 'lucide-react'
 import {
-    LayoutDashboard, ClipboardList, History, TrendingUp, BookOpen, BookMarked,
+    LayoutDashboard, ClipboardList, History, TrendingUp, BookOpen, BookMarked, NotebookPen,
     Calendar, FileText, HelpCircle, Upload, Users, BarChart3, Home, Activity,
     ScrollText, GraduationCap,
 } from 'lucide-react'
@@ -69,7 +69,10 @@ export const USER_NAV: NavItem[] = [
         label: 'Học tập',
         icon: BookOpen,
         children: [
-            { to: '/practice', label: 'Luyện nhanh', icon: BookOpen },
+            // Tên phải khớp tiêu đề trang: /practice giờ là SỔ TAY LỖI SAI, không còn
+            // là màn tự chọn Part/độ khó. Menu gọi một tên, trang hiện một tên khác thì
+            // người dùng tưởng bấm nhầm.
+            { to: '/practice', label: 'Sổ tay lỗi sai', icon: NotebookPen },
             { to: '/vocabulary', label: 'Từ vựng', icon: BookMarked },
             // Người đã đăng nhập phần lớn đã biết TOEIC là gì, nên xếp vào dropdown
             // thay vì chiếm một mục trên thanh ngang (7 mục phẳng đã chật ở 1366px).
@@ -94,7 +97,7 @@ export const CM_NAV: NavItem[] = [
  * Admin là "sếp": xem tổng quan + quản account. KHÔNG soạn nội dung, KHÔNG thi.
  * Backend chặn thật: DELETE /api/question với token Admin → 403.
  *
- * ⚠️ KHÔNG thêm các mục của User (Thi thử, Luyện nhanh, Tiến độ) vào đây: những
+ * ⚠️ KHÔNG thêm các mục của User (Thi thử, Sổ tay lỗi sai, Tiến độ) vào đây: những
  * endpoint đó là [Authorize(Roles="User")] nên Admin bấm vào chỉ nhận 403. Menu không
  * được hứa thứ tài khoản đó không dùng được.
  */
