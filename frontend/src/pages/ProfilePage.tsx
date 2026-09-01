@@ -11,7 +11,7 @@
  * ([Authorize] trần — cả ba vai đều xem/sửa profile của chính mình).
  */
 import { useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Camera, Flame, Loader2, Target, Trophy, Zap } from 'lucide-react'
@@ -63,7 +63,8 @@ export default function ProfilePage() {
 
     const { register, handleSubmit, reset, watch, setValue,
             formState: { errors, isSubmitting, isDirty } } = useForm<ProfileForm>({
-        resolver: zodResolver(schema),
+        // z.coerce.number() làm input type = unknown; ép Resolver theo output để khớp useForm
+        resolver: zodResolver(schema) as Resolver<ProfileForm>,
         defaultValues: { fullName: '', targetScore: 700, examDate: '' },
     })
 

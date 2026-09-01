@@ -219,7 +219,7 @@ export default function AdminOverviewPage() {
                                     <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
                                     <Tooltip
                                         contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                                        formatter={(v: number) => [`${v} lượt`, 'Số lượt']}
+                                        formatter={(value) => [`${value ?? 0} lượt`, 'Số lượt']}
                                         labelFormatter={l => `Dải điểm ${l}`}
                                     />
                                     <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} />

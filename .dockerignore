@@ -1,0 +1,11 @@
+.git
+.gitignore
+**/bin
+**/obj
+**/node_modules
+frontend/dist
+**/.vs
+**/*.user
+.env
+protected-media
+docs

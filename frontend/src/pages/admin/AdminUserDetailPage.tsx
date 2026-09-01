@@ -206,7 +206,7 @@ export default function AdminUserDetailPage() {
                                             học viên có thang trục khác nhau, nhìn tưởng ngang nhau */}
                                         <YAxis domain={[0, 990]} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                                         <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                                            formatter={(v: number) => [`${v} điểm`, 'Tổng điểm']} />
+                                            formatter={(value) => [`${value ?? 0} điểm`, 'Tổng điểm']} />
                                         <ReferenceLine y={overview.targetScore} stroke="#f97316"
                                             strokeDasharray="4 4" />
                                         <Line type="monotone" dataKey="score" stroke="#2563eb"

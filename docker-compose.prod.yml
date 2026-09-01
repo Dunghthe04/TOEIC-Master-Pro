@@ -41,9 +41,12 @@ services:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=${DB_PASSWORD:?DB_PASSWORD chua duoc dat trong .env}
       - MSSQL_PID=Express
+    ports:
+      # Chỉ 127.0.0.1 — SSMS/`dotnet ef` trên máy khi test prod local.
+      # API trong Docker vẫn gọi sqlserver:1433, không đi cổng này.
+      - "127.0.0.1:14333:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
-    # KHÔNG có `ports` — api gọi qua tên service `sqlserver` trong mạng nội bộ Docker
     healthcheck:
       # Dùng :? ở đây nữa (không phải ${DB_PASSWORD} trần) để thông báo lỗi nhất quán —
       # biến trần chỉ ra warning "Defaulting to a blank string", dễ tưởng là chạy được.
@@ -122,6 +125,12 @@ services:
       - ContentManagerSeed__Password=${CM_PASSWORD:?CM_PASSWORD chua duoc dat trong .env}
       - ContentManagerSeed__FullName=Content Manager
 
+      - Frontend__BaseUrl=${FRONTEND_BASE_URL:?FRONTEND_BASE_URL chua duoc dat trong .env}
+      - Smtp__FromEmail=${SMTP_FROM_EMAIL:?SMTP_FROM_EMAIL chua duoc dat trong .env}
+      - Smtp__Username=${SMTP_USERNAME:?SMTP_USERNAME chua duoc dat trong .env}
+      - Smtp__Password=${SMTP_PASSWORD:?SMTP_PASSWORD chua duoc dat trong .env}
+      - GoogleAuth__ClientId=${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID chua duoc dat trong .env}
+
     volumes:
       # BẮT BUỘC: không có volume này thì mọi audio/ảnh đã upload MẤT SẠCH mỗi lần deploy lại
        - media:/app/protected-media      # ← sửa từ /app/wwwroot/uploads
@@ -147,10 +156,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro          # ← tạo ở Day 53
-      - certbot_certs:/etc/letsencrypt:ro            # ← Certbot, Day 54
-      - certbot_www:/var/www/certbot:ro
+    # volumes:
+      # - ./nginx/conf.d:/etc/nginx/conf.d:ro          # ← tạo ở Day 53
+      # - certbot_certs:/etc/letsencrypt:ro            # ← Certbot, Day 54
+      # - certbot_www:/var/www/certbot:ro
     depends_on:
       - api
     restart: unless-stopped
